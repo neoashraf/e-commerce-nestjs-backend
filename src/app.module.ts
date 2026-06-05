@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './domains/auth/auth.module';
+import { CatalogModule } from './domains/catalog/catalog.module';
 import { NotificationsModule } from './domains/notifications/notifications.module';
 import { RbacModule } from './domains/rbac/rbac.module';
 import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
@@ -31,6 +32,7 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
     AuthModule,
     NotificationsModule,
     RbacModule,
+    CatalogModule,
   ],
   controllers: [AppController],
   providers: [
