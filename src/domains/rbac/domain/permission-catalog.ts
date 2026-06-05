@@ -36,6 +36,9 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   ...crud('CAT', 'catalog.attribute', 'attributes'),
   ...crud('CAT', 'catalog.attribute_family', 'attribute families'),
 
+  // CART — cart & checkout settings (delivery zones, COD/geo configuration)
+  { code: 'cart.settings.manage', module: 'CART', description: 'Manage delivery zones, charges, and geo overrides' },
+
   // INV — inventory (MVP stock slice)
   { code: 'inventory.stock.read', module: 'INV', description: 'View stock levels' },
   { code: 'inventory.stock.update', module: 'INV', description: 'Set/adjust stock and low-stock threshold' },
@@ -133,8 +136,8 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
   },
   {
     name: 'Catalog Manager',
-    description: 'Manages catalog, inventory, and content.',
-    permissions: grant({ CAT: 'full', INV: 'full', CMS: 'full', RPT: 'read', DASH: 'full' }),
+    description: 'Manages catalog, inventory, content, and delivery/cart settings.',
+    permissions: grant({ CAT: 'full', INV: 'full', CMS: 'full', CART: 'full', RPT: 'read', DASH: 'full' }),
   },
   {
     name: 'Order Manager',
