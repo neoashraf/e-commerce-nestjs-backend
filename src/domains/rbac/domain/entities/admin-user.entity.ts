@@ -74,4 +74,29 @@ export class AdminUser {
     this.twofaChannel = null;
     this.updatedAt = now;
   }
+
+  /** Reassign role (FR-RBAC-012). Floor/self-action invariants are enforced by the caller. */
+  changeRole(roleId: string, now: Date): void {
+    this.roleId = roleId;
+    this.updatedAt = now;
+  }
+
+  /** Suspend (FR-RBAC-013): block future login; caller revokes sessions. */
+  suspend(now: Date): void {
+    this.status = AdminUserStatus.SUSPENDED;
+    this.updatedAt = now;
+  }
+
+  /** Reactivate a suspended account (FR-RBAC-014). */
+  reactivate(now: Date): void {
+    this.status = AdminUserStatus.ACTIVE;
+    this.updatedAt = now;
+  }
+
+  /** Soft-delete (FR-RBAC-015): excluded from default lists, retained for audit. */
+  softDelete(now: Date): void {
+    this.status = AdminUserStatus.DELETED;
+    this.deletedAt = now;
+    this.updatedAt = now;
+  }
 }
