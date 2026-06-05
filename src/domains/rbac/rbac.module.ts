@@ -47,6 +47,7 @@ import { GetRoleUseCase } from './application/use-cases/get-role.use-case';
 import { CreateRoleUseCase } from './application/use-cases/create-role.use-case';
 import { UpdateRoleUseCase } from './application/use-cases/update-role.use-case';
 import { DeleteRoleUseCase } from './application/use-cases/delete-role.use-case';
+import { ListAuditUseCase } from './application/use-cases/list-audit.use-case';
 
 // infrastructure
 import { rbacConfigProvider } from './infrastructure/config/rbac-config.provider';
@@ -75,6 +76,7 @@ import { AdminMeController } from './presentation/controllers/admin-me.controlle
 import { AdminUsersController } from './presentation/controllers/admin-users.controller';
 import { RolesController } from './presentation/controllers/roles.controller';
 import { PermissionsController } from './presentation/controllers/permissions.controller';
+import { AuditController } from './presentation/controllers/audit.controller';
 import { AdminJwtStrategy } from './presentation/strategies/admin-jwt.strategy';
 import { JwtAdminGuard } from './presentation/guards/jwt-admin.guard';
 import { PermissionsGuard } from './presentation/guards/permissions.guard';
@@ -107,6 +109,7 @@ import { PermissionsGuard } from './presentation/guards/permissions.guard';
     AdminUsersController,
     RolesController,
     PermissionsController,
+    AuditController,
   ],
   providers: [
     rbacConfigProvider,
@@ -146,6 +149,7 @@ import { PermissionsGuard } from './presentation/guards/permissions.guard';
     CreateRoleUseCase,
     UpdateRoleUseCase,
     DeleteRoleUseCase,
+    ListAuditUseCase,
     AdminJwtStrategy,
     JwtAdminGuard,
     PermissionsGuard,
