@@ -33,5 +33,6 @@ export const authConfigProvider: Provider = {
     emailVerifyResendCooldownSeconds: Number(
       config.get<string>('EMAIL_VERIFY_RESEND_COOLDOWN') ?? 60,
     ),
+    passwordResetTtlSeconds: parseDurationToSeconds(config.get<string>('PASSWORD_RESET_TTL'), 1_800),
   }),
 };

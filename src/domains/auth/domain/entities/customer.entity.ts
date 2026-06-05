@@ -161,4 +161,10 @@ export class Customer {
     this.emailVerified = true;
     this.updatedAt = now;
   }
+
+  /** Set (or reset) the password hash (FR-AUTH-030/033). Callers revoke sessions separately. */
+  setPassword(passwordHash: string, now: Date): void {
+    this.passwordHash = passwordHash;
+    this.updatedAt = now;
+  }
 }

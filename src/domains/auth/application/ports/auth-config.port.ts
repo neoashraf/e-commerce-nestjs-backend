@@ -14,6 +14,8 @@ export interface AuthConfig {
   emailVerifyTtlSeconds: number;
   /** Cooldown between verification-email resends, in seconds (AC4). */
   emailVerifyResendCooldownSeconds: number;
+  /** Password-reset link lifetime in seconds (FR-AUTH-033, default 30 min). */
+  passwordResetTtlSeconds: number;
 }
 
 export const AUTH_CONFIG = Symbol('AUTH_CONFIG');

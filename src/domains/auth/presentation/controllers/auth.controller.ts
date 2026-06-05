@@ -20,6 +20,8 @@ import { LogoutUseCase } from '../../application/use-cases/logout.use-case';
 import { RegisterWithEmailUseCase } from '../../application/use-cases/register-with-email.use-case';
 import { LoginWithEmailUseCase } from '../../application/use-cases/login-with-email.use-case';
 import { VerifyEmailUseCase } from '../../application/use-cases/verify-email.use-case';
+import { RequestPasswordResetUseCase } from '../../application/use-cases/request-password-reset.use-case';
+import { ResetPasswordUseCase } from '../../application/use-cases/reset-password.use-case';
 import { RequestOtpDto } from '../dto/request-otp.dto';
 import { VerifyOtpDto } from '../dto/verify-otp.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
@@ -27,6 +29,9 @@ import { LogoutDto } from '../dto/logout.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
+import { MessageResponseDto } from '../dto/message-response.dto';
 import {
   LoginResponseDto,
   OtpRequestResponseDto,
@@ -47,6 +52,8 @@ export class AuthController {
     private readonly registerWithEmailUseCase: RegisterWithEmailUseCase,
     private readonly loginWithEmailUseCase: LoginWithEmailUseCase,
     private readonly verifyEmailUseCase: VerifyEmailUseCase,
+    private readonly requestPasswordResetUseCase: RequestPasswordResetUseCase,
+    private readonly resetPasswordUseCase: ResetPasswordUseCase,
   ) {}
 
   @Post('otp/request')
@@ -153,6 +160,29 @@ export class AuthController {
   async verifyEmail(@Body() dto: VerifyEmailDto): Promise<VerifyEmailResponseDto> {
     const result = await this.verifyEmailUseCase.execute({ token: dto.token });
     return { email_verified: result.emailVerified };
+  }
+
+  @Post('password/forgot')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Request a password-reset email (always returns 200)' })
+  @ApiOkResponse({ type: MessageResponseDto })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<MessageResponseDto> {
+    await this.requestPasswordResetUseCase.execute({ email: dto.email });
+    // Generic response regardless of whether the email exists (anti-enumeration, FR-AUTH-033).
+    return { message: 'If the email exists, a reset link has been sent.' };
+  }
+
+  @Post('password/reset')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Reset password with a token; revokes all sessions' })
+  @ApiOkResponse({ type: MessageResponseDto })
+  @ApiBadRequestResponse({ description: 'Weak password' })
+  @ApiGoneResponse({ description: 'Reset token expired or already used' })
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<MessageResponseDto> {
+    await this.resetPasswordUseCase.execute({ token: dto.token, newPassword: dto.new_password });
+    return { message: 'Password updated. All sessions have been signed out.' };
   }
 
   @Post('token/refresh')
