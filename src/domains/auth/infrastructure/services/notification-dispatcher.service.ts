@@ -22,7 +22,7 @@ export class NotificationDispatcherService implements INotificationDispatcher {
   constructor(private readonly config: ConfigService) {}
 
   async dispatchOtp(command: DispatchOtpCommand): Promise<void> {
-    const eventType = command.purpose === 'register' ? 'otp.register' : 'otp.login';
+    const eventType = `otp.${command.purpose}`;
     const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
 
     if (!baseUrl) {

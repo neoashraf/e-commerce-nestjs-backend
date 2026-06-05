@@ -167,4 +167,57 @@ export class Customer {
     this.passwordHash = passwordHash;
     this.updatedAt = now;
   }
+
+  /** Update editable profile fields (FR-AUTH-040). Only provided fields change. */
+  updateProfile(
+    fields: { fullName?: string; gender?: Gender | null; dateOfBirth?: Date | null },
+    now: Date,
+  ): void {
+    if (fields.fullName !== undefined) this.fullName = fields.fullName;
+    if (fields.gender !== undefined) this.gender = fields.gender;
+    if (fields.dateOfBirth !== undefined) this.dateOfBirth = fields.dateOfBirth;
+    this.updatedAt = now;
+  }
+
+  /** Begin an email change (FR-AUTH-041): store the new address but require re-verification. */
+  changeEmailPending(email: string, now: Date): void {
+    this.email = email;
+    this.emailVerified = false;
+    this.updatedAt = now;
+  }
+
+  /** Replace the phone after OTP verification of the NEW number (FR-AUTH-042). */
+  setPhone(phone: string, now: Date): void {
+    this.phone = phone;
+    this.phoneVerified = true;
+    this.updatedAt = now;
+  }
+
+  /** Update promotional opt-ins (FR-AUTH-060/061). Transactional messages are unaffected. */
+  updatePromoPreferences(prefs: { sms?: boolean; email?: boolean }, now: Date): void {
+    if (prefs.sms !== undefined) this.promoSmsOptIn = prefs.sms;
+    if (prefs.email !== undefined) this.promoEmailOptIn = prefs.email;
+    this.updatedAt = now;
+  }
+
+  /**
+   * Soft-delete + anonymize (FR-AUTH-080/081, BR-AUTH-9): clears PII and frees the
+   * phone/email for re-registration (the active-uniqueness indexes exclude soft-deleted
+   * rows) while the row itself is retained so historical orders keep their FK.
+   */
+  anonymizeAndSoftDelete(now: Date): void {
+    this.fullName = 'Deleted User';
+    this.email = null;
+    this.phone = '';
+    this.passwordHash = null;
+    this.gender = null;
+    this.dateOfBirth = null;
+    this.phoneVerified = false;
+    this.emailVerified = false;
+    this.promoSmsOptIn = false;
+    this.promoEmailOptIn = false;
+    this.status = CustomerStatus.DELETED;
+    this.deletedAt = now;
+    this.updatedAt = now;
+  }
 }
