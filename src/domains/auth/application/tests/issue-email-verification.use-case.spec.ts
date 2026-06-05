@@ -19,6 +19,7 @@ const config: AuthConfig = {
   loginLockoutMinutes: 15,
   emailVerifyTtlSeconds: 86_400,
   emailVerifyResendCooldownSeconds: 60,
+  passwordResetTtlSeconds: 1_800,
 };
 
 describe('Auth — IssueEmailVerificationUseCase', () => {

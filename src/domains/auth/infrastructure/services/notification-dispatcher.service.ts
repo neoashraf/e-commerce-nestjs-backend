@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   DispatchEmailVerificationCommand,
   DispatchOtpCommand,
+  DispatchPasswordResetCommand,
   INotificationDispatcher,
 } from '../../application/ports/notification-dispatcher.port';
 
@@ -88,8 +89,49 @@ export class NotificationDispatcherService implements INotificationDispatcher {
     }
   }
 
+  async dispatchPasswordReset(command: DispatchPasswordResetCommand): Promise<void> {
+    const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
+    const resetLink = this.buildResetLink(command.token);
+
+    if (!baseUrl) {
+      // DEV stub — NOTIF not deployed yet; log the link so the flow is testable locally.
+      this.logger.warn(`[DEV PASSWORD RESET] ${command.email} link=${resetLink}`);
+      return;
+    }
+
+    const token = this.config.get<string>('NOTIF_SERVICE_TOKEN');
+    const res = await fetch(`${baseUrl}/api/v1/internal/notifications/dispatch`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        event_type: 'auth.password_reset',
+        locale: 'bn',
+        recipient: { email: command.email },
+        channels: ['email'],
+        variables: {
+          name: command.fullName,
+          reset_link: resetLink,
+          ttl_minutes: command.ttlMinutes,
+        },
+        idempotency_key: `auth.password_reset:${command.email}:${command.token.slice(0, 12)}`,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`NOTIF password-reset dispatch failed with status ${res.status}`);
+    }
+  }
+
   private buildVerifyLink(token: string): string {
     const base = this.config.get<string>('STOREFRONT_URL') ?? 'http://localhost:3000';
     return `${base.replace(/\/$/, '')}/verify-email?token=${token}`;
+  }
+
+  private buildResetLink(token: string): string {
+    const base = this.config.get<string>('STOREFRONT_URL') ?? 'http://localhost:3000';
+    return `${base.replace(/\/$/, '')}/reset-password?token=${token}`;
   }
 }
