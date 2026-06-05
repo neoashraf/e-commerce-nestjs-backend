@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RbacModule } from '../rbac/rbac.module';
+import { InventoryModule } from '../inventory/inventory.module';
 import { ATTRIBUTE_REPOSITORY } from './domain/repositories/attribute.repository.interface';
 import { ATTRIBUTE_FAMILY_REPOSITORY } from './domain/repositories/attribute-family.repository.interface';
 import { CATEGORY_REPOSITORY } from './domain/repositories/category.repository.interface';
@@ -48,15 +49,19 @@ import { CategoriesPublicController } from './presentation/controllers/categorie
 import { ProductsController } from './presentation/controllers/products.controller';
 import { ProductMediaController } from './presentation/controllers/product-media.controller';
 import { VariantsController } from './presentation/controllers/variants.controller';
+import { ProductDetailController } from './presentation/controllers/product-detail.controller';
 import { ProductsService } from './application/services/products.service';
 import { ProductSupportService } from './application/services/product-support.service';
 import { ProductMediaService } from './application/services/product-media.service';
 import { ProductPublishValidator } from './application/services/product-publish.validator';
 import { VariantsService } from './application/services/variants.service';
+import { ProductDetailService } from './application/services/product-detail.service';
 import { INVENTORY_QTY_PORT } from './application/ports/inventory-qty.port';
 import { PRODUCT_VARIANT_PUBLISH_PORT } from './application/ports/product-variant-publish.port';
+import { INVENTORY_STATUS_PORT } from './application/ports/inventory-status.port';
 import { InventoryQtyAdapter } from './infrastructure/adapters/inventory-qty.adapter';
 import { VariantPublishAdapter } from './infrastructure/adapters/variant-publish.adapter';
+import { InventoryStatusAdapter } from './infrastructure/adapters/inventory-status.adapter';
 
 /**
  * Catalog domain (CAT). Slices so far: the attribute system (Attribute + AttributeOption) and
@@ -69,6 +74,7 @@ import { VariantPublishAdapter } from './infrastructure/adapters/variant-publish
 @Module({
   imports: [
     RbacModule,
+    InventoryModule,
     TypeOrmModule.forFeature([
       AttributeOrmEntity,
       AttributeOptionOrmEntity,
@@ -96,6 +102,7 @@ import { VariantPublishAdapter } from './infrastructure/adapters/variant-publish
     ProductsController,
     ProductMediaController,
     VariantsController,
+    ProductDetailController,
   ],
   providers: [
     { provide: ATTRIBUTE_REPOSITORY, useClass: TypeOrmAttributeRepository },
@@ -123,8 +130,10 @@ import { VariantPublishAdapter } from './infrastructure/adapters/variant-publish
     ProductMediaService,
     ProductPublishValidator,
     VariantsService,
+    ProductDetailService,
     { provide: INVENTORY_QTY_PORT, useClass: InventoryQtyAdapter },
     { provide: PRODUCT_VARIANT_PUBLISH_PORT, useClass: VariantPublishAdapter },
+    { provide: INVENTORY_STATUS_PORT, useClass: InventoryStatusAdapter },
   ],
   exports: [
     AttributeAssignmentValidator,
