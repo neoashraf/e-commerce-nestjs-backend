@@ -1,16 +1,33 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './domains/auth/auth.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Domain modules (AuthModule, CatalogModule, …) get registered here as they are built.
-    // TypeOrmModule.forRoot(...) is wired in when the first DB-backed module lands.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres' as const,
+        host: config.get<string>('DB_HOST', 'localhost'),
+        port: Number(config.get<string>('DB_PORT', '5432')),
+        username: config.get<string>('DB_USERNAME', 'postgres'),
+        password: config.get<string>('DB_PASSWORD', ''),
+        database: config.get<string>('DB_NAME', 'e-commerce'),
+        autoLoadEntities: true,
+        synchronize: false,
+      }),
+    }),
+    AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
