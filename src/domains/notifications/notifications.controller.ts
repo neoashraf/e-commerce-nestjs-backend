@@ -1,6 +1,7 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiAcceptedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { SkipEnvelope } from '../../shared/decorators/skip-envelope.decorator';
 import { NotificationChannel } from './notification.enums';
 import { NotificationDispatchService } from './notification-dispatch.service';
 import { DispatchDto } from './dto/dispatch.dto';
@@ -37,6 +38,7 @@ export class NotificationsController {
 
   @Post('webhooks/sms/dlr')
   @HttpCode(HttpStatus.OK)
+  @SkipEnvelope()
   @ApiOperation({ summary: 'SMS delivery receipt (DLR) — provider status update' })
   async smsDlr(@Body() dto: SmsDlrDto): Promise<{ received: boolean }> {
     const delivered = dto.status.toUpperCase() === 'DELIVERED';
@@ -46,6 +48,7 @@ export class NotificationsController {
 
   @Post('webhooks/email/events')
   @HttpCode(HttpStatus.OK)
+  @SkipEnvelope()
   @ApiOperation({ summary: 'Email delivery event — provider status update' })
   async emailEvent(@Body() dto: EmailEventDto): Promise<{ received: boolean }> {
     const delivered = dto.event.toLowerCase() === 'delivered';

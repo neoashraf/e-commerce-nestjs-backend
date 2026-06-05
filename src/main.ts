@@ -5,7 +5,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
-import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -18,7 +17,7 @@ async function bootstrap(): Promise<void> {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
   );
-  app.useGlobalInterceptors(new ResponseInterceptor());
+  // ResponseInterceptor is registered as APP_INTERCEPTOR (DI) in AppModule.
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors();
 
