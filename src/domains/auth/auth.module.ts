@@ -32,6 +32,12 @@ import { IssueEmailVerificationUseCase } from './application/use-cases/issue-ema
 import { CreateLightweightAccountUseCase } from './application/use-cases/create-lightweight-account.use-case';
 import { RequestPasswordResetUseCase } from './application/use-cases/request-password-reset.use-case';
 import { ResetPasswordUseCase } from './application/use-cases/reset-password.use-case';
+import { GetMeUseCase } from './application/use-cases/get-me.use-case';
+import { UpdateProfileUseCase } from './application/use-cases/update-profile.use-case';
+import { ChangePasswordUseCase } from './application/use-cases/change-password.use-case';
+import { RequestPhoneChangeUseCase } from './application/use-cases/request-phone-change.use-case';
+import { ConfirmPhoneChangeUseCase } from './application/use-cases/confirm-phone-change.use-case';
+import { DeleteAccountUseCase } from './application/use-cases/delete-account.use-case';
 import { ListAddressesUseCase } from './application/use-cases/list-addresses.use-case';
 import { CreateAddressUseCase } from './application/use-cases/create-address.use-case';
 import { UpdateAddressUseCase } from './application/use-cases/update-address.use-case';
@@ -58,6 +64,7 @@ import { CartZoneResolverAdapter } from './infrastructure/services/cart-zone-res
 import { authConfigProvider } from './infrastructure/config/auth-config.provider';
 // presentation
 import { AuthController } from './presentation/controllers/auth.controller';
+import { MeController } from './presentation/controllers/me.controller';
 import { MeSessionsController } from './presentation/controllers/me-sessions.controller';
 import { MeAddressesController } from './presentation/controllers/me-addresses.controller';
 import { InternalCustomersController } from './presentation/controllers/internal-customers.controller';
@@ -87,6 +94,7 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
   ],
   controllers: [
     AuthController,
+    MeController,
     MeSessionsController,
     MeAddressesController,
     InternalCustomersController,
@@ -123,6 +131,12 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     CreateLightweightAccountUseCase,
     RequestPasswordResetUseCase,
     ResetPasswordUseCase,
+    GetMeUseCase,
+    UpdateProfileUseCase,
+    ChangePasswordUseCase,
+    RequestPhoneChangeUseCase,
+    ConfirmPhoneChangeUseCase,
+    DeleteAccountUseCase,
     ListAddressesUseCase,
     CreateAddressUseCase,
     UpdateAddressUseCase,
