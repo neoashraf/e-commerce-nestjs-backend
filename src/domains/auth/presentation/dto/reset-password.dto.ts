@@ -1,11 +1,30 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class ResetPasswordDto {
-  @ApiProperty({ example: 'prt_9f1c...', description: 'Single-use reset token from the email link' })
+  @ApiPropertyOptional({
+    example: 'prt_9f1c...',
+    description: 'Email path: single-use reset token from the email link',
+  })
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  token: string;
+  token?: string;
+
+  @ApiPropertyOptional({
+    example: 'otp_9f1c...',
+    description: 'Phone path: OTP challenge id (requested with purpose=password_reset)',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  challenge_id?: string;
+
+  @ApiPropertyOptional({ example: '482913', description: 'Phone path: OTP code' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  code?: string;
 
   @ApiProperty({
     example: 'newfooty2026',
