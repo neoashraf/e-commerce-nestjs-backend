@@ -17,7 +17,8 @@
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "seed:notifications": "ts-node src/database/seeds/notifications.seed.ts",
     "seed:rbac": "ts-node src/database/seeds/rbac.seed.ts",
-    "seed:catalog-attributes": "ts-node src/database/seeds/catalog-attributes.seed.ts"
+    "seed:catalog-attributes": "ts-node src/database/seeds/catalog-attributes.seed.ts",
+    "seed:catalog-families": "ts-node src/database/seeds/catalog-families.seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",
