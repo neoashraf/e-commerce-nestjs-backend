@@ -4,11 +4,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { CartModule } from '../cart/cart.module';
 // domain tokens
 import { CUSTOMER_REPOSITORY } from './domain/repositories/customer.repository.interface';
 import { OTP_CHALLENGE_REPOSITORY } from './domain/repositories/otp-challenge.repository.interface';
 import { SESSION_REPOSITORY } from './domain/repositories/session.repository.interface';
 import { EMAIL_VERIFICATION_TOKEN_REPOSITORY } from './domain/repositories/email-verification-token.repository.interface';
+import { ADDRESS_REPOSITORY } from './domain/repositories/address.repository.interface';
 // application
 import { AUTH_CONFIG } from './application/ports/auth-config.port';
 import { OTP_SERVICE } from './application/ports/otp-service.port';
@@ -16,6 +18,7 @@ import { TOKEN_SERVICE } from './application/ports/token-service.port';
 import { NOTIFICATION_DISPATCHER } from './application/ports/notification-dispatcher.port';
 import { PASSWORD_HASHER } from './application/ports/password-hasher.port';
 import { VERIFICATION_TOKEN_SERVICE } from './application/ports/verification-token.port';
+import { ZONE_RESOLVER } from './application/ports/zone-resolver.port';
 import { RequestOtpUseCase } from './application/use-cases/request-otp.use-case';
 import { VerifyOtpUseCase } from './application/use-cases/verify-otp.use-case';
 import { RefreshTokenUseCase } from './application/use-cases/refresh-token.use-case';
@@ -26,24 +29,32 @@ import { LoginWithEmailUseCase } from './application/use-cases/login-with-email.
 import { VerifyEmailUseCase } from './application/use-cases/verify-email.use-case';
 import { IssueEmailVerificationUseCase } from './application/use-cases/issue-email-verification.use-case';
 import { CreateLightweightAccountUseCase } from './application/use-cases/create-lightweight-account.use-case';
+import { ListAddressesUseCase } from './application/use-cases/list-addresses.use-case';
+import { CreateAddressUseCase } from './application/use-cases/create-address.use-case';
+import { UpdateAddressUseCase } from './application/use-cases/update-address.use-case';
+import { DeleteAddressUseCase } from './application/use-cases/delete-address.use-case';
 // infrastructure
 import { CustomerOrmEntity } from './infrastructure/persistence/typeorm/entities/customer.orm-entity';
 import { OtpChallengeOrmEntity } from './infrastructure/persistence/typeorm/entities/otp-challenge.orm-entity';
 import { SessionOrmEntity } from './infrastructure/persistence/typeorm/entities/session.orm-entity';
 import { EmailVerificationTokenOrmEntity } from './infrastructure/persistence/typeorm/entities/email-verification-token.orm-entity';
+import { AddressOrmEntity } from './infrastructure/persistence/typeorm/entities/address.orm-entity';
 import { TypeOrmCustomerRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-customer.repository';
 import { TypeOrmOtpChallengeRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-otp-challenge.repository';
 import { TypeOrmSessionRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-session.repository';
 import { TypeOrmEmailVerificationTokenRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-email-verification-token.repository';
+import { TypeOrmAddressRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-address.repository';
 import { JwtTokenService } from './infrastructure/services/jwt-token.service';
 import { OtpService } from './infrastructure/services/otp.service';
 import { NotificationDispatcherService } from './infrastructure/services/notification-dispatcher.service';
 import { BcryptPasswordHasher } from './infrastructure/services/bcrypt-password-hasher.service';
 import { VerificationTokenService } from './infrastructure/services/verification-token.service';
+import { CartZoneResolverAdapter } from './infrastructure/services/cart-zone-resolver.adapter';
 import { authConfigProvider } from './infrastructure/config/auth-config.provider';
 // presentation
 import { AuthController } from './presentation/controllers/auth.controller';
 import { MeSessionsController } from './presentation/controllers/me-sessions.controller';
+import { MeAddressesController } from './presentation/controllers/me-addresses.controller';
 import { InternalCustomersController } from './presentation/controllers/internal-customers.controller';
 import { ServiceTokenGuard } from '../../shared/guards/service-token.guard';
 import { JwtCustomerStrategy } from './presentation/strategies/jwt-customer.strategy';
@@ -53,11 +64,13 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
   imports: [
     ConfigModule,
     PassportModule,
+    CartModule,
     TypeOrmModule.forFeature([
       CustomerOrmEntity,
       OtpChallengeOrmEntity,
       SessionOrmEntity,
       EmailVerificationTokenOrmEntity,
+      AddressOrmEntity,
     ]),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -66,7 +79,12 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
       }),
     }),
   ],
-  controllers: [AuthController, MeSessionsController, InternalCustomersController],
+  controllers: [
+    AuthController,
+    MeSessionsController,
+    MeAddressesController,
+    InternalCustomersController,
+  ],
   providers: [
     authConfigProvider,
     { provide: CUSTOMER_REPOSITORY, useClass: TypeOrmCustomerRepository },
@@ -76,11 +94,13 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
       provide: EMAIL_VERIFICATION_TOKEN_REPOSITORY,
       useClass: TypeOrmEmailVerificationTokenRepository,
     },
+    { provide: ADDRESS_REPOSITORY, useClass: TypeOrmAddressRepository },
     { provide: TOKEN_SERVICE, useClass: JwtTokenService },
     { provide: OTP_SERVICE, useClass: OtpService },
     { provide: NOTIFICATION_DISPATCHER, useClass: NotificationDispatcherService },
     { provide: PASSWORD_HASHER, useClass: BcryptPasswordHasher },
     { provide: VERIFICATION_TOKEN_SERVICE, useClass: VerificationTokenService },
+    { provide: ZONE_RESOLVER, useClass: CartZoneResolverAdapter },
     RequestOtpUseCase,
     VerifyOtpUseCase,
     RefreshTokenUseCase,
@@ -91,6 +111,10 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     LoginWithEmailUseCase,
     VerifyEmailUseCase,
     CreateLightweightAccountUseCase,
+    ListAddressesUseCase,
+    CreateAddressUseCase,
+    UpdateAddressUseCase,
+    DeleteAddressUseCase,
     JwtCustomerStrategy,
     JwtCustomerGuard,
     ServiceTokenGuard,
