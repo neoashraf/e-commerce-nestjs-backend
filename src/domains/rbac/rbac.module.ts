@@ -31,6 +31,9 @@ import { AdminLogoutUseCase } from './application/use-cases/admin-logout.use-cas
 import { ForgotPasswordUseCase } from './application/use-cases/forgot-password.use-case';
 import { ResetPasswordUseCase } from './application/use-cases/reset-password.use-case';
 import { GetAdminMeUseCase } from './application/use-cases/get-admin-me.use-case';
+import { UpdateAdminProfileUseCase } from './application/use-cases/update-admin-profile.use-case';
+import { ChangeAdminPasswordUseCase } from './application/use-cases/change-admin-password.use-case';
+import { UpdateAdmin2faUseCase } from './application/use-cases/update-admin-2fa.use-case';
 
 // infrastructure
 import { rbacConfigProvider } from './infrastructure/config/rbac-config.provider';
@@ -105,6 +108,9 @@ import { PermissionsGuard } from './presentation/guards/permissions.guard';
     ForgotPasswordUseCase,
     ResetPasswordUseCase,
     GetAdminMeUseCase,
+    UpdateAdminProfileUseCase,
+    ChangeAdminPasswordUseCase,
+    UpdateAdmin2faUseCase,
     AdminJwtStrategy,
     JwtAdminGuard,
     PermissionsGuard,

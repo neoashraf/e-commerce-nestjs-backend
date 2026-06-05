@@ -48,4 +48,30 @@ export class AdminUser {
     this.lastLoginAt = now;
     this.updatedAt = now;
   }
+
+  /** Self-service profile edit (FR-RBAC-008). Email is immutable and not updatable here. */
+  updateProfile(fields: { fullName?: string; phone?: string | null }, now: Date): void {
+    if (fields.fullName !== undefined) this.fullName = fields.fullName;
+    if (fields.phone !== undefined) this.phone = fields.phone;
+    this.updatedAt = now;
+  }
+
+  setPassword(passwordHash: string, now: Date): void {
+    this.passwordHash = passwordHash;
+    this.updatedAt = now;
+  }
+
+  /** Enable 2FA on a chosen channel (FR-RBAC-008). `sms` requires a stored phone (checked by caller). */
+  enableTwofa(channel: TwofaChannel, now: Date): void {
+    this.twofaEnabled = true;
+    this.twofaChannel = channel;
+    this.updatedAt = now;
+  }
+
+  /** Disable 2FA (FR-RBAC-008). Blocked for Super Admin by the caller (mandatory 2FA). */
+  disableTwofa(now: Date): void {
+    this.twofaEnabled = false;
+    this.twofaChannel = null;
+    this.updatedAt = now;
+  }
 }
