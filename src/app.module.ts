@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './domains/auth/auth.module';
+import { NotificationsModule } from './domains/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AuthModule } from './domains/auth/auth.module';
       }),
     }),
     AuthModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
