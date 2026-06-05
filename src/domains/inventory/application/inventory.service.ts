@@ -9,7 +9,9 @@ import { DataSource, In, Repository } from 'typeorm';
 
 import { Paginated } from '../../../shared/dto/paginated';
 import { deriveStockStatus, StockStatus } from '../domain/stock-status';
+import { StockMovementType } from '../domain/stock-movement-type';
 import { InventoryOrmEntity } from '../infrastructure/persistence/typeorm/entities/inventory.orm-entity';
+import { MovementActor, MovementService } from './movement.service';
 
 export interface AvailabilityEntry {
   available: number;
@@ -53,6 +55,7 @@ export class InventoryService {
     @InjectRepository(InventoryOrmEntity)
     private readonly inventory: Repository<InventoryOrmEntity>,
     private readonly dataSource: DataSource,
+    private readonly movements: MovementService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -180,20 +183,26 @@ export class InventoryService {
   // Mutations (FR-INV-010/011/012/013) — atomic per record
   // ---------------------------------------------------------------------------
 
-  async receive(variantId: string, quantity: number, reason: string): Promise<StockMutationResult> {
+  async receive(
+    variantId: string,
+    quantity: number,
+    reason: string,
+    actor: MovementActor,
+  ): Promise<StockMutationResult> {
     if (quantity <= 0) {
       throw new BadRequestException({ code: 'INVALID_QUANTITY', message: 'quantity must be > 0.' });
     }
     if (!reason || reason.trim() === '') {
       throw new BadRequestException({ code: 'REASON_REQUIRED', message: 'reason is required.' });
     }
-    return this.applyDelta(variantId, quantity);
+    return this.applyDelta(variantId, quantity, StockMovementType.RECEIVE, reason, actor);
   }
 
   async adjust(
     variantId: string,
     quantityDelta: number,
     reason: string,
+    actor: MovementActor,
   ): Promise<StockMutationResult> {
     if (quantityDelta === 0) {
       throw new BadRequestException({
@@ -204,7 +213,7 @@ export class InventoryService {
     if (!reason || reason.trim() === '') {
       throw new BadRequestException({ code: 'REASON_REQUIRED', message: 'reason is required.' });
     }
-    return this.applyDelta(variantId, quantityDelta);
+    return this.applyDelta(variantId, quantityDelta, StockMovementType.ADJUST, reason, actor);
   }
 
   async setThreshold(variantId: string, threshold: number): Promise<StockMutationResult> {
@@ -224,7 +233,8 @@ export class InventoryService {
       if (!row) throw this.notFound(variantId);
       row.lowStockThreshold = threshold;
       await repo.save(row);
-      return this.toMutationResult(row);
+      // A threshold change is not a quantity change, so it writes no ledger movement (FR-INV-050).
+      return this.toMutationResult(row, null);
     });
   }
 
@@ -232,8 +242,17 @@ export class InventoryService {
   // Helpers
   // ---------------------------------------------------------------------------
 
-  /** Apply a signed on-hand delta inside a row-locked transaction (FR-INV-010/011, §14). */
-  private async applyDelta(variantId: string, delta: number): Promise<StockMutationResult> {
+  /**
+   * Apply a signed on-hand delta inside a row-locked transaction and write the matching ledger
+   * movement in the SAME transaction (FR-INV-010/011/050, §14). Returns the real `movement_id`.
+   */
+  private async applyDelta(
+    variantId: string,
+    delta: number,
+    type: StockMovementType,
+    reason: string,
+    actor: MovementActor,
+  ): Promise<StockMutationResult> {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(InventoryOrmEntity);
       const row = await repo
@@ -253,16 +272,29 @@ export class InventoryService {
       row.onHand = nextOnHand;
       row.available = nextOnHand - row.reserved;
       await repo.save(row);
-      return this.toMutationResult(row);
+
+      const movementId = await this.movements.recordMovement(manager, {
+        type,
+        variantId,
+        quantityDelta: delta,
+        resultingOnHand: nextOnHand,
+        reason,
+        actor,
+      });
+
+      return this.toMutationResult(row, movementId);
     });
   }
 
-  private toMutationResult(row: InventoryOrmEntity): StockMutationResult {
+  private toMutationResult(
+    row: InventoryOrmEntity,
+    movementId: string | null,
+  ): StockMutationResult {
     return {
       variant_id: row.variantId,
       on_hand: row.onHand,
       available: row.available,
-      movement_id: null, // populated once inv-ledger-be ships (FR-INV-050)
+      movement_id: movementId,
     };
   }
 

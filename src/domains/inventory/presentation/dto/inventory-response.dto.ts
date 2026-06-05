@@ -29,11 +29,14 @@ export class InventoryRowDto {
   @ApiProperty({ enum: StockStatus }) status: StockStatus;
 }
 
-/** Mutation response for receive/adjust. `movement_id` is null until the ledger ships (FR-INV-050). */
+/**
+ * Mutation response for receive/adjust/threshold. `movement_id` is the real ledger movement written
+ * for the change (FR-INV-050); it is null only for a threshold change (no quantity movement).
+ */
 export class StockMutationResponseDto {
   @ApiProperty() variant_id: string;
   @ApiProperty() on_hand: number;
   @ApiProperty() available: number;
-  @ApiProperty({ nullable: true, description: 'Ledger movement id (null until inv-ledger-be lands)' })
+  @ApiProperty({ nullable: true, description: 'Ledger movement id (null for threshold-only changes)' })
   movement_id: string | null;
 }
