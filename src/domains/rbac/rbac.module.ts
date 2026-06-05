@@ -34,6 +34,14 @@ import { GetAdminMeUseCase } from './application/use-cases/get-admin-me.use-case
 import { UpdateAdminProfileUseCase } from './application/use-cases/update-admin-profile.use-case';
 import { ChangeAdminPasswordUseCase } from './application/use-cases/change-admin-password.use-case';
 import { UpdateAdmin2faUseCase } from './application/use-cases/update-admin-2fa.use-case';
+import { AdminUserPolicyService } from './application/services/admin-user-policy.service';
+import { ListAdminUsersUseCase } from './application/use-cases/list-admin-users.use-case';
+import { InviteAdminUserUseCase } from './application/use-cases/invite-admin-user.use-case';
+import { UpdateAdminUserUseCase } from './application/use-cases/update-admin-user.use-case';
+import { SuspendAdminUserUseCase } from './application/use-cases/suspend-admin-user.use-case';
+import { ReactivateAdminUserUseCase } from './application/use-cases/reactivate-admin-user.use-case';
+import { DeleteAdminUserUseCase } from './application/use-cases/delete-admin-user.use-case';
+import { ResendInviteUseCase } from './application/use-cases/resend-invite.use-case';
 
 // infrastructure
 import { rbacConfigProvider } from './infrastructure/config/rbac-config.provider';
@@ -59,6 +67,7 @@ import { NotifAdminNotificationService } from './infrastructure/services/notif-a
 // presentation
 import { AdminAuthController } from './presentation/controllers/admin-auth.controller';
 import { AdminMeController } from './presentation/controllers/admin-me.controller';
+import { AdminUsersController } from './presentation/controllers/admin-users.controller';
 import { AdminJwtStrategy } from './presentation/strategies/admin-jwt.strategy';
 import { JwtAdminGuard } from './presentation/guards/jwt-admin.guard';
 import { PermissionsGuard } from './presentation/guards/permissions.guard';
@@ -85,7 +94,7 @@ import { PermissionsGuard } from './presentation/guards/permissions.guard';
       }),
     }),
   ],
-  controllers: [AdminAuthController, AdminMeController],
+  controllers: [AdminAuthController, AdminMeController, AdminUsersController],
   providers: [
     rbacConfigProvider,
     { provide: ADMIN_USER_REPOSITORY, useClass: TypeOrmAdminUserRepository },
@@ -111,6 +120,14 @@ import { PermissionsGuard } from './presentation/guards/permissions.guard';
     UpdateAdminProfileUseCase,
     ChangeAdminPasswordUseCase,
     UpdateAdmin2faUseCase,
+    AdminUserPolicyService,
+    ListAdminUsersUseCase,
+    InviteAdminUserUseCase,
+    UpdateAdminUserUseCase,
+    SuspendAdminUserUseCase,
+    ReactivateAdminUserUseCase,
+    DeleteAdminUserUseCase,
+    ResendInviteUseCase,
     AdminJwtStrategy,
     JwtAdminGuard,
     PermissionsGuard,
