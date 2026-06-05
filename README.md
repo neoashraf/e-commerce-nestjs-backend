@@ -10,9 +10,9 @@ npm install
 npm run start:dev
 ```
 
-- API base URL: `http://localhost:8000/api`
-- Health check: `http://localhost:8000/api/health`
-- Swagger docs: `http://localhost:8000/api/docs`
+- API base URL: `http://localhost:8000/api/v1`
+- Health check: `http://localhost:8000/api/v1/health`
+- Swagger docs: `http://localhost:8000/api/v1/docs`
 
 Port is configurable via `PORT` in `.env` (default `8000`).
 
