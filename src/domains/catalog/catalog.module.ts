@@ -35,6 +35,9 @@ import { ProductCategoryOrmEntity } from './infrastructure/persistence/typeorm/e
 import { ProductImageOrmEntity } from './infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductVideoOrmEntity } from './infrastructure/persistence/typeorm/entities/product-video.orm-entity';
 import { ProductLinkOrmEntity } from './infrastructure/persistence/typeorm/entities/product-link.orm-entity';
+import { ProductConfigurableAttributeOrmEntity } from './infrastructure/persistence/typeorm/entities/product-configurable-attribute.orm-entity';
+import { ProductVariantOrmEntity } from './infrastructure/persistence/typeorm/entities/product-variant.orm-entity';
+import { ProductVariantOptionOrmEntity } from './infrastructure/persistence/typeorm/entities/product-variant-option.orm-entity';
 import { TypeOrmAttributeRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-attribute.repository';
 import { TypeOrmAttributeFamilyRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-attribute-family.repository';
 import { TypeOrmCategoryRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-category.repository';
@@ -44,14 +47,16 @@ import { CategoriesController } from './presentation/controllers/categories.cont
 import { CategoriesPublicController } from './presentation/controllers/categories-public.controller';
 import { ProductsController } from './presentation/controllers/products.controller';
 import { ProductMediaController } from './presentation/controllers/product-media.controller';
+import { VariantsController } from './presentation/controllers/variants.controller';
 import { ProductsService } from './application/services/products.service';
 import { ProductSupportService } from './application/services/product-support.service';
 import { ProductMediaService } from './application/services/product-media.service';
 import { ProductPublishValidator } from './application/services/product-publish.validator';
+import { VariantsService } from './application/services/variants.service';
 import { INVENTORY_QTY_PORT } from './application/ports/inventory-qty.port';
 import { PRODUCT_VARIANT_PUBLISH_PORT } from './application/ports/product-variant-publish.port';
 import { InventoryQtyAdapter } from './infrastructure/adapters/inventory-qty.adapter';
-import { VariantPublishStubAdapter } from './infrastructure/adapters/variant-publish-stub.adapter';
+import { VariantPublishAdapter } from './infrastructure/adapters/variant-publish.adapter';
 
 /**
  * Catalog domain (CAT). Slices so far: the attribute system (Attribute + AttributeOption) and
@@ -78,6 +83,9 @@ import { VariantPublishStubAdapter } from './infrastructure/adapters/variant-pub
       ProductImageOrmEntity,
       ProductVideoOrmEntity,
       ProductLinkOrmEntity,
+      ProductConfigurableAttributeOrmEntity,
+      ProductVariantOrmEntity,
+      ProductVariantOptionOrmEntity,
     ]),
   ],
   controllers: [
@@ -87,6 +95,7 @@ import { VariantPublishStubAdapter } from './infrastructure/adapters/variant-pub
     CategoriesPublicController,
     ProductsController,
     ProductMediaController,
+    VariantsController,
   ],
   providers: [
     { provide: ATTRIBUTE_REPOSITORY, useClass: TypeOrmAttributeRepository },
@@ -113,8 +122,9 @@ import { VariantPublishStubAdapter } from './infrastructure/adapters/variant-pub
     ProductSupportService,
     ProductMediaService,
     ProductPublishValidator,
+    VariantsService,
     { provide: INVENTORY_QTY_PORT, useClass: InventoryQtyAdapter },
-    { provide: PRODUCT_VARIANT_PUBLISH_PORT, useClass: VariantPublishStubAdapter },
+    { provide: PRODUCT_VARIANT_PUBLISH_PORT, useClass: VariantPublishAdapter },
   ],
   exports: [
     AttributeAssignmentValidator,
@@ -123,6 +133,7 @@ import { VariantPublishStubAdapter } from './infrastructure/adapters/variant-pub
     CATEGORY_REPOSITORY,
     ProductsService,
     ProductSupportService,
+    VariantsService,
   ],
 })
 export class CatalogModule {}
