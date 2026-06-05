@@ -29,6 +29,12 @@ import { AttributeGroupOrmEntity } from './infrastructure/persistence/typeorm/en
 import { FamilyAttributeOrmEntity } from './infrastructure/persistence/typeorm/entities/family-attribute.orm-entity';
 import { CategoryOrmEntity } from './infrastructure/persistence/typeorm/entities/category.orm-entity';
 import { CategoryFilterableAttributeOrmEntity } from './infrastructure/persistence/typeorm/entities/category-filterable-attribute.orm-entity';
+import { ProductOrmEntity } from './infrastructure/persistence/typeorm/entities/product.orm-entity';
+import { ProductAttributeValueOrmEntity } from './infrastructure/persistence/typeorm/entities/product-attribute-value.orm-entity';
+import { ProductCategoryOrmEntity } from './infrastructure/persistence/typeorm/entities/product-category.orm-entity';
+import { ProductImageOrmEntity } from './infrastructure/persistence/typeorm/entities/product-image.orm-entity';
+import { ProductVideoOrmEntity } from './infrastructure/persistence/typeorm/entities/product-video.orm-entity';
+import { ProductLinkOrmEntity } from './infrastructure/persistence/typeorm/entities/product-link.orm-entity';
 import { TypeOrmAttributeRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-attribute.repository';
 import { TypeOrmAttributeFamilyRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-attribute-family.repository';
 import { TypeOrmCategoryRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-category.repository';
@@ -36,6 +42,16 @@ import { AttributesController } from './presentation/controllers/attributes.cont
 import { AttributeFamiliesController } from './presentation/controllers/attribute-families.controller';
 import { CategoriesController } from './presentation/controllers/categories.controller';
 import { CategoriesPublicController } from './presentation/controllers/categories-public.controller';
+import { ProductsController } from './presentation/controllers/products.controller';
+import { ProductMediaController } from './presentation/controllers/product-media.controller';
+import { ProductsService } from './application/services/products.service';
+import { ProductSupportService } from './application/services/product-support.service';
+import { ProductMediaService } from './application/services/product-media.service';
+import { ProductPublishValidator } from './application/services/product-publish.validator';
+import { INVENTORY_QTY_PORT } from './application/ports/inventory-qty.port';
+import { PRODUCT_VARIANT_PUBLISH_PORT } from './application/ports/product-variant-publish.port';
+import { InventoryQtyAdapter } from './infrastructure/adapters/inventory-qty.adapter';
+import { VariantPublishStubAdapter } from './infrastructure/adapters/variant-publish-stub.adapter';
 
 /**
  * Catalog domain (CAT). Slices so far: the attribute system (Attribute + AttributeOption) and
@@ -56,6 +72,12 @@ import { CategoriesPublicController } from './presentation/controllers/categorie
       FamilyAttributeOrmEntity,
       CategoryOrmEntity,
       CategoryFilterableAttributeOrmEntity,
+      ProductOrmEntity,
+      ProductAttributeValueOrmEntity,
+      ProductCategoryOrmEntity,
+      ProductImageOrmEntity,
+      ProductVideoOrmEntity,
+      ProductLinkOrmEntity,
     ]),
   ],
   controllers: [
@@ -63,6 +85,8 @@ import { CategoriesPublicController } from './presentation/controllers/categorie
     AttributeFamiliesController,
     CategoriesController,
     CategoriesPublicController,
+    ProductsController,
+    ProductMediaController,
   ],
   providers: [
     { provide: ATTRIBUTE_REPOSITORY, useClass: TypeOrmAttributeRepository },
@@ -85,12 +109,20 @@ import { CategoriesPublicController } from './presentation/controllers/categorie
     DeleteCategoryUseCase,
     GetAdminCategoryTreeUseCase,
     GetPublicCategoryTreeUseCase,
+    ProductsService,
+    ProductSupportService,
+    ProductMediaService,
+    ProductPublishValidator,
+    { provide: INVENTORY_QTY_PORT, useClass: InventoryQtyAdapter },
+    { provide: PRODUCT_VARIANT_PUBLISH_PORT, useClass: VariantPublishStubAdapter },
   ],
   exports: [
     AttributeAssignmentValidator,
     ATTRIBUTE_REPOSITORY,
     ATTRIBUTE_FAMILY_REPOSITORY,
     CATEGORY_REPOSITORY,
+    ProductsService,
+    ProductSupportService,
   ],
 })
 export class CatalogModule {}
