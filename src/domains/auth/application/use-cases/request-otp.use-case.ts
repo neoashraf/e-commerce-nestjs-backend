@@ -53,7 +53,17 @@ export class RequestOtpUseCase {
       });
     }
     const purpose =
-      command.purpose === OtpPurpose.REGISTER ? OtpPurpose.REGISTER : OtpPurpose.LOGIN;
+      command.purpose === OtpPurpose.REGISTER
+        ? OtpPurpose.REGISTER
+        : command.purpose === OtpPurpose.PASSWORD_RESET
+          ? OtpPurpose.PASSWORD_RESET
+          : OtpPurpose.LOGIN;
+    const dispatchPurpose =
+      purpose === OtpPurpose.REGISTER
+        ? 'register'
+        : purpose === OtpPurpose.PASSWORD_RESET
+          ? 'password_reset'
+          : 'login';
     const now = new Date();
 
     // Resend cooldown (FR-AUTH-022).
@@ -100,11 +110,7 @@ export class RequestOtpUseCase {
 
     // Trigger SMS via NOTIF (FR-AUTH-021); delivery failure → 503, no side effects (AC2).
     try {
-      await this.dispatcher.dispatchOtp({
-        phone,
-        code,
-        purpose: purpose === OtpPurpose.REGISTER ? 'register' : 'login',
-      });
+      await this.dispatcher.dispatchOtp({ phone, code, purpose: dispatchPurpose });
     } catch (err) {
       this.logger.error(`OTP dispatch failed for ${phone}: ${(err as Error).message}`);
       throw new HttpException(

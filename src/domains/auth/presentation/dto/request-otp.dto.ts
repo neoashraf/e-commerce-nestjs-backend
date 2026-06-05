@@ -7,8 +7,8 @@ export class RequestOtpDto {
   @IsNotEmpty()
   phone: string;
 
-  @ApiPropertyOptional({ enum: ['login', 'register'], default: 'login' })
+  @ApiPropertyOptional({ enum: ['login', 'register', 'password_reset'], default: 'login' })
   @IsOptional()
-  @IsIn(['login', 'register'])
-  purpose?: 'login' | 'register';
+  @IsIn(['login', 'register', 'password_reset'])
+  purpose?: 'login' | 'register' | 'password_reset';
 }

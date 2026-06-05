@@ -70,7 +70,12 @@ export class AuthController {
   async requestOtp(@Body() dto: RequestOtpDto): Promise<OtpRequestResponseDto> {
     const result = await this.requestOtpUseCase.execute({
       phone: dto.phone,
-      purpose: dto.purpose === 'register' ? OtpPurpose.REGISTER : OtpPurpose.LOGIN,
+      purpose:
+        dto.purpose === 'register'
+          ? OtpPurpose.REGISTER
+          : dto.purpose === 'password_reset'
+            ? OtpPurpose.PASSWORD_RESET
+            : OtpPurpose.LOGIN,
     });
     return {
       challenge_id: result.challengeId,
@@ -185,7 +190,12 @@ export class AuthController {
   @ApiBadRequestResponse({ description: 'Weak password' })
   @ApiGoneResponse({ description: 'Reset token expired or already used' })
   async resetPassword(@Body() dto: ResetPasswordDto): Promise<MessageResponseDto> {
-    await this.resetPasswordUseCase.execute({ token: dto.token, newPassword: dto.new_password });
+    await this.resetPasswordUseCase.execute({
+      token: dto.token,
+      challengeId: dto.challenge_id,
+      code: dto.code,
+      newPassword: dto.new_password,
+    });
     return { message: 'Password updated. All sessions have been signed out.' };
   }
 
