@@ -6,11 +6,15 @@ import { ServiceTokenGuard } from '../../shared/guards/service-token.guard';
 import { RbacModule } from '../rbac/rbac.module';
 import { InventoryService } from './application/inventory.service';
 import { MovementService } from './application/movement.service';
+import { ReservationService } from './application/reservation.service';
+import { ReservationExpiryTask } from './application/reservation-expiry.task';
 import { InventoryOrmEntity } from './infrastructure/persistence/typeorm/entities/inventory.orm-entity';
 import { StockMovementOrmEntity } from './infrastructure/persistence/typeorm/entities/stock-movement.orm-entity';
+import { StockReservationOrmEntity } from './infrastructure/persistence/typeorm/entities/stock-reservation.orm-entity';
 import { InventoryController } from './presentation/inventory.controller';
 import { InventoryInternalController } from './presentation/inventory-internal.controller';
 import { MovementsController } from './presentation/movements.controller';
+import { ReservationController } from './presentation/reservation.controller';
 
 /**
  * Inventory domain (INV) — the authoritative per-SKU stock core (SRS 11 §5.1/§5.2): batched
@@ -23,10 +27,25 @@ import { MovementsController } from './presentation/movements.controller';
   imports: [
     ConfigModule,
     RbacModule,
-    TypeOrmModule.forFeature([InventoryOrmEntity, StockMovementOrmEntity]),
+    TypeOrmModule.forFeature([
+      InventoryOrmEntity,
+      StockMovementOrmEntity,
+      StockReservationOrmEntity,
+    ]),
   ],
-  controllers: [InventoryController, InventoryInternalController, MovementsController],
-  providers: [InventoryService, MovementService, ServiceTokenGuard],
-  exports: [InventoryService, MovementService],
+  controllers: [
+    InventoryController,
+    InventoryInternalController,
+    MovementsController,
+    ReservationController,
+  ],
+  providers: [
+    InventoryService,
+    MovementService,
+    ReservationService,
+    ReservationExpiryTask,
+    ServiceTokenGuard,
+  ],
+  exports: [InventoryService, MovementService, ReservationService],
 })
 export class InventoryModule {}
