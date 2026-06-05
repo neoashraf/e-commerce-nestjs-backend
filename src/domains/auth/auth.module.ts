@@ -25,6 +25,7 @@ import { RegisterWithEmailUseCase } from './application/use-cases/register-with-
 import { LoginWithEmailUseCase } from './application/use-cases/login-with-email.use-case';
 import { VerifyEmailUseCase } from './application/use-cases/verify-email.use-case';
 import { IssueEmailVerificationUseCase } from './application/use-cases/issue-email-verification.use-case';
+import { CreateLightweightAccountUseCase } from './application/use-cases/create-lightweight-account.use-case';
 // infrastructure
 import { CustomerOrmEntity } from './infrastructure/persistence/typeorm/entities/customer.orm-entity';
 import { OtpChallengeOrmEntity } from './infrastructure/persistence/typeorm/entities/otp-challenge.orm-entity';
@@ -43,6 +44,8 @@ import { authConfigProvider } from './infrastructure/config/auth-config.provider
 // presentation
 import { AuthController } from './presentation/controllers/auth.controller';
 import { MeSessionsController } from './presentation/controllers/me-sessions.controller';
+import { InternalCustomersController } from './presentation/controllers/internal-customers.controller';
+import { ServiceTokenGuard } from '../../shared/guards/service-token.guard';
 import { JwtCustomerStrategy } from './presentation/strategies/jwt-customer.strategy';
 import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
 
@@ -63,7 +66,7 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
       }),
     }),
   ],
-  controllers: [AuthController, MeSessionsController],
+  controllers: [AuthController, MeSessionsController, InternalCustomersController],
   providers: [
     authConfigProvider,
     { provide: CUSTOMER_REPOSITORY, useClass: TypeOrmCustomerRepository },
@@ -87,8 +90,10 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     RegisterWithEmailUseCase,
     LoginWithEmailUseCase,
     VerifyEmailUseCase,
+    CreateLightweightAccountUseCase,
     JwtCustomerStrategy,
     JwtCustomerGuard,
+    ServiceTokenGuard,
   ],
   exports: [JwtCustomerGuard, PassportModule, IssueEmailVerificationUseCase],
 })

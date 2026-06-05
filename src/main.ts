@@ -27,6 +27,11 @@ async function bootstrap(): Promise<void> {
     .setDescription('REST API for the sports e-commerce platform (see docs/api-contracts/)')
     .setVersion('1.0')
     .addBearerAuth()
+    .addSecurity('service-token', {
+      type: 'http',
+      scheme: 'bearer',
+      description: 'Shared service token for internal service-to-service endpoints.',
+    })
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/v1/docs', app, document);
