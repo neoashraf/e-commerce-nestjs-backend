@@ -18,6 +18,8 @@ export interface IAdminUserRepository {
   findAll(filter: AdminUserListFilter): Promise<{ items: AdminUser[]; total: number }>;
   save(admin: AdminUser): Promise<AdminUser>;
   countActiveByRoleId(roleId: string): Promise<number>;
+  /** Count non-deleted admins assigned to a role (assigned_count / ROLE_IN_USE guard). */
+  countByRoleId(roleId: string): Promise<number>;
 }
 
 export const ADMIN_USER_REPOSITORY = Symbol('IAdminUserRepository');

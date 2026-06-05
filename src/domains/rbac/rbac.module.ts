@@ -42,6 +42,11 @@ import { SuspendAdminUserUseCase } from './application/use-cases/suspend-admin-u
 import { ReactivateAdminUserUseCase } from './application/use-cases/reactivate-admin-user.use-case';
 import { DeleteAdminUserUseCase } from './application/use-cases/delete-admin-user.use-case';
 import { ResendInviteUseCase } from './application/use-cases/resend-invite.use-case';
+import { ListRolesUseCase } from './application/use-cases/list-roles.use-case';
+import { GetRoleUseCase } from './application/use-cases/get-role.use-case';
+import { CreateRoleUseCase } from './application/use-cases/create-role.use-case';
+import { UpdateRoleUseCase } from './application/use-cases/update-role.use-case';
+import { DeleteRoleUseCase } from './application/use-cases/delete-role.use-case';
 
 // infrastructure
 import { rbacConfigProvider } from './infrastructure/config/rbac-config.provider';
@@ -68,6 +73,8 @@ import { NotifAdminNotificationService } from './infrastructure/services/notif-a
 import { AdminAuthController } from './presentation/controllers/admin-auth.controller';
 import { AdminMeController } from './presentation/controllers/admin-me.controller';
 import { AdminUsersController } from './presentation/controllers/admin-users.controller';
+import { RolesController } from './presentation/controllers/roles.controller';
+import { PermissionsController } from './presentation/controllers/permissions.controller';
 import { AdminJwtStrategy } from './presentation/strategies/admin-jwt.strategy';
 import { JwtAdminGuard } from './presentation/guards/jwt-admin.guard';
 import { PermissionsGuard } from './presentation/guards/permissions.guard';
@@ -94,7 +101,13 @@ import { PermissionsGuard } from './presentation/guards/permissions.guard';
       }),
     }),
   ],
-  controllers: [AdminAuthController, AdminMeController, AdminUsersController],
+  controllers: [
+    AdminAuthController,
+    AdminMeController,
+    AdminUsersController,
+    RolesController,
+    PermissionsController,
+  ],
   providers: [
     rbacConfigProvider,
     { provide: ADMIN_USER_REPOSITORY, useClass: TypeOrmAdminUserRepository },
@@ -128,6 +141,11 @@ import { PermissionsGuard } from './presentation/guards/permissions.guard';
     ReactivateAdminUserUseCase,
     DeleteAdminUserUseCase,
     ResendInviteUseCase,
+    ListRolesUseCase,
+    GetRoleUseCase,
+    CreateRoleUseCase,
+    UpdateRoleUseCase,
+    DeleteRoleUseCase,
     AdminJwtStrategy,
     JwtAdminGuard,
     PermissionsGuard,

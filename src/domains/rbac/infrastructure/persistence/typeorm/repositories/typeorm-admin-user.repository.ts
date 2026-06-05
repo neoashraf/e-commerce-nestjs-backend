@@ -53,4 +53,8 @@ export class TypeOrmAdminUserRepository implements IAdminUserRepository {
       where: { roleId, status: AdminUserStatus.ACTIVE, deletedAt: IsNull() },
     });
   }
+
+  async countByRoleId(roleId: string): Promise<number> {
+    return this.repo.count({ where: { roleId, deletedAt: IsNull() } });
+  }
 }

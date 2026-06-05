@@ -13,4 +13,14 @@ export class RoleMapper {
       o.deletedAt ?? null,
     );
   }
+
+  static toOrm(d: Role): RoleOrmEntity {
+    const o = new RoleOrmEntity();
+    o.id = d.id;
+    o.name = d.name;
+    o.description = d.description;
+    o.isSystem = d.isSystem;
+    o.deletedAt = d.deletedAt;
+    return o;
+  }
 }
