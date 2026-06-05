@@ -20,9 +20,14 @@ import {
 } from '@nestjs/swagger';
 
 import { Paginated } from '../../../shared/dto/paginated';
+import { StockMovementActorType } from '../domain/stock-movement-type';
 import { JwtAdminGuard } from '../../rbac/presentation/guards/jwt-admin.guard';
 import { PermissionsGuard } from '../../rbac/presentation/guards/permissions.guard';
 import { Requires } from '../../rbac/presentation/decorators/requires.decorator';
+import {
+  AuthenticatedAdmin,
+  CurrentAdmin,
+} from '../../rbac/presentation/decorators/current-admin.decorator';
 import { InventoryRow, InventoryService, StockMutationResult } from '../application/inventory.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { InventoryRowDto, StockMutationResponseDto } from './dto/inventory-response.dto';
@@ -65,8 +70,12 @@ export class InventoryController {
   async receive(
     @Param('variantId', ParseUUIDPipe) variantId: string,
     @Body() dto: ReceiveStockDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
   ): Promise<StockMutationResult> {
-    return this.inventory.receive(variantId, dto.quantity, dto.reason);
+    return this.inventory.receive(variantId, dto.quantity, dto.reason, {
+      type: StockMovementActorType.ADMIN,
+      id: admin.adminId,
+    });
   }
 
   @Post(':variantId/adjust')
@@ -79,8 +88,12 @@ export class InventoryController {
   async adjust(
     @Param('variantId', ParseUUIDPipe) variantId: string,
     @Body() dto: AdjustStockDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
   ): Promise<StockMutationResult> {
-    return this.inventory.adjust(variantId, dto.quantity_delta, dto.reason);
+    return this.inventory.adjust(variantId, dto.quantity_delta, dto.reason, {
+      type: StockMovementActorType.ADMIN,
+      id: admin.adminId,
+    });
   }
 
   @Patch(':variantId/threshold')
