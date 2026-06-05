@@ -168,6 +168,14 @@ export class Customer {
     this.updatedAt = now;
   }
 
+  /** Activate a lightweight guest account (FR-AUTH-071): unlock full login, verify phone. */
+  activate(now: Date): void {
+    this.isLightweight = false;
+    this.phoneVerified = true;
+    this.lastLoginAt = now;
+    this.updatedAt = now;
+  }
+
   /** Update editable profile fields (FR-AUTH-040). Only provided fields change. */
   updateProfile(
     fields: { fullName?: string; gender?: Gender | null; dateOfBirth?: Date | null },

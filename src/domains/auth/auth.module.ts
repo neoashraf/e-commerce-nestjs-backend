@@ -38,6 +38,7 @@ import { ChangePasswordUseCase } from './application/use-cases/change-password.u
 import { RequestPhoneChangeUseCase } from './application/use-cases/request-phone-change.use-case';
 import { ConfirmPhoneChangeUseCase } from './application/use-cases/confirm-phone-change.use-case';
 import { DeleteAccountUseCase } from './application/use-cases/delete-account.use-case';
+import { ClaimAccountUseCase } from './application/use-cases/claim-account.use-case';
 import { ListAddressesUseCase } from './application/use-cases/list-addresses.use-case';
 import { CreateAddressUseCase } from './application/use-cases/create-address.use-case';
 import { UpdateAddressUseCase } from './application/use-cases/update-address.use-case';
@@ -137,6 +138,7 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     RequestPhoneChangeUseCase,
     ConfirmPhoneChangeUseCase,
     DeleteAccountUseCase,
+    ClaimAccountUseCase,
     ListAddressesUseCase,
     CreateAddressUseCase,
     UpdateAddressUseCase,
