@@ -30,3 +30,27 @@ export class RefreshResponseDto {
   @ApiProperty() refresh_token: string;
   @ApiProperty({ example: 900 }) expires_in: number;
 }
+
+export class RegisteredCustomerDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ example: 'sabbir@example.com' }) email: string;
+  @ApiProperty({ example: false }) email_verified: boolean;
+}
+
+export class RegisterResponseDto {
+  @ApiProperty({ type: RegisteredCustomerDto }) customer: RegisteredCustomerDto;
+  @ApiProperty({ type: AuthTokensDto }) tokens: AuthTokensDto;
+}
+
+export class LoginCustomerDto {
+  @ApiProperty() id: string;
+}
+
+export class LoginResponseDto {
+  @ApiProperty({ type: LoginCustomerDto }) customer: LoginCustomerDto;
+  @ApiProperty({ type: AuthTokensDto }) tokens: AuthTokensDto;
+}
+
+export class VerifyEmailResponseDto {
+  @ApiProperty({ example: true }) email_verified: boolean;
+}

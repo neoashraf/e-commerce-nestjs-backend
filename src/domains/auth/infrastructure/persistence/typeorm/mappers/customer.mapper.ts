@@ -20,6 +20,8 @@ export class CustomerMapper {
       o.promoEmailOptIn,
       o.status as CustomerStatus,
       o.lastLoginAt ? new Date(o.lastLoginAt) : null,
+      o.failedLoginAttempts ?? 0,
+      o.lockedUntil ? new Date(o.lockedUntil) : null,
       new Date(o.createdAt),
       new Date(o.updatedAt),
       o.deletedAt ? new Date(o.deletedAt) : null,
@@ -42,6 +44,8 @@ export class CustomerMapper {
     o.promoEmailOptIn = d.promoEmailOptIn;
     o.status = d.status;
     o.lastLoginAt = d.lastLoginAt;
+    o.failedLoginAttempts = d.failedLoginAttempts;
+    o.lockedUntil = d.lockedUntil;
     o.deletedAt = d.deletedAt;
     return o;
   }

@@ -18,6 +18,8 @@ export class Customer {
     public promoEmailOptIn: boolean,
     public status: CustomerStatus,
     public lastLoginAt: Date | null,
+    public failedLoginAttempts: number,
+    public lockedUntil: Date | null,
     public readonly createdAt: Date,
     public updatedAt: Date,
     public deletedAt: Date | null,
@@ -40,6 +42,44 @@ export class Customer {
       false,
       CustomerStatus.ACTIVE,
       null,
+      0,
+      null,
+      now,
+      now,
+      null,
+    );
+  }
+
+  /**
+   * Factory for an email + password registration (FR-AUTH-002, 006): email present but
+   * unverified, phone empty until added, not lightweight. Phone is stored empty for a
+   * pure-email account (the address book / phone-change flows can populate it later).
+   */
+  static registerWithEmail(
+    id: string,
+    fullName: string,
+    email: string,
+    passwordHash: string,
+    promoEmailOptIn: boolean,
+    now: Date,
+  ): Customer {
+    return new Customer(
+      id,
+      fullName,
+      '',
+      email,
+      passwordHash,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false,
+      promoEmailOptIn,
+      CustomerStatus.ACTIVE,
+      null,
+      0,
+      null,
       now,
       now,
       null,
@@ -50,8 +90,37 @@ export class Customer {
     return this.status === CustomerStatus.ACTIVE && this.deletedAt === null;
   }
 
+  /** Temporary brute-force lockout is active (FR-AUTH-012). */
+  isLocked(now: Date): boolean {
+    return this.lockedUntil !== null && this.lockedUntil.getTime() > now.getTime();
+  }
+
+  /** Register a failed email/password attempt; lock the account once the threshold is hit. */
+  registerFailedLogin(now: Date, threshold: number, lockMinutes: number): void {
+    this.failedLoginAttempts += 1;
+    if (this.failedLoginAttempts >= threshold) {
+      this.lockedUntil = new Date(now.getTime() + lockMinutes * 60_000);
+      this.failedLoginAttempts = 0;
+    }
+    this.updatedAt = now;
+  }
+
+  /** Clear the failed-attempt counter + lockout on a successful login. */
+  registerSuccessfulLogin(now: Date): void {
+    this.failedLoginAttempts = 0;
+    this.lockedUntil = null;
+    this.lastLoginAt = now;
+    this.updatedAt = now;
+  }
+
   markLoggedIn(now: Date): void {
     this.lastLoginAt = now;
+    this.updatedAt = now;
+  }
+
+  /** Confirm an email-verification link (FR-AUTH-043). */
+  markEmailVerified(now: Date): void {
+    this.emailVerified = true;
     this.updatedAt = now;
   }
 }
