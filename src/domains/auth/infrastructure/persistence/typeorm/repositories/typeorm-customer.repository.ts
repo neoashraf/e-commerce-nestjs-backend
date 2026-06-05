@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { ILike, IsNull, Repository } from 'typeorm';
 
 import { Customer } from '../../../../domain/entities/customer.entity';
 import { ICustomerRepository } from '../../../../domain/repositories/customer.repository.interface';
@@ -21,6 +21,13 @@ export class TypeOrmCustomerRepository implements ICustomerRepository {
 
   async findActiveByPhone(phone: string): Promise<Customer | null> {
     const orm = await this.repo.findOne({ where: { phone, deletedAt: IsNull() } });
+    return orm ? CustomerMapper.toDomain(orm) : null;
+  }
+
+  async findActiveByEmail(email: string): Promise<Customer | null> {
+    const orm = await this.repo.findOne({
+      where: { email: ILike(email), deletedAt: IsNull() },
+    });
     return orm ? CustomerMapper.toDomain(orm) : null;
   }
 

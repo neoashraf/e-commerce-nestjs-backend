@@ -27,5 +27,11 @@ export const authConfigProvider: Provider = {
     otpResendCooldownSeconds: Number(config.get<string>('OTP_RESEND_COOLDOWN') ?? 60),
     otpHourlyCap: Number(config.get<string>('OTP_HOURLY_CAP') ?? 5),
     otpAttemptCap: Number(config.get<string>('OTP_ATTEMPT_CAP') ?? 5),
+    loginMaxAttempts: Number(config.get<string>('LOGIN_MAX_ATTEMPTS') ?? 5),
+    loginLockoutMinutes: Number(config.get<string>('LOGIN_LOCKOUT_MINUTES') ?? 15),
+    emailVerifyTtlSeconds: parseDurationToSeconds(config.get<string>('EMAIL_VERIFY_TTL'), 86_400),
+    emailVerifyResendCooldownSeconds: Number(
+      config.get<string>('EMAIL_VERIFY_RESEND_COOLDOWN') ?? 60,
+    ),
   }),
 };
