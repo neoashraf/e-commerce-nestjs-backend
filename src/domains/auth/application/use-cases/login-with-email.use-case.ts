@@ -44,8 +44,9 @@ export class LoginWithEmailUseCase {
     const email = command.email.trim().toLowerCase();
     const customer = await this.customers.findActiveByEmail(email);
 
-    // Unknown email / no password (phone-only or lightweight) → invalid creds, no enumeration.
-    if (!customer || !customer.passwordHash) {
+    // Unknown email / no password (phone-only) / un-activated lightweight account → invalid
+    // creds, no enumeration. Lightweight accounts cannot password-login until claimed (FR-AUTH-073).
+    if (!customer || !customer.passwordHash || customer.isLightweight) {
       throw this.invalidCredentials();
     }
 

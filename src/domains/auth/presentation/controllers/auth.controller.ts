@@ -22,6 +22,7 @@ import { LoginWithEmailUseCase } from '../../application/use-cases/login-with-em
 import { VerifyEmailUseCase } from '../../application/use-cases/verify-email.use-case';
 import { RequestPasswordResetUseCase } from '../../application/use-cases/request-password-reset.use-case';
 import { ResetPasswordUseCase } from '../../application/use-cases/reset-password.use-case';
+import { ClaimAccountUseCase } from '../../application/use-cases/claim-account.use-case';
 import { RequestOtpDto } from '../dto/request-otp.dto';
 import { VerifyOtpDto } from '../dto/verify-otp.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
@@ -32,7 +33,9 @@ import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { MessageResponseDto } from '../dto/message-response.dto';
+import { ClaimAccountDto } from '../dto/claim.dto';
 import {
+  ClaimResponseDto,
   LoginResponseDto,
   OtpRequestResponseDto,
   RefreshResponseDto,
@@ -54,6 +57,7 @@ export class AuthController {
     private readonly verifyEmailUseCase: VerifyEmailUseCase,
     private readonly requestPasswordResetUseCase: RequestPasswordResetUseCase,
     private readonly resetPasswordUseCase: ResetPasswordUseCase,
+    private readonly claimAccountUseCase: ClaimAccountUseCase,
   ) {}
 
   @Post('otp/request')
@@ -183,6 +187,33 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto): Promise<MessageResponseDto> {
     await this.resetPasswordUseCase.execute({ token: dto.token, newPassword: dto.new_password });
     return { message: 'Password updated. All sessions have been signed out.' };
+  }
+
+  @Post('account/claim')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Claim/activate a lightweight account via OTP (optionally set a password)' })
+  @ApiOkResponse({ type: ClaimResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid/expired OTP or weak password' })
+  @ApiConflictResponse({ description: 'Phone already belongs to a full account' })
+  async claimAccount(@Body() dto: ClaimAccountDto): Promise<ClaimResponseDto> {
+    const result = await this.claimAccountUseCase.execute({
+      challengeId: dto.challenge_id,
+      code: dto.code,
+      password: dto.password,
+    });
+    return {
+      customer: {
+        id: result.customer.id,
+        is_lightweight: result.customer.isLightweight,
+        phone_verified: result.customer.phoneVerified,
+      },
+      tokens: {
+        access_token: result.tokens.accessToken,
+        refresh_token: result.tokens.refreshToken,
+        expires_in: result.tokens.expiresIn,
+      },
+    };
   }
 
   @Post('token/refresh')
