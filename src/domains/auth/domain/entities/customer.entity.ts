@@ -86,6 +86,44 @@ export class Customer {
     );
   }
 
+  /**
+   * Factory for a guest-checkout lightweight account (FR-AUTH-070): keyed by phone,
+   * no password, `is_lightweight = true`, `phone_verified = false`. Promotional opt-ins
+   * default opted-out unless the caller passes consent (FR-AUTH-062). Claimable later
+   * via OTP (FR-AUTH-071).
+   */
+  static createLightweight(
+    id: string,
+    fullName: string,
+    phone: string,
+    email: string | null,
+    promoSmsOptIn: boolean,
+    promoEmailOptIn: boolean,
+    now: Date,
+  ): Customer {
+    return new Customer(
+      id,
+      fullName,
+      phone,
+      email,
+      null,
+      true,
+      false,
+      false,
+      null,
+      null,
+      promoSmsOptIn,
+      promoEmailOptIn,
+      CustomerStatus.ACTIVE,
+      null,
+      0,
+      null,
+      now,
+      now,
+      null,
+    );
+  }
+
   get isActive(): boolean {
     return this.status === CustomerStatus.ACTIVE && this.deletedAt === null;
   }
