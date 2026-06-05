@@ -27,8 +27,31 @@ export class TypeOrmRoleRepository implements IRoleRepository {
     return orm ? RoleMapper.toDomain(orm) : null;
   }
 
+  async findAll(): Promise<Role[]> {
+    const rows = await this.roles.find({ where: { deletedAt: IsNull() }, order: { name: 'ASC' } });
+    return rows.map(RoleMapper.toDomain);
+  }
+
   async findPermissionCodes(roleId: string): Promise<string[]> {
     const rows = await this.rolePermissions.find({ where: { roleId } });
     return rows.map((r) => r.permissionCode);
+  }
+
+  async saveRole(role: Role): Promise<Role> {
+    const saved = await this.roles.save(RoleMapper.toOrm(role));
+    return RoleMapper.toDomain(saved);
+  }
+
+  async replacePermissions(roleId: string, codes: string[]): Promise<void> {
+    await this.rolePermissions.delete({ roleId });
+    if (codes.length > 0) {
+      await this.rolePermissions.insert(
+        codes.map((permissionCode) => ({ roleId, permissionCode })),
+      );
+    }
+  }
+
+  async softDeleteRole(roleId: string, now: Date): Promise<void> {
+    await this.roles.update({ id: roleId }, { deletedAt: now });
   }
 }
