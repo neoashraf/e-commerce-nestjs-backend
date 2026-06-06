@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ServiceTokenGuard } from '../../shared/guards/service-token.guard';
 import { RbacModule } from '../rbac/rbac.module';
+import { BulkService } from './application/bulk.service';
 import { InventoryService } from './application/inventory.service';
 import { MovementService } from './application/movement.service';
 import { ReservationService } from './application/reservation.service';
@@ -11,6 +12,7 @@ import { ReservationExpiryTask } from './application/reservation-expiry.task';
 import { InventoryOrmEntity } from './infrastructure/persistence/typeorm/entities/inventory.orm-entity';
 import { StockMovementOrmEntity } from './infrastructure/persistence/typeorm/entities/stock-movement.orm-entity';
 import { StockReservationOrmEntity } from './infrastructure/persistence/typeorm/entities/stock-reservation.orm-entity';
+import { BulkController } from './presentation/bulk.controller';
 import { InventoryController } from './presentation/inventory.controller';
 import { InventoryInternalController } from './presentation/inventory-internal.controller';
 import { MovementsController } from './presentation/movements.controller';
@@ -38,12 +40,14 @@ import { ReservationController } from './presentation/reservation.controller';
     InventoryInternalController,
     MovementsController,
     ReservationController,
+    BulkController,
   ],
   providers: [
     InventoryService,
     MovementService,
     ReservationService,
     ReservationExpiryTask,
+    BulkService,
     ServiceTokenGuard,
   ],
   exports: [InventoryService, MovementService, ReservationService],
