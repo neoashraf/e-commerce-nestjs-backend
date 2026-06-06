@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 
 import { DataWithMeta } from '../../../../shared/dto/data-with-meta';
 import { CategoryOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/category.orm-entity';
@@ -9,6 +9,8 @@ import { SearchScopeType, SortKey } from '../../domain/search-enums';
 import { normalizeQuery } from '../../domain/query-normalize';
 import { ProductCard, toProductCard } from './product-card.mapper';
 import { applySortAndPaging, parseListingOptions } from './listing-query.options';
+import { FacetBlock, ParsedFilters, ResolvedFacet } from './facet.types';
+import { FacetService } from './facet.service';
 import { QueryLogService } from './query-log.service';
 import { SearchConfigService } from './search-config.service';
 
@@ -20,6 +22,7 @@ export interface SearchData {
   scope: { type: SearchScopeType.SEARCH; query: string; normalized?: string };
   redirect: { target_type: string; target_ref: string } | null;
   products: ProductCard[];
+  facets: FacetBlock[];
   applied_filters: Record<string, unknown>;
   sort: SortKey;
   suggestions: ZeroResultSuggestions | null;
@@ -50,11 +53,12 @@ export class SearchService {
     private readonly categories: Repository<CategoryOrmEntity>,
     private readonly config: SearchConfigService,
     private readonly queryLog: QueryLogService,
+    private readonly facetService: FacetService,
   ) {}
 
   async search(
     rawQuery: string,
-    rawParams: { page?: unknown; limit?: unknown; sort?: unknown; in_stock?: unknown },
+    rawParams: Record<string, string | string[]>,
     customerId?: string | null,
   ): Promise<SearchResult> {
     const normalized = normalizeQuery(rawQuery);
@@ -69,6 +73,7 @@ export class SearchService {
           scope: { type: SearchScopeType.SEARCH, query: rawQuery, normalized },
           redirect: { target_type: redirect.targetType, target_ref: redirect.targetRef },
           products: [],
+          facets: [],
           applied_filters: {},
           sort: options.sort,
           suggestions: null,
@@ -77,26 +82,42 @@ export class SearchService {
       );
     }
 
+    const applicable = await this.facetService.resolveForSearch();
+    const filters = this.facetService.parse(rawParams, applicable);
+
     const terms = await this.expandWithSynonyms(normalized);
     const tsQuery = terms.join(' | '); // OR across synonym-expanded terms
 
-    // --- FTS pass ---
-    let total = await this.countFts(tsQuery);
-    let rows: ProductSearchDocumentOrmEntity[] = [];
+    // Scope factory used for both the result query and per-facet counts. FTS scope unless it is empty,
+    // then the trigram fuzzy scope (typo tolerance, FR-SRCH-011/§12.5).
+    const ftsScope = (): SelectQueryBuilder<ProductSearchDocumentOrmEntity> => this.ftsBase(tsQuery);
+    const trigramScope = (): SelectQueryBuilder<ProductSearchDocumentOrmEntity> =>
+      this.trigramBase(normalized);
+
+    let scope = ftsScope;
+    let rankExpr = `ts_rank(doc.search_tsv, to_tsquery('simple', :tsQuery))`;
+    let total = await this.countWith(scope, filters, applicable);
     let relaxedQuery: string | undefined;
 
+    if (total === 0 && normalized !== '') {
+      scope = trigramScope;
+      rankExpr = `similarity(doc.search_text, :q)`;
+      total = await this.countWith(scope, filters, applicable);
+    }
+
+    let rows: ProductSearchDocumentOrmEntity[] = [];
     if (total > 0) {
-      rows = await this.runFts(tsQuery, options);
-    } else {
-      // --- trigram fuzzy fallback (typo tolerance, FR-SRCH-011/§12.5) ---
-      total = await this.countTrigram(normalized);
-      if (total > 0) {
-        rows = await this.runTrigram(normalized, options);
-        relaxedQuery = rows[0]?.title?.toLowerCase();
-      }
+      const qb = scope();
+      this.facetService.applyAll(qb, filters, applicable);
+      qb.addSelect(rankExpr, 'rank');
+      applySortAndPaging(qb, options, true);
+      rows = await qb.getMany();
+      if (scope === trigramScope) relaxedQuery = rows[0]?.title?.toLowerCase();
     }
 
     await this.safeLog(rawQuery, normalized, total, customerId);
+
+    const facets = total > 0 ? await this.facetService.buildBlocks(applicable, filters, scope) : [];
 
     if (total === 0) {
       return new DataWithMeta<SearchData>(
@@ -104,9 +125,10 @@ export class SearchService {
           scope: { type: SearchScopeType.SEARCH, query: rawQuery, normalized },
           redirect: null,
           products: [],
-          applied_filters: {},
+          facets: [],
+          applied_filters: this.facetService.appliedFilters(filters),
           sort: options.sort,
-          suggestions: await this.buildZeroResultSuggestions(relaxedQuery),
+          suggestions: await this.buildZeroResultSuggestions(relaxedQuery, filters),
         },
         { page: options.page, limit: options.limit, total: 0 },
       );
@@ -117,7 +139,8 @@ export class SearchService {
         scope: { type: SearchScopeType.SEARCH, query: rawQuery, normalized },
         redirect: null,
         products: rows.map(toProductCard),
-        applied_filters: {},
+        facets,
+        applied_filters: this.facetService.appliedFilters(filters),
         sort: options.sort,
         suggestions: null,
       },
@@ -126,37 +149,16 @@ export class SearchService {
   }
 
   // ---------------------------------------------------------------------------
-  // FTS
+  // Scope builders
   // ---------------------------------------------------------------------------
 
-  private ftsBase(tsQuery: string): ReturnType<Repository<ProductSearchDocumentOrmEntity>['createQueryBuilder']> {
+  private ftsBase(tsQuery: string): SelectQueryBuilder<ProductSearchDocumentOrmEntity> {
     return this.documents
       .createQueryBuilder('doc')
       .where(`doc.search_tsv @@ to_tsquery('simple', :tsQuery)`, { tsQuery });
   }
 
-  private async countFts(tsQuery: string): Promise<number> {
-    if (tsQuery.trim() === '') return 0;
-    return this.ftsBase(tsQuery).getCount();
-  }
-
-  private async runFts(
-    tsQuery: string,
-    options: { page: number; limit: number; sort: SortKey },
-  ): Promise<ProductSearchDocumentOrmEntity[]> {
-    const qb = this.ftsBase(tsQuery).addSelect(
-      `ts_rank(doc.search_tsv, to_tsquery('simple', :tsQuery))`,
-      'rank',
-    );
-    applySortAndPaging(qb, options, true);
-    return qb.getMany();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Trigram fuzzy fallback
-  // ---------------------------------------------------------------------------
-
-  private trigramBase(normalized: string): ReturnType<Repository<ProductSearchDocumentOrmEntity>['createQueryBuilder']> {
+  private trigramBase(normalized: string): SelectQueryBuilder<ProductSearchDocumentOrmEntity> {
     return this.documents
       .createQueryBuilder('doc')
       .where(`similarity(doc.search_text, :q) > :threshold`, {
@@ -165,21 +167,15 @@ export class SearchService {
       });
   }
 
-  private async countTrigram(normalized: string): Promise<number> {
-    if (normalized === '') return 0;
-    return this.trigramBase(normalized).getCount();
-  }
-
-  private async runTrigram(
-    normalized: string,
-    options: { page: number; limit: number; sort: SortKey },
-  ): Promise<ProductSearchDocumentOrmEntity[]> {
-    const qb = this.trigramBase(normalized).addSelect(
-      `similarity(doc.search_text, :q)`,
-      'rank',
-    );
-    applySortAndPaging(qb, options, true);
-    return qb.getMany();
+  /** Count over a scope with all active filters applied (for the result total + empty check). */
+  private async countWith(
+    scope: () => SelectQueryBuilder<ProductSearchDocumentOrmEntity>,
+    filters: ParsedFilters,
+    applicable: ResolvedFacet[],
+  ): Promise<number> {
+    const qb = scope();
+    this.facetService.applyAll(qb, filters, applicable);
+    return qb.getCount();
   }
 
   // ---------------------------------------------------------------------------
@@ -206,18 +202,22 @@ export class SearchService {
   }
 
   private async buildZeroResultSuggestions(
-    relaxedQuery?: string,
+    relaxedQuery: string | undefined,
+    filters: ParsedFilters,
   ): Promise<ZeroResultSuggestions> {
     const popular = await this.categories.find({
       where: { isPublished: true },
       order: { position: 'ASC' },
       take: POPULAR_CATEGORIES_LIMIT,
     });
+    // Restricting filters = the active facet selections that narrowed the result to zero (FR-SRCH-061).
+    const restricting = Array.from(filters.terms.keys());
+    if (filters.priceMin !== undefined || filters.priceMax !== undefined) restricting.push('price');
+    if (filters.inStockOnly) restricting.push('in_stock');
+    if (filters.onSaleOnly) restricting.push('on_sale');
     return {
       ...(relaxedQuery ? { relaxed_query: relaxedQuery } : {}),
-      // No active facet filters are executed in this brief (facets sibling owns them); restricting
-      // filters are surfaced once faceting is wired. Empty for now (FR-SRCH-061 hook).
-      restricting_filters: [],
+      restricting_filters: restricting,
       popular_categories: popular.map((c) => ({ slug: c.slug, title: c.name })),
     };
   }

@@ -4,8 +4,19 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { SearchService } from '../services/search.service';
 import { SearchConfigService } from '../services/search-config.service';
 import { QueryLogService } from '../services/query-log.service';
+import { FacetService } from '../services/facet.service';
 import { ProductSearchDocumentOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-search-document.orm-entity';
 import { CategoryOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/category.orm-entity';
+
+/** Mocked FacetService — no facets, empty filters, applyAll/buildBlocks no-ops. */
+const mockFacetService = () => ({
+  resolveForSearch: jest.fn().mockResolvedValue([]),
+  resolveForCategory: jest.fn().mockResolvedValue([]),
+  parse: jest.fn().mockReturnValue({ terms: new Map(), inStockOnly: false, onSaleOnly: false }),
+  applyAll: jest.fn(),
+  buildBlocks: jest.fn().mockResolvedValue([]),
+  appliedFilters: jest.fn().mockReturnValue({}),
+});
 
 /** Chainable query-builder stub whose getCount/getMany are configurable per test. */
 function makeQb(count: number, many: unknown[]) {
@@ -55,6 +66,7 @@ describe('Search — SearchService', () => {
         { provide: getRepositoryToken(CategoryOrmEntity), useValue: categories },
         { provide: SearchConfigService, useValue: config },
         { provide: QueryLogService, useValue: queryLog },
+        { provide: FacetService, useValue: mockFacetService() },
       ],
     }).compile();
     service = module.get(SearchService);

@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AttributeOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/attribute.orm-entity';
 import { AttributeOptionOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/attribute-option.orm-entity';
 import { CategoryOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/category.orm-entity';
+import { CategoryFilterableAttributeOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/category-filterable-attribute.orm-entity';
 import { ProductAttributeValueOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product-attribute-value.orm-entity';
 import { ProductCategoryOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product-category.orm-entity';
 import { ProductImageOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product-image.orm-entity';
@@ -13,6 +14,10 @@ import { ProductOrmEntity } from '../catalog/infrastructure/persistence/typeorm/
 import { InventoryModule } from '../inventory/inventory.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { INVENTORY_AVAILABILITY_PORT } from './application/ports/inventory-availability.port';
+import { FacetCountService } from './application/services/facet-count.service';
+import { FacetFilterService } from './application/services/facet-filter.service';
+import { FacetResolverService } from './application/services/facet-resolver.service';
+import { FacetService } from './application/services/facet.service';
 import { ListingService } from './application/services/listing.service';
 import { QueryLogService } from './application/services/query-log.service';
 import { ReindexJobService } from './application/services/reindex-job.service';
@@ -21,10 +26,12 @@ import { SearchIndexerService } from './application/services/search-indexer.serv
 import { SearchService } from './application/services/search.service';
 import { SuggestService } from './application/services/suggest.service';
 import { InventoryAvailabilityAdapter } from './infrastructure/adapters/inventory-availability.adapter';
+import { FacetDefinitionOrmEntity } from './infrastructure/persistence/typeorm/entities/facet-definition.orm-entity';
 import { ProductSearchDocumentOrmEntity } from './infrastructure/persistence/typeorm/entities/product-search-document.orm-entity';
 import { SearchQueryLogOrmEntity } from './infrastructure/persistence/typeorm/entities/search-query-log.orm-entity';
 import { SearchRedirectOrmEntity } from './infrastructure/persistence/typeorm/entities/search-redirect.orm-entity';
 import { SearchSynonymOrmEntity } from './infrastructure/persistence/typeorm/entities/search-synonym.orm-entity';
+import { AdminFacetsController } from './presentation/controllers/admin-facets.controller';
 import { AdminSearchConfigController } from './presentation/controllers/admin-search-config.controller';
 import { AdminSearchIndexController } from './presentation/controllers/admin-search-index.controller';
 import { ListingController } from './presentation/controllers/listing.controller';
@@ -47,9 +54,11 @@ import { SearchController } from './presentation/controllers/search.controller';
       SearchSynonymOrmEntity,
       SearchRedirectOrmEntity,
       SearchQueryLogOrmEntity,
+      FacetDefinitionOrmEntity,
       // CAT read-surface entities (repositories injected; SRCH never mutates them).
       ProductOrmEntity,
       CategoryOrmEntity,
+      CategoryFilterableAttributeOrmEntity,
       ProductCategoryOrmEntity,
       ProductImageOrmEntity,
       ProductVariantOrmEntity,
@@ -64,6 +73,7 @@ import { SearchController } from './presentation/controllers/search.controller';
     SearchController,
     AdminSearchConfigController,
     AdminSearchIndexController,
+    AdminFacetsController,
   ],
   providers: [
     ListingService,
@@ -73,6 +83,10 @@ import { SearchController } from './presentation/controllers/search.controller';
     QueryLogService,
     SearchIndexerService,
     ReindexJobService,
+    FacetResolverService,
+    FacetFilterService,
+    FacetCountService,
+    FacetService,
     { provide: INVENTORY_AVAILABILITY_PORT, useClass: InventoryAvailabilityAdapter },
   ],
   // SearchIndexer is exported so CAT/INV reindex hooks can call it once wired (integration point).

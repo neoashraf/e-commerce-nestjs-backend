@@ -34,6 +34,24 @@ export enum InsightsType {
   ZERO_RESULTS = 'zero_results',
 }
 
+/** Facet value types (SRS 03 §8 FacetDefinition.type). */
+export enum FacetType {
+  TERM = 'term',
+  RANGE = 'range',
+  BOOLEAN = 'boolean',
+}
+
+/** Where a facet sources its values (SRS 03 §8 FacetDefinition.source; §13 RESOLVED). */
+export enum FacetSource {
+  ATTRIBUTE = 'attribute',
+  BRAND = 'brand',
+  CATEGORY = 'category',
+  VARIANT_COLOR = 'variant_color',
+  VARIANT_SIZE = 'variant_size',
+  PRICE = 'price',
+  AVAILABILITY = 'availability',
+}
+
 export const DEFAULT_LIMIT = 24;
 export const MAX_LIMIT = 60;
 export const MIN_QUERY_LENGTH = 2;
