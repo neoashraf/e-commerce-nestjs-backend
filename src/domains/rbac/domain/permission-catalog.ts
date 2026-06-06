@@ -65,6 +65,7 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { code: 'notifications.template.read', module: 'NOTIF', description: 'View notification templates' },
   { code: 'notifications.template.create', module: 'NOTIF', description: 'Create notification templates' },
   { code: 'notifications.template.update', module: 'NOTIF', description: 'Edit notification templates (new version)' },
+  { code: 'notifications.campaign.send', module: 'NOTIF', description: 'Send promotional campaigns and dry-run eligibility' },
 
   // CMS — content
   ...crud('CMS', 'content.slider', 'sliders'),

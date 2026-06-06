@@ -11,6 +11,12 @@ import { NotificationDispatchService } from './notification-dispatch.service';
 import { NotificationsController } from './notifications.controller';
 import { TemplatesController } from './templates.controller';
 import { TemplatesService } from './templates.service';
+import { CampaignController } from './campaign.controller';
+import { CampaignService } from './campaign.service';
+import { PromotionalService } from './promotional.service';
+import { PromotionalDeferralTask } from './promotional-deferral.task';
+import { UnsubscribeController } from './unsubscribe.controller';
+import { OPT_IN_READER, StubOptInReader } from './ports/opt-in-reader.port';
 import { EMAIL_PROVIDER } from './providers/email-provider.interface';
 import { SMS_PROVIDER } from './providers/sms-provider.interface';
 import { SmtpEmailAdapter } from './providers/smtp-email.adapter';
@@ -29,13 +35,22 @@ import { StubSmsAdapter } from './providers/stub-sms.adapter';
       ChannelProviderConfigEntity,
     ]),
   ],
-  controllers: [NotificationsController, TemplatesController],
+  controllers: [
+    NotificationsController,
+    TemplatesController,
+    CampaignController,
+    UnsubscribeController,
+  ],
   providers: [
     NotificationDispatchService,
     TemplatesService,
+    PromotionalService,
+    CampaignService,
+    PromotionalDeferralTask,
     { provide: SMS_PROVIDER, useClass: StubSmsAdapter },
     { provide: EMAIL_PROVIDER, useClass: SmtpEmailAdapter },
+    { provide: OPT_IN_READER, useClass: StubOptInReader },
   ],
-  exports: [NotificationDispatchService, TemplatesService],
+  exports: [NotificationDispatchService, TemplatesService, PromotionalService],
 })
 export class NotificationsModule {}
