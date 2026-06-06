@@ -6,9 +6,12 @@ import { ServiceTokenGuard } from '../../shared/guards/service-token.guard';
 import { RbacModule } from '../rbac/rbac.module';
 import { BulkService } from './application/bulk.service';
 import { InventoryService } from './application/inventory.service';
+import { LowStockAlertService } from './application/low-stock-alert.service';
 import { MovementService } from './application/movement.service';
+import { INVENTORY_NOTIFIER } from './application/ports/inventory-notifier.port';
 import { ReservationService } from './application/reservation.service';
 import { ReservationExpiryTask } from './application/reservation-expiry.task';
+import { LoggingInventoryNotifier } from './infrastructure/services/logging-inventory-notifier.service';
 import { InventoryOrmEntity } from './infrastructure/persistence/typeorm/entities/inventory.orm-entity';
 import { StockMovementOrmEntity } from './infrastructure/persistence/typeorm/entities/stock-movement.orm-entity';
 import { StockReservationOrmEntity } from './infrastructure/persistence/typeorm/entities/stock-reservation.orm-entity';
@@ -48,6 +51,9 @@ import { ReservationController } from './presentation/reservation.controller';
     ReservationService,
     ReservationExpiryTask,
     BulkService,
+    LowStockAlertService,
+    // NOTIF seam: logging stub until notif-dispatch-be is wired (replace with a NOTIF-backed adapter).
+    { provide: INVENTORY_NOTIFIER, useClass: LoggingInventoryNotifier },
     ServiceTokenGuard,
   ],
   exports: [InventoryService, MovementService, ReservationService],

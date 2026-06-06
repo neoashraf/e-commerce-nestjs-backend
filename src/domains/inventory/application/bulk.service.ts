@@ -4,6 +4,7 @@ import { DataSource, In, Repository } from 'typeorm';
 
 import { StockMovementType } from '../domain/stock-movement-type';
 import { InventoryOrmEntity } from '../infrastructure/persistence/typeorm/entities/inventory.orm-entity';
+import { LowStockAlertService } from './low-stock-alert.service';
 import { MovementActor, MovementService } from './movement.service';
 
 /** One normalized bulk row (JSON body or a parsed CSV line). */
@@ -46,6 +47,7 @@ export class BulkService {
     private readonly inventory: Repository<InventoryOrmEntity>,
     private readonly dataSource: DataSource,
     private readonly movements: MovementService,
+    private readonly alerts: LowStockAlertService,
   ) {}
 
   async bulkUpdate(rows: BulkRow[], actor: MovementActor): Promise<BulkResult> {
@@ -152,6 +154,10 @@ export class BulkService {
           actor,
         });
       }
+
+      // Alert/debounce/re-arm hook: a bulk set can drop available below (or recover it above) the
+      // threshold, including a threshold-only change (FR-INV-040/041; shared path).
+      await this.alerts.evaluate(manager, variantId);
     });
   }
 
