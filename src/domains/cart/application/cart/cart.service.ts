@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -12,6 +13,10 @@ import { Repository } from 'typeorm';
 import { CartStatus } from '../../domain/enums/cart-status.enum';
 import { CartItemOrmEntity } from '../../infrastructure/persistence/typeorm/entities/cart-item.orm-entity';
 import { CartOrmEntity } from '../../infrastructure/persistence/typeorm/entities/cart.orm-entity';
+import {
+  COUPON_VALIDATOR,
+  ICouponValidator,
+} from '../checkout/checkout.ports';
 import { CATALOG_READER, ICatalogReader } from '../ports/catalog-reader.port';
 import { IStockChecker, STOCK_CHECKER } from '../ports/stock-checker.port';
 import { MAX_DISTINCT_LINES, MAX_QTY_PER_LINE } from './cart.constants';
@@ -81,6 +86,7 @@ export class CartService {
     @InjectRepository(CartItemOrmEntity) private readonly items: Repository<CartItemOrmEntity>,
     @Inject(CATALOG_READER) private readonly catalog: ICatalogReader,
     @Inject(STOCK_CHECKER) private readonly stock: IStockChecker,
+    @Inject(COUPON_VALIDATOR) private readonly coupons: ICouponValidator,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -278,6 +284,75 @@ export class CartService {
   async markConverted(cartId: string): Promise<void> {
     await this.carts.update({ id: cartId }, { status: CartStatus.CONVERTED });
     await this.items.delete({ cartId });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Coupon apply / remove (FR-CART-020/021/023) — validated via the real PROMO engine
+  // ---------------------------------------------------------------------------
+
+  async applyCoupon(
+    actor: CartActor,
+    code: string,
+  ): Promise<{ applied: true; code: string; discount: string; summary: CartView['summary'] }> {
+    const cart = await this.resolveOrCreate(actor);
+    const normalized = code.trim().toUpperCase();
+
+    // One coupon per order — a different applied code blocks a second apply (FR-CART-023, BR-CART-5).
+    if (cart.appliedCouponCode && cart.appliedCouponCode !== normalized) {
+      throw new ConflictException({
+        code: 'COUPON_ALREADY_APPLIED',
+        message: 'A coupon is already applied. Remove it before applying another.',
+      });
+    }
+
+    const view = await this.buildView(cart);
+    const verdict = await this.coupons.validate({
+      code: normalized,
+      identity: { customer_id: cart.customerId, guest_phone: null },
+      lines: view.items.map((i) => ({
+        product_id: i.product_id,
+        category_id: null,
+        quantity: i.quantity,
+        effective_unit_price: i.unit_price,
+      })),
+      subtotal: view.summary.subtotal,
+    });
+
+    if (!verdict.valid) {
+      throw new UnprocessableEntityException({ code: 'COUPON_INVALID', reason: verdict.reason });
+    }
+
+    cart.appliedCouponCode = normalized;
+    await this.carts.save(cart);
+
+    const summary = this.applyDiscountToSummary(view.summary, verdict.discount_amount, normalized);
+    return { applied: true as const, code: normalized, discount: verdict.discount_amount, summary };
+  }
+
+  async removeCoupon(actor: CartActor): Promise<{ summary: CartView['summary'] }> {
+    const cart = await this.resolveExisting(actor);
+    if (cart && cart.appliedCouponCode) {
+      cart.appliedCouponCode = null;
+      await this.carts.save(cart);
+    }
+    const view = cart ? await this.buildView(cart) : this.emptyView(null, null);
+    return { summary: view.summary };
+  }
+
+  /** Reflect a live-computed discount in a cart summary (discount never persisted as an amount). */
+  private applyDiscountToSummary(
+    summary: CartView['summary'],
+    discount: string,
+    _code: string,
+  ): CartView['summary'] {
+    const subtotalPaisa = Math.round(Number(summary.subtotal) * 100);
+    const discountPaisa = Math.min(Math.round(Number(discount) * 100), subtotalPaisa);
+    return {
+      ...summary,
+      discount: (discountPaisa / 100).toFixed(2),
+      // delivery/cod/vat finalize at checkout; grand_total here reflects subtotal − discount only.
+      grand_total: ((subtotalPaisa - discountPaisa) / 100).toFixed(2),
+    };
   }
 
   // ---------------------------------------------------------------------------

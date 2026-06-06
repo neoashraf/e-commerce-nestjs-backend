@@ -33,6 +33,7 @@ import {
   CartView,
 } from '../../application/cart/cart.service';
 import { OptionalCustomerGuard } from '../guards/optional-customer.guard';
+import { ApplyCouponDto } from '../dto/apply-coupon.dto';
 import { AddItemDto, AddItemResultDto, MergeCartDto, UpdateItemDto } from '../dto/cart.dto';
 
 /**
@@ -124,6 +125,30 @@ export class CartController {
     @Body() dto: MergeCartDto,
   ) {
     return this.cart.merge(this.actor(req, cartToken), dto.cart_token);
+  }
+
+  @Post('coupon')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Apply a coupon to the cart (validated via PROMO; one per order)' })
+  @ApiOkResponse({ description: '{ applied, code, discount, summary }' })
+  @ApiConflictResponse({ description: 'COUPON_ALREADY_APPLIED (one coupon per order)' })
+  applyCoupon(
+    @Req() req: Request,
+    @Headers('x-cart-token') cartToken: string | undefined,
+    @Body() dto: ApplyCouponDto,
+  ) {
+    return this.cart.applyCoupon(this.actor(req, cartToken), dto.code);
+  }
+
+  @Delete('coupon')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove the applied coupon and recompute the summary' })
+  @ApiOkResponse({ description: '{ summary }' })
+  removeCoupon(
+    @Req() req: Request,
+    @Headers('x-cart-token') cartToken: string | undefined,
+  ) {
+    return this.cart.removeCoupon(this.actor(req, cartToken));
   }
 
   // --- helpers ---

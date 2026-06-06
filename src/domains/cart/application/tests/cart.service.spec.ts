@@ -5,6 +5,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { CartActor, CartService } from '../cart/cart.service';
 import { CATALOG_READER } from '../ports/catalog-reader.port';
 import { STOCK_CHECKER } from '../ports/stock-checker.port';
+import { COUPON_VALIDATOR } from '../checkout/checkout.ports';
 import { CartStatus } from '../../domain/enums/cart-status.enum';
 import { CartOrmEntity } from '../../infrastructure/persistence/typeorm/entities/cart.orm-entity';
 import { CartItemOrmEntity } from '../../infrastructure/persistence/typeorm/entities/cart-item.orm-entity';
@@ -30,6 +31,7 @@ describe('Cart — CartService', () => {
   let items: { findOne: jest.Mock; find: jest.Mock; count: jest.Mock; create: jest.Mock; save: jest.Mock; remove: jest.Mock; delete: jest.Mock };
   let catalog: { getVariant: jest.Mock };
   let stock: { availabilityFor: jest.Mock; availableFor: jest.Mock };
+  let coupons: { validate: jest.Mock; redeem: jest.Mock };
 
   beforeEach(async () => {
     carts = {
@@ -51,6 +53,7 @@ describe('Cart — CartService', () => {
       availabilityFor: jest.fn().mockResolvedValue(new Map([['v1', { available: 5, status: 'in_stock' }]])),
       availableFor: jest.fn().mockResolvedValue(5),
     };
+    coupons = { validate: jest.fn(), redeem: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -59,6 +62,7 @@ describe('Cart — CartService', () => {
         { provide: getRepositoryToken(CartItemOrmEntity), useValue: items },
         { provide: CATALOG_READER, useValue: catalog },
         { provide: STOCK_CHECKER, useValue: stock },
+        { provide: COUPON_VALIDATOR, useValue: coupons },
       ],
     }).compile();
 
@@ -170,5 +174,45 @@ describe('Cart — CartService', () => {
     items.find.mockResolvedValue([]);
     const result = await service.merge(CUSTOMER, 'unknown');
     expect(result.merged_lines).toBe(0);
+  });
+
+  // --- coupon apply / remove ---
+
+  it('should apply a valid coupon and reflect the live discount in the summary', async () => {
+    carts.findOne.mockResolvedValue({ id: 'cart_1', customerId: 'c1', status: CartStatus.ACTIVE, appliedCouponCode: null });
+    items.find.mockResolvedValue([
+      { id: 'ci_1', cartId: 'cart_1', productId: 'p1', variantId: 'v1', quantity: 1 },
+    ]);
+    coupons.validate.mockResolvedValue({ valid: true, discount_amount: '500.00', free_shipping: false });
+    const result = await service.applyCoupon(CUSTOMER, 'eid500');
+    expect(result.applied).toBe(true);
+    expect(result.code).toBe('EID500');
+    expect(result.discount).toBe('500.00');
+    expect(result.summary.discount).toBe('500.00');
+    expect(carts.save).toHaveBeenCalledWith(expect.objectContaining({ appliedCouponCode: 'EID500' }));
+  });
+
+  it('should reject an invalid coupon with 422 and leave the cart unchanged', async () => {
+    carts.findOne.mockResolvedValue({ id: 'cart_1', customerId: 'c1', status: CartStatus.ACTIVE, appliedCouponCode: null });
+    items.find.mockResolvedValue([{ id: 'ci_1', cartId: 'cart_1', productId: 'p1', variantId: 'v1', quantity: 1 }]);
+    coupons.validate.mockResolvedValue({ valid: false, reason: 'expired', message: 'expired' });
+    await expect(service.applyCoupon(CUSTOMER, 'EXPIRED')).rejects.toMatchObject({
+      response: { code: 'COUPON_INVALID', reason: 'expired' },
+    });
+    expect(carts.save).not.toHaveBeenCalled();
+  });
+
+  it('should reject a second coupon when one is already applied (409)', async () => {
+    carts.findOne.mockResolvedValue({ id: 'cart_1', customerId: 'c1', status: CartStatus.ACTIVE, appliedCouponCode: 'EID500' });
+    const { ConflictException } = await import('@nestjs/common');
+    await expect(service.applyCoupon(CUSTOMER, 'OTHER')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('should remove the applied coupon and recompute the summary', async () => {
+    carts.findOne.mockResolvedValue({ id: 'cart_1', customerId: 'c1', status: CartStatus.ACTIVE, appliedCouponCode: 'EID500' });
+    items.find.mockResolvedValue([]);
+    const result = await service.removeCoupon(CUSTOMER);
+    expect(carts.save).toHaveBeenCalledWith(expect.objectContaining({ appliedCouponCode: null }));
+    expect(result.summary.discount).toBe('0.00');
   });
 });
