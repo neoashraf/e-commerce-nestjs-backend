@@ -279,6 +279,58 @@ export class NotificationDispatchService {
     return `${body}\n\n—\nTo stop promotional emails, unsubscribe: ${url}`;
   }
 
+  /**
+   * Resend an existing notification (FR-NOTIF-062, §12.11). Clones the original's already-rendered
+   * content into a fresh `queued` record linked via `resent_from_id` and re-delivers through the
+   * dispatch core. Re-rendering from the template is intentionally avoided: the original dispatch
+   * variables are not persisted, so replaying the stored rendered subject/body is the faithful resend.
+   * A suppressed/deferred original is re-sent normally (the admin is overriding); the `flagged` result
+   * marks a resend of an already-`delivered` message (allowed but flagged, §12.11).
+   */
+  async resend(originalId: string): Promise<{ id: string; resentFromId: string; status: string; flagged: boolean } | null> {
+    const original = await this.notifs.findOne({ where: { id: originalId } });
+    if (!original) return null;
+
+    const flagged = original.status === NotificationStatus.DELIVERED;
+    const clone = this.notifs.create({
+      id: randomUUID(),
+      eventType: original.eventType,
+      category: original.category,
+      channel: original.channel,
+      locale: original.locale,
+      customerId: original.customerId,
+      adminUserId: original.adminUserId,
+      recipientAddress: original.recipientAddress,
+      relatedEntityType: original.relatedEntityType,
+      relatedEntityId: original.relatedEntityId,
+      templateId: original.templateId,
+      templateVersion: original.templateVersion,
+      renderedSubject: original.renderedSubject,
+      renderedBody: original.renderedBody,
+      smsSenderRoute: original.smsSenderRoute,
+      status: NotificationStatus.QUEUED,
+      failureReason: null,
+      attempts: 0,
+      // Fresh idempotency identity so the resend is never deduplicated against the original.
+      idempotencyKey: null,
+      resentFromId: original.id,
+      deferredUntil: null,
+    });
+    await this.notifs.save(clone);
+    // The contract acknowledges the resend at enqueue (`queued`); delivery proceeds as a side effect.
+    const enqueuedStatus = clone.status;
+
+    await this.deliver(
+      clone,
+      clone.channel as NotificationChannel,
+      clone.recipientAddress,
+      clone.renderedSubject,
+      clone.renderedBody,
+    );
+
+    return { id: clone.id, resentFromId: original.id, status: enqueuedStatus, flagged };
+  }
+
   /** DLR / status webhook (FR-NOTIF-041): map provider ref → notification, update status. */
   async handleStatusUpdate(providerMessageRef: string, delivered: boolean): Promise<boolean> {
     const notif = await this.notifs.findOne({ where: { providerMessageRef } });
