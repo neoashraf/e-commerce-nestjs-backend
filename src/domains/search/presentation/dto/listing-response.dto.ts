@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** Storefront product card (Swagger doc of the contract data.products[] shape). */
 export class ProductCardDto {
@@ -21,10 +21,29 @@ class CategoryScopeDto {
   @ApiProperty({ type: [String] }) breadcrumb: string[];
 }
 
+class FacetValueDto {
+  @ApiProperty({ example: 'fg' }) value: string;
+  @ApiProperty({ example: 'Firm Ground' }) label: string;
+  @ApiProperty({ example: 18 }) count: number;
+  @ApiPropertyOptional({ example: '#000000' }) color_hex?: string;
+}
+
+class FacetBlockDto {
+  @ApiProperty({ example: 'surface' }) key: string;
+  @ApiProperty({ example: 'Surface' }) label: string;
+  @ApiProperty({ example: 'term', description: 'term | range | boolean' }) type: string;
+  @ApiPropertyOptional({ example: true }) multi_select?: boolean;
+  @ApiPropertyOptional({ type: [FacetValueDto] }) values?: FacetValueDto[];
+  @ApiPropertyOptional({ example: '1500.00' }) min?: string;
+  @ApiPropertyOptional({ example: '24000.00' }) max?: string;
+  @ApiPropertyOptional({ example: 12 }) count?: number;
+}
+
 /** Category listing payload (contract: GET /listings/category/{slug}). */
 export class CategoryListingDto {
   @ApiProperty({ type: CategoryScopeDto }) scope: CategoryScopeDto;
   @ApiProperty({ type: [ProductCardDto] }) products: ProductCardDto[];
+  @ApiProperty({ type: [FacetBlockDto] }) facets: FacetBlockDto[];
   @ApiProperty({ type: Object }) applied_filters: Record<string, unknown>;
   @ApiProperty({ example: 'best_selling' }) sort: string;
 }
@@ -56,6 +75,7 @@ export class SearchResponseDto {
   @ApiProperty({ type: SearchScopeDto }) scope: SearchScopeDto;
   @ApiProperty({ type: RedirectDto, nullable: true }) redirect: RedirectDto | null;
   @ApiProperty({ type: [ProductCardDto] }) products: ProductCardDto[];
+  @ApiProperty({ type: [FacetBlockDto] }) facets: FacetBlockDto[];
   @ApiProperty({ type: Object }) applied_filters: Record<string, unknown>;
   @ApiProperty({ example: 'relevance' }) sort: string;
   @ApiProperty({ type: ZeroResultSuggestionsDto, nullable: true })

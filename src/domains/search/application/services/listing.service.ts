@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 
 import { DataWithMeta } from '../../../../shared/dto/data-with-meta';
 import { CategoryOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/category.orm-entity';
@@ -8,10 +8,13 @@ import { ProductSearchDocumentOrmEntity } from '../../infrastructure/persistence
 import { SearchScopeType, SortKey } from '../../domain/search-enums';
 import { ProductCard, toProductCard } from './product-card.mapper';
 import { applySortAndPaging, parseListingOptions } from './listing-query.options';
+import { FacetBlock } from './facet.types';
+import { FacetService } from './facet.service';
 
 export interface CategoryListingData {
   scope: { type: SearchScopeType.CATEGORY; slug: string; title: string; breadcrumb: string[] };
   products: ProductCard[];
+  facets: FacetBlock[];
   applied_filters: Record<string, unknown>;
   sort: SortKey;
 }
@@ -22,8 +25,8 @@ export type CategoryListingResult = DataWithMeta<CategoryListingData>;
  * Category browse (FR-SRCH-001/002/004/005, BR-SRCH-1/5). Resolves a published category by slug (404
  * otherwise), then serves its published products **including descendant categories** from the index
  * (`category_ids` array membership) — no DB table scan. Sort defaults to best_selling→newest (BR-SRCH-5);
- * OOS-last + deterministic pagination via the shared helper. Facet *counts* are delegated to the facets
- * sibling — this returns `applied_filters`/`sort`/`meta` and leaves the facet hook to it.
+ * OOS-last + deterministic pagination via the shared helper. Faceting (applicable facets, filter
+ * application, live counts, applied_filters) is delegated to {@link FacetService} (facets sibling).
  */
 @Injectable()
 export class ListingService {
@@ -32,11 +35,12 @@ export class ListingService {
     private readonly categories: Repository<CategoryOrmEntity>,
     @InjectRepository(ProductSearchDocumentOrmEntity)
     private readonly documents: Repository<ProductSearchDocumentOrmEntity>,
+    private readonly facetService: FacetService,
   ) {}
 
   async browseCategory(
     slug: string,
-    rawParams: { page?: unknown; limit?: unknown; sort?: unknown },
+    rawParams: Record<string, string | string[]>,
   ): Promise<CategoryListingResult> {
     const category = await this.categories.findOne({ where: { slug } });
     if (!category || !category.isPublished || category.deletedAt !== null) {
@@ -45,18 +49,27 @@ export class ListingService {
 
     const options = parseListingOptions(rawParams, SortKey.BEST_SELLING, false);
     const categoryIds = await this.collectCategoryAndDescendants(category.id);
+    const applicable = await this.facetService.resolveForCategory(category.id);
+    const filters = this.facetService.parse(rawParams, applicable);
 
-    const base = (): ReturnType<Repository<ProductSearchDocumentOrmEntity>['createQueryBuilder']> =>
+    // Scoped base (category membership only) — the facet count service applies other filters per facet.
+    const scoped = (): SelectQueryBuilder<ProductSearchDocumentOrmEntity> =>
       this.documents
         .createQueryBuilder('doc')
         // descendant browse: the product is tagged with this category or any descendant (FR-SRCH-001).
         .where('doc.category_ids && :categoryIds', { categoryIds });
 
-    const total = await base().getCount();
+    // Main result query = scope + all active filters (before sort/paging).
+    const countQb = scoped();
+    this.facetService.applyAll(countQb, filters, applicable);
+    const total = await countQb.getCount();
 
-    const qb = base();
+    const qb = scoped();
+    this.facetService.applyAll(qb, filters, applicable);
     applySortAndPaging(qb, options, false);
     const rows = await qb.getMany();
+
+    const facets = await this.facetService.buildBlocks(applicable, filters, scoped);
 
     return new DataWithMeta<CategoryListingData>(
       {
@@ -67,7 +80,8 @@ export class ListingService {
           breadcrumb: await this.buildBreadcrumb(category.id),
         },
         products: rows.map(toProductCard),
-        applied_filters: {},
+        facets,
+        applied_filters: this.facetService.appliedFilters(filters),
         sort: options.sort,
       },
       { page: options.page, limit: options.limit, total },

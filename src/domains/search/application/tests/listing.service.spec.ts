@@ -3,8 +3,19 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
 
 import { ListingService } from '../services/listing.service';
+import { FacetService } from '../services/facet.service';
 import { ProductSearchDocumentOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-search-document.orm-entity';
 import { CategoryOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/category.orm-entity';
+
+/** Mocked FacetService: resolves no facets, parses empty filters, applies nothing, builds no blocks. */
+const mockFacetService = () => ({
+  resolveForCategory: jest.fn().mockResolvedValue([]),
+  resolveForSearch: jest.fn().mockResolvedValue([]),
+  parse: jest.fn().mockReturnValue({ terms: new Map(), inStockOnly: false, onSaleOnly: false }),
+  applyAll: jest.fn(),
+  buildBlocks: jest.fn().mockResolvedValue([]),
+  appliedFilters: jest.fn().mockReturnValue({}),
+});
 
 function makeQb(count: number, many: unknown[]) {
   const qb: Record<string, unknown> = {};
@@ -30,6 +41,7 @@ describe('Search — ListingService', () => {
         ListingService,
         { provide: getRepositoryToken(CategoryOrmEntity), useValue: categories },
         { provide: getRepositoryToken(ProductSearchDocumentOrmEntity), useValue: documents },
+        { provide: FacetService, useValue: mockFacetService() },
       ],
     }).compile();
     service = module.get(ListingService);
