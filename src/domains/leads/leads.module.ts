@@ -2,35 +2,43 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../auth/auth.module';
+import { RbacModule } from '../rbac/rbac.module';
 import { LeadAttachmentEntity } from './entities/lead-attachment.entity';
 import { LeadMessageEntity } from './entities/lead-message.entity';
 import { LeadEntity } from './entities/lead.entity';
 import { CustomerLeadsController } from './customer-leads.controller';
 import { LeadsController } from './leads.controller';
+import { LeadsAdminController } from './leads-admin.controller';
 import { LeadReferenceService } from './lead-reference.service';
 import { LeadsService } from './leads.service';
+import { LeadsAdminService } from './leads-admin.service';
 import { CAPTCHA_VERIFIER, ConfigCaptchaVerifier } from './ports/captcha-verifier.port';
+import { EXCHANGE_HANDOFF, StubExchangeHandoff } from './ports/exchange-handoff.port';
 import { LEAD_NOTIFIER, StubLeadNotifier } from './ports/lead-notifier.port';
 import { ORDER_REF_RESOLVER, StubOrderRefResolver } from './ports/order-ref-resolver.port';
 
 /**
  * Leads & Contact capture core (LEAD, SRS 08). Public submission with spam protection + claim evidence,
- * the NOTIF acknowledgement, and the customer My-Enquiries thread. Admin inbox/reply/handoff is built in
- * lead-inbox-be on top of the exported `LeadsService`. Cross-module seams (NOTIF ack, ORD order-ref,
- * CAPTCHA) are ports, stubbed until their real impls land. AUTH supplies the customer guard/strategy
- * (imported via `forwardRef()` per the project's module-wiring convention).
+ * the NOTIF acknowledgement, and the customer My-Enquiries thread. The admin inbox (lead-inbox-be) adds
+ * list/detail/assign/reply/notes/status + the claim → exchange/cancel handoff, gated by `leads.lead.*`
+ * (RbacModule supplies the admin guard + PermissionService; the handoff also checks `orders.exchange.review`).
+ * Cross-module seams (NOTIF ack/reply, ORD order-ref + exchange handoff, CAPTCHA) are ports, stubbed until
+ * their real impls land. AUTH/RBAC are imported via `forwardRef()` per the project's module-wiring convention.
  */
 @Module({
   imports: [
     forwardRef(() => AuthModule),
+    forwardRef(() => RbacModule),
     TypeOrmModule.forFeature([LeadEntity, LeadMessageEntity, LeadAttachmentEntity]),
   ],
-  controllers: [LeadsController, CustomerLeadsController],
+  controllers: [LeadsController, CustomerLeadsController, LeadsAdminController],
   providers: [
     LeadsService,
+    LeadsAdminService,
     LeadReferenceService,
     { provide: LEAD_NOTIFIER, useClass: StubLeadNotifier },
     { provide: ORDER_REF_RESOLVER, useClass: StubOrderRefResolver },
+    { provide: EXCHANGE_HANDOFF, useClass: StubExchangeHandoff },
     { provide: CAPTCHA_VERIFIER, useClass: ConfigCaptchaVerifier },
   ],
   exports: [LeadsService],
