@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------------------
+# Sports E-Commerce — backend stack (production-like)
+#
+# Services:
+#   postgres   PostgreSQL 16 database (persisted in a named volume)
+#   migrate    runs TypeORM migrations once, then exits (uses the `build` stage
+#              so the TypeScript data-source + ts-node are available)
+#   api        the NestJS backend (production image), starts after migrations
+#
+# Usage:
+#   cp .env.example .env      # then fill in secrets
+#   docker compose up --build
+#
+# API:     http://localhost:8000/api/v1
+# Swagger: http://localhost:8000/api/v1/docs
+# ---------------------------------------------------------------------------
+
+name: sports-ecommerce-backend
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-e-commerce}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-e-commerce}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      target: build
+    image: sports-ecommerce-backend:build
+    env_file: .env
+    environment:
+      # Override the .env host so the app reaches the postgres service.
+      DB_HOST: postgres
+    command: npm run migration:run
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: production
+    image: sports-ecommerce-backend:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+    ports:
+      - "${PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
