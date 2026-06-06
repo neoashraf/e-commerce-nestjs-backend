@@ -10,6 +10,7 @@ import { AuthModule } from './domains/auth/auth.module';
 import { CartModule } from './domains/cart/cart.module';
 import { CatalogModule } from './domains/catalog/catalog.module';
 import { ContentModule } from './domains/content/content.module';
+import { CustomersModule } from './domains/customers/customers.module';
 import { InventoryModule } from './domains/inventory/inventory.module';
 import { LeadsModule } from './domains/leads/leads.module';
 import { NotificationsModule } from './domains/notifications/notifications.module';
@@ -53,6 +54,7 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
     WishlistModule,
     LeadsModule,
     ReportsModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [
