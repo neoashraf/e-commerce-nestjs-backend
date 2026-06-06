@@ -331,6 +331,27 @@ export class NotificationDispatchService {
     return { id: clone.id, resentFromId: original.id, status: enqueuedStatus, flagged };
   }
 
+  /**
+   * DLR stale sweep (FR-NOTIF-041, §12.2 edge case 2): a `sent` notification whose delivery
+   * receipt never arrives stays `sent` indefinitely. After `maxAgeMs` past the send, mark it
+   * `unknown` rather than falsely reporting `delivered`. `updated_at` is the send timestamp —
+   * a `sent` record receives no further writes until a DLR flips it, so it is a faithful age
+   * proxy. Idempotent: marking it `unknown` removes it from the next sweep. Returns the count.
+   */
+  async sweepStaleSent(maxAgeMs: number, limit = 200): Promise<number> {
+    const cutoff = new Date(Date.now() - maxAgeMs);
+    const stale = await this.notifs.find({
+      where: { status: NotificationStatus.SENT, updatedAt: LessThanOrEqual(cutoff) },
+      take: limit,
+    });
+    for (const notif of stale) {
+      notif.status = NotificationStatus.UNKNOWN;
+      notif.failureReason = 'dlr_timeout';
+      await this.notifs.save(notif);
+    }
+    return stale.length;
+  }
+
   /** DLR / status webhook (FR-NOTIF-041): map provider ref → notification, update status. */
   async handleStatusUpdate(providerMessageRef: string, delivered: boolean): Promise<boolean> {
     const notif = await this.notifs.findOne({ where: { providerMessageRef } });

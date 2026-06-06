@@ -68,6 +68,7 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { code: 'notifications.campaign.send', module: 'NOTIF', description: 'Send promotional campaigns and dry-run eligibility' },
   { code: 'notifications.log.read', module: 'NOTIF', description: 'View the delivery log and notification detail (incl. rendered PII)' },
   { code: 'notifications.log.resend', module: 'NOTIF', description: 'Resend a notification from the delivery log' },
+  { code: 'notifications.settings.manage', module: 'NOTIF', description: 'Configure channel provider settings (SMS/email gateway, senders, quiet hours)' },
 
   // CMS — content
   ...crud('CMS', 'content.slider', 'sliders'),
