@@ -22,3 +22,6 @@ npm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Lead claim-evidence uploads (runtime; LEAD_UPLOAD_DIR)
+uploads/

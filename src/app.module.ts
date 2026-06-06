@@ -11,6 +11,7 @@ import { CartModule } from './domains/cart/cart.module';
 import { CatalogModule } from './domains/catalog/catalog.module';
 import { ContentModule } from './domains/content/content.module';
 import { InventoryModule } from './domains/inventory/inventory.module';
+import { LeadsModule } from './domains/leads/leads.module';
 import { NotificationsModule } from './domains/notifications/notifications.module';
 import { OrdersModule } from './domains/orders/orders.module';
 import { PaymentsModule } from './domains/payments/payments.module';
@@ -49,6 +50,7 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
     OrdersModule,
     PaymentsModule,
     WishlistModule,
+    LeadsModule,
   ],
   controllers: [AppController],
   providers: [
