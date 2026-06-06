@@ -17,6 +17,7 @@ import { OrdersModule } from './domains/orders/orders.module';
 import { PaymentsModule } from './domains/payments/payments.module';
 import { PromotionsModule } from './domains/promotions/promotions.module';
 import { RbacModule } from './domains/rbac/rbac.module';
+import { ReportsModule } from './domains/reports/reports.module';
 import { SearchModule } from './domains/search/search.module';
 import { WishlistModule } from './domains/wishlist/wishlist.module';
 import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
@@ -51,6 +52,7 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
     PaymentsModule,
     WishlistModule,
     LeadsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [
