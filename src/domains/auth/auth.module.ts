@@ -147,6 +147,11 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     JwtCustomerGuard,
     ServiceTokenGuard,
   ],
-  exports: [JwtCustomerGuard, PassportModule, IssueEmailVerificationUseCase],
+  exports: [
+    JwtCustomerGuard,
+    PassportModule,
+    IssueEmailVerificationUseCase,
+    CreateLightweightAccountUseCase,
+  ],
 })
 export class AuthModule {}
