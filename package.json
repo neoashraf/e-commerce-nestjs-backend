@@ -20,7 +20,8 @@
     "seed:catalog-attributes": "ts-node src/database/seeds/catalog-attributes.seed.ts",
     "seed:catalog-families": "ts-node src/database/seeds/catalog-families.seed.ts",
     "seed:geo-area": "ts-node src/database/seeds/geo-area.seed.ts",
-    "seed:inventory": "ts-node src/database/seeds/inventory.seed.ts"
+    "seed:inventory": "ts-node src/database/seeds/inventory.seed.ts",
+    "seed:cms-pages": "ts-node src/database/seeds/cms-pages.seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",

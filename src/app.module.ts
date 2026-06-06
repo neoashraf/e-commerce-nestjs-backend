@@ -9,6 +9,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './domains/auth/auth.module';
 import { CartModule } from './domains/cart/cart.module';
 import { CatalogModule } from './domains/catalog/catalog.module';
+import { ContentModule } from './domains/content/content.module';
 import { InventoryModule } from './domains/inventory/inventory.module';
 import { NotificationsModule } from './domains/notifications/notifications.module';
 import { RbacModule } from './domains/rbac/rbac.module';
@@ -39,6 +40,7 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
     InventoryModule,
     CartModule,
     SearchModule,
+    ContentModule,
   ],
   controllers: [AppController],
   providers: [
