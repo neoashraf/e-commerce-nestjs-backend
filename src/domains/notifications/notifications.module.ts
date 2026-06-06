@@ -17,6 +17,10 @@ import { CampaignController } from './campaign.controller';
 import { CampaignService } from './campaign.service';
 import { PromotionalService } from './promotional.service';
 import { PromotionalDeferralTask } from './promotional-deferral.task';
+import { DlrStaleTask } from './dlr-stale.task';
+import { SettingsController } from './settings.controller';
+import { SettingsService } from './settings.service';
+import { WebhookVerificationService } from './webhook-verification';
 import { UnsubscribeController } from './unsubscribe.controller';
 import { OPT_IN_READER, StubOptInReader } from './ports/opt-in-reader.port';
 import { EMAIL_PROVIDER } from './providers/email-provider.interface';
@@ -42,6 +46,7 @@ import { StubSmsAdapter } from './providers/stub-sms.adapter';
     NotificationsAdminController,
     TemplatesController,
     CampaignController,
+    SettingsController,
     UnsubscribeController,
   ],
   providers: [
@@ -50,7 +55,10 @@ import { StubSmsAdapter } from './providers/stub-sms.adapter';
     TemplatesService,
     PromotionalService,
     CampaignService,
+    SettingsService,
+    WebhookVerificationService,
     PromotionalDeferralTask,
+    DlrStaleTask,
     { provide: SMS_PROVIDER, useClass: StubSmsAdapter },
     { provide: EMAIL_PROVIDER, useClass: SmtpEmailAdapter },
     { provide: OPT_IN_READER, useClass: StubOptInReader },

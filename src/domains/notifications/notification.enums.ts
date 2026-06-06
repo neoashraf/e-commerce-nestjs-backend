@@ -15,6 +15,12 @@ export enum NotificationStatus {
   DELIVERED = 'delivered',
   FAILED = 'failed',
   SUPPRESSED = 'suppressed',
+  /**
+   * Terminal state for a `sent` message whose delivery receipt never arrived within the
+   * configured window (NOTIF §12.2 edge case 2): the DLR stale sweeper marks it `unknown`
+   * rather than falsely reporting `delivered`.
+   */
+  UNKNOWN = 'unknown',
 }
 
 export enum SenderRoute {
