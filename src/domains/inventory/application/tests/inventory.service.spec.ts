@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { InventoryService } from '../inventory.service';
 import { MovementService } from '../movement.service';
+import { LowStockAlertService } from '../low-stock-alert.service';
 import { StockStatus } from '../../domain/stock-status';
 import { StockMovementActorType } from '../../domain/stock-movement-type';
 import { InventoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/inventory.orm-entity';
@@ -52,6 +53,7 @@ describe('Inventory — InventoryService', () => {
         { provide: getRepositoryToken(InventoryOrmEntity), useValue: inventory },
         { provide: DataSource, useValue: dataSource },
         { provide: MovementService, useValue: movements },
+        { provide: LowStockAlertService, useValue: { evaluate: jest.fn() } },
       ],
     }).compile();
     service = module.get(InventoryService);

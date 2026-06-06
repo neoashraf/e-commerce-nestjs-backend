@@ -11,6 +11,7 @@ import { Paginated } from '../../../shared/dto/paginated';
 import { deriveStockStatus, StockStatus } from '../domain/stock-status';
 import { StockMovementType } from '../domain/stock-movement-type';
 import { InventoryOrmEntity } from '../infrastructure/persistence/typeorm/entities/inventory.orm-entity';
+import { LowStockAlertService } from './low-stock-alert.service';
 import { MovementActor, MovementService } from './movement.service';
 
 export interface AvailabilityEntry {
@@ -56,6 +57,7 @@ export class InventoryService {
     private readonly inventory: Repository<InventoryOrmEntity>,
     private readonly dataSource: DataSource,
     private readonly movements: MovementService,
+    private readonly alerts: LowStockAlertService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -234,6 +236,9 @@ export class InventoryService {
       row.lowStockThreshold = threshold;
       await repo.save(row);
       // A threshold change is not a quantity change, so it writes no ledger movement (FR-INV-050).
+      // But raising the threshold above on-hand puts the SKU into the low/out band immediately
+      // (§12.10) — evaluate so it alerts once; lowering it may re-arm a recovered SKU.
+      await this.alerts.evaluate(manager, variantId);
       return this.toMutationResult(row, null);
     });
   }
@@ -281,6 +286,10 @@ export class InventoryService {
         reason,
         actor,
       });
+
+      // Alert/debounce/re-arm hook: an adjust-down may cross the threshold; a receive may recover it
+      // (FR-INV-040/041). Runs in this same transaction (shared path, no per-caller logic).
+      await this.alerts.evaluate(manager, variantId);
 
       return this.toMutationResult(row, movementId);
     });

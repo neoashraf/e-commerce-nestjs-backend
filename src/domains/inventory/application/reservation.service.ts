@@ -14,6 +14,7 @@ import {
 } from '../domain/stock-movement-type';
 import { InventoryOrmEntity } from '../infrastructure/persistence/typeorm/entities/inventory.orm-entity';
 import { StockReservationOrmEntity } from '../infrastructure/persistence/typeorm/entities/stock-reservation.orm-entity';
+import { LowStockAlertService } from './low-stock-alert.service';
 import { MovementService } from './movement.service';
 
 export interface ReserveLine {
@@ -68,6 +69,7 @@ export class ReservationService {
     private readonly reservations: Repository<StockReservationOrmEntity>,
     private readonly dataSource: DataSource,
     private readonly movements: MovementService,
+    private readonly alerts: LowStockAlertService,
     config: ConfigService,
   ) {
     // Online-order reservation hold (SRS §15/§16: 30 min default, configurable).
@@ -141,6 +143,9 @@ export class ReservationService {
           orderId,
           actor: SYSTEM_ACTOR,
         });
+
+        // A reserve lowers available and can cross the low-stock threshold (FR-INV-040, AC3).
+        await this.alerts.evaluate(manager, variantId);
       }
 
       return { reserved: true as const, expires_at: expiresAt };
@@ -188,6 +193,9 @@ export class ReservationService {
           orderId,
           actor: SYSTEM_ACTOR,
         });
+
+        // A release raises available and may recover the SKU above threshold (re-arm, FR-INV-041).
+        await this.alerts.evaluate(manager, reservation.variantId);
       }
       reservation.status = finalStatus;
       await reservationRepo.save(reservation);
@@ -246,6 +254,9 @@ export class ReservationService {
           orderId,
           actor: SYSTEM_ACTOR,
         });
+
+        // A sale lowers on_hand/available and is the canonical threshold-crossing trigger (FR-INV-040).
+        await this.alerts.evaluate(manager, reservation.variantId);
 
         reservation.status = ReservationStatus.CONSUMED;
         await reservationRepo.save(reservation);
@@ -318,6 +329,9 @@ export class ReservationService {
             orderId,
             actor: SYSTEM_ACTOR,
           });
+
+          // A restock raises available and may recover the SKU above threshold (re-arm, FR-INV-041).
+          await this.alerts.evaluate(manager, line.variantId);
         } else {
           // scrapped — record the movement; do NOT add to sellable on_hand (FR-INV-032).
           const current = await this.inventory.findOne({ where: { variantId: line.variantId } });

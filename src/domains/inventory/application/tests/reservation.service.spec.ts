@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 
 import { ReservationService } from '../reservation.service';
 import { MovementService } from '../movement.service';
+import { LowStockAlertService } from '../low-stock-alert.service';
 import { ReservationStatus } from '../../domain/reservation-status';
 import { StockMovementType } from '../../domain/stock-movement-type';
 import { InventoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/inventory.orm-entity';
@@ -146,6 +147,7 @@ describe('Inventory — ReservationService', () => {
         },
         { provide: DataSource, useValue: fakes.dataSource },
         { provide: MovementService, useValue: { recordMovement } },
+        { provide: LowStockAlertService, useValue: { evaluate: jest.fn() } },
         { provide: ConfigService, useValue: { get: () => undefined } },
       ],
     }).compile();
