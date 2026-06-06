@@ -52,9 +52,11 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { code: 'orders.exchange.review', module: 'ORD', description: 'Approve/reject and issue exchanges' },
 
   // CUST — customers
-  { code: 'customers.customer.read', module: 'CUST', description: 'View/search customer records' },
-  { code: 'customers.customer.update', module: 'CUST', description: 'Update customer (notes, tags, status)' },
+  { code: 'customers.customer.read', module: 'CUST', description: 'View/search customer records and 360 profile' },
+  { code: 'customers.customer.suspend', module: 'CUST', description: 'Suspend/reactivate customer accounts' },
+  { code: 'customers.customer.note', module: 'CUST', description: 'Add internal notes to a customer' },
   { code: 'customers.customer.export', module: 'CUST', description: 'Export customer data' },
+  { code: 'customers.tag.manage', module: 'CUST', description: 'Manage customer tags and assignments' },
 
   // LEAD — leads & contact
   { code: 'leads.lead.read', module: 'LEAD', description: 'View the lead inbox' },
