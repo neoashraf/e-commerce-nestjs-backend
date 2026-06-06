@@ -82,6 +82,7 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   // RPT — reports
   { code: 'reports.report.view', module: 'RPT', description: 'View reports' },
   { code: 'reports.report.export', module: 'RPT', description: 'Export reports' },
+  { code: 'reports.report.schedule', module: 'RPT', description: 'Manage scheduled report digests' },
 
   // DASH — dashboard
   { code: 'dashboard.view', module: 'DASH', description: 'View the admin dashboard' },
