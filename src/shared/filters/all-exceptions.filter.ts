@@ -55,10 +55,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
             details: r.message,
           };
         } else {
+          // Pass through any extra contract fields the thrower set (e.g. `from`/`to` on an
+          // INVALID_TRANSITION, `details`, `retry_after`) while stripping Nest's default keys.
+          const { statusCode: _sc, error: _err, message: _msg, code: _code, ...rest } = r;
           body = {
             code: (r.code as string) ?? DEFAULT_CODE_BY_STATUS[status] ?? 'ERROR',
             message: (r.message as string) ?? exception.message,
-            ...(r.retry_after ? { retry_after: r.retry_after as number } : {}),
+            ...rest,
           };
         }
       }
