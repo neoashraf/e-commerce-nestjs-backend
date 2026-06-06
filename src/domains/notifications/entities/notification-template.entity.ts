@@ -34,6 +34,17 @@ export class NotificationTemplateEntity {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
+  /**
+   * Capability hook (SRS §16 open item): when true, the template is protected from edits
+   * (e.g. OTP/security templates). No event is locked by default; locking can be switched
+   * on later without a schema change.
+   */
+  @Column({ name: 'is_locked', default: false })
+  isLocked: boolean;
+
+  @Column({ name: 'updated_by_admin_id', type: 'uuid', nullable: true })
+  updatedByAdminId: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

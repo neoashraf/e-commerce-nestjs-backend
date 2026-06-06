@@ -8,6 +8,7 @@ import { NotificationEntity } from './entities/notification.entity';
 import { NotificationTemplateEntity } from './entities/notification-template.entity';
 import { NotificationChannel, NotificationStatus, SenderRoute } from './notification.enums';
 import { getEventDefinition } from './event-catalog';
+import { renderTemplate } from './notification-render.util';
 import { EMAIL_PROVIDER, IEmailProvider } from './providers/email-provider.interface';
 import { ISmsProvider, SMS_PROVIDER, SmsSendError } from './providers/sms-provider.interface';
 import { EmailSendError } from './providers/email-provider.interface';
@@ -193,9 +194,7 @@ export class NotificationDispatchService {
   }
 
   private render(tpl: string, vars: Record<string, string | number>): string {
-    return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k: string) =>
-      vars[k] !== undefined ? String(vars[k]) : `{{${k}}}`,
-    );
+    return renderTemplate(tpl, vars);
   }
 
   /** Send with transient-retry (cap, FR-NOTIF-042) + permanent-fail short-circuit (FR-NOTIF-043). */

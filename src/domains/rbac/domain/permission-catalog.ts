@@ -61,6 +61,11 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { code: 'leads.lead.respond', module: 'LEAD', description: 'Reply to leads' },
   { code: 'leads.lead.assign', module: 'LEAD', description: 'Assign leads' },
 
+  // NOTIF — notifications (template manager)
+  { code: 'notifications.template.read', module: 'NOTIF', description: 'View notification templates' },
+  { code: 'notifications.template.create', module: 'NOTIF', description: 'Create notification templates' },
+  { code: 'notifications.template.update', module: 'NOTIF', description: 'Edit notification templates (new version)' },
+
   // CMS — content
   ...crud('CMS', 'content.slider', 'sliders'),
   ...crud('CMS', 'content.banner', 'banners'),
@@ -164,6 +169,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       LEAD: 'read',
       CMS: 'full',
       PROMO: 'full',
+      NOTIF: 'full',
       RPT: 'full',
       DASH: 'full',
     }),
