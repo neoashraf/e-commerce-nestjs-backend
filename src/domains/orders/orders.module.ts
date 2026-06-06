@@ -8,9 +8,11 @@ import { ServiceTokenGuard } from '../../shared/guards/service-token.guard';
 import { AutoCancelTask } from './application/services/auto-cancel.task';
 import { ExchangeService } from './application/services/exchange.service';
 import { FulfilmentService } from './application/services/fulfilment.service';
+import { InvoiceService } from './application/services/invoice.service';
 import { OrderCreationService } from './application/services/order-creation.service';
 import { OrderNumberingService } from './application/services/order-numbering.service';
 import { OrderQueryService } from './application/services/order-query.service';
+import { OrderTrackingService } from './application/services/order-tracking.service';
 import {
   EXCHANGE_CATALOG,
   StubExchangeCatalog,
@@ -38,9 +40,12 @@ import { OrderNoteOrmEntity } from './infrastructure/persistence/typeorm/entitie
 import { OrderStatusHistoryOrmEntity } from './infrastructure/persistence/typeorm/entities/order-status-history.orm-entity';
 import { OrderOrmEntity } from './infrastructure/persistence/typeorm/entities/order.orm-entity';
 import { CustomerCancelController } from './presentation/controllers/customer-cancel.controller';
+import { CustomerOrdersController } from './presentation/controllers/customer-orders.controller';
 import { ExchangeAdminController } from './presentation/controllers/exchange-admin.controller';
 import { ExchangeController } from './presentation/controllers/exchange.controller';
 import { FulfilmentController } from './presentation/controllers/fulfilment.controller';
+import { GuestTrackingController } from './presentation/controllers/guest-tracking.controller';
+import { InvoiceController } from './presentation/controllers/invoice.controller';
 import { PaymentStateController } from './presentation/controllers/payment-state.controller';
 
 /**
@@ -73,6 +78,9 @@ import { PaymentStateController } from './presentation/controllers/payment-state
     PaymentStateController,
     FulfilmentController,
     CustomerCancelController,
+    CustomerOrdersController,
+    GuestTrackingController,
+    InvoiceController,
     ExchangeController,
     ExchangeAdminController,
   ],
@@ -80,6 +88,8 @@ import { PaymentStateController } from './presentation/controllers/payment-state
     OrderCreationService,
     OrderNumberingService,
     OrderQueryService,
+    OrderTrackingService,
+    InvoiceService,
     FulfilmentService,
     ExchangeService,
     AutoCancelTask,
