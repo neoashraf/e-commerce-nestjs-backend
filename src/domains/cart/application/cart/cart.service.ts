@@ -266,6 +266,21 @@ export class CartService {
   }
 
   // ---------------------------------------------------------------------------
+  // Checkout support (consumed in-process by CheckoutService)
+  // ---------------------------------------------------------------------------
+
+  /** Resolve the acting cart entity (no minting). Used by checkout to read the cart for placement. */
+  async getActiveCart(actor: CartActor): Promise<CartOrmEntity | null> {
+    return this.resolveExisting(actor);
+  }
+
+  /** Mark a cart converted + clear its lines after a successful placement (FR-CART-037). */
+  async markConverted(cartId: string): Promise<void> {
+    await this.carts.update({ id: cartId }, { status: CartStatus.CONVERTED });
+    await this.items.delete({ cartId });
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
