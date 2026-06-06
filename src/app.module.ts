@@ -12,6 +12,7 @@ import { CatalogModule } from './domains/catalog/catalog.module';
 import { InventoryModule } from './domains/inventory/inventory.module';
 import { NotificationsModule } from './domains/notifications/notifications.module';
 import { RbacModule } from './domains/rbac/rbac.module';
+import { SearchModule } from './domains/search/search.module';
 import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
 
 @Module({
@@ -37,6 +38,7 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
     CatalogModule,
     InventoryModule,
     CartModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [
