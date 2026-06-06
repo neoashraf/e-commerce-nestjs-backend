@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CategoryOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/category.orm-entity';
@@ -31,7 +31,7 @@ import { SlidesController } from './presentation/controllers/slides.controller';
  */
 @Module({
   imports: [
-    RbacModule,
+    forwardRef(() => RbacModule),
     TypeOrmModule.forFeature([
       PageOrmEntity,
       MenuItemOrmEntity,

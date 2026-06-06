@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AttributeOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/attribute.orm-entity';
@@ -47,8 +47,8 @@ import { SearchController } from './presentation/controllers/search.controller';
  */
 @Module({
   imports: [
-    RbacModule,
-    InventoryModule,
+    forwardRef(() => RbacModule),
+    forwardRef(() => InventoryModule),
     TypeOrmModule.forFeature([
       ProductSearchDocumentOrmEntity,
       SearchSynonymOrmEntity,

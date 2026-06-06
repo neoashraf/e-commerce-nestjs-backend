@@ -21,7 +21,7 @@ export class CouponRedemptionOrmEntity {
   @Column({ name: 'customer_id', type: 'uuid', nullable: true })
   customerId: string | null;
 
-  @Column({ name: 'guest_phone', length: 16, nullable: true })
+  @Column({ type: 'varchar', name: 'guest_phone', length: 16, nullable: true })
   guestPhone: string | null;
 
   @Column({ name: 'discount_amount', type: 'decimal', precision: 12, scale: 2 })

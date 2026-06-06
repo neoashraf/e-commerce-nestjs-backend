@@ -22,13 +22,13 @@ export class SlideOrmEntity {
   @Column({ name: 'alt_text', length: 160 })
   altText: string;
 
-  @Column({ length: 120, nullable: true })
+  @Column({ type: 'varchar', length: 120, nullable: true })
   headline: string | null;
 
-  @Column({ length: 200, nullable: true })
+  @Column({ type: 'varchar', length: 200, nullable: true })
   subtext: string | null;
 
-  @Column({ name: 'cta_label', length: 40, nullable: true })
+  @Column({ type: 'varchar', name: 'cta_label', length: 40, nullable: true })
   ctaLabel: string | null;
 
   @Column({ name: 'link_type', length: 16 })

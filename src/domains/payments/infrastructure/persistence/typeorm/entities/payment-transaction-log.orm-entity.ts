@@ -29,7 +29,7 @@ export class PaymentTransactionLogOrmEntity {
   @Column({ type: 'enum', enum: PaymentLogEvent })
   event: PaymentLogEvent;
 
-  @Column({ name: 'gateway_reference', length: 120, nullable: true })
+  @Column({ type: 'varchar', name: 'gateway_reference', length: 120, nullable: true })
   gatewayReference: string | null;
 
   @Column({ name: 'request_summary', type: 'jsonb', default: () => "'{}'" })

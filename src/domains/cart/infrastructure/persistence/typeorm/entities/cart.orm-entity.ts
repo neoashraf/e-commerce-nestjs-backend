@@ -27,10 +27,10 @@ export class CartOrmEntity {
   customerId: string | null;
 
   @Index({ unique: true })
-  @Column({ name: 'cart_token', length: 64, nullable: true })
+  @Column({ type: 'varchar', name: 'cart_token', length: 64, nullable: true })
   cartToken: string | null;
 
-  @Column({ name: 'applied_coupon_code', length: 40, nullable: true })
+  @Column({ type: 'varchar', name: 'applied_coupon_code', length: 40, nullable: true })
   appliedCouponCode: string | null;
 
   @Column({ type: 'enum', enum: CartStatus, default: CartStatus.ACTIVE })

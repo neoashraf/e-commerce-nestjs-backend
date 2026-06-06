@@ -50,10 +50,10 @@ export class PaymentOrmEntity {
   @Column({ name: 'internal_ref', length: 40, unique: true })
   internalRef: string;
 
-  @Column({ name: 'gateway_payment_id', length: 120, nullable: true })
+  @Column({ type: 'varchar', name: 'gateway_payment_id', length: 120, nullable: true })
   gatewayPaymentId: string | null;
 
-  @Column({ name: 'gateway_txn_id', length: 120, nullable: true })
+  @Column({ type: 'varchar', name: 'gateway_txn_id', length: 120, nullable: true })
   gatewayTxnId: string | null;
 
   @Column({ name: 'collected_by_admin_id', type: 'uuid', nullable: true })

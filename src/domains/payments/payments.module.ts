@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -48,8 +48,8 @@ import { WebhooksController } from './presentation/controllers/webhooks.controll
 @Module({
   imports: [
     ConfigModule,
-    AuthModule,
-    RbacModule,
+    forwardRef(() => AuthModule),
+    forwardRef(() => RbacModule),
     TypeOrmModule.forFeature([
       PaymentOrmEntity,
       RefundOrmEntity,

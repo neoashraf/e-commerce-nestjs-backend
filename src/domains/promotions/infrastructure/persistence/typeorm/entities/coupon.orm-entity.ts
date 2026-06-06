@@ -22,7 +22,7 @@ export class CouponOrmEntity {
   @Column({ length: 40 })
   code: string;
 
-  @Column({ length: 160, nullable: true })
+  @Column({ type: 'varchar', length: 160, nullable: true })
   description: string | null;
 
   @Column({ name: 'discount_type', length: 16 })

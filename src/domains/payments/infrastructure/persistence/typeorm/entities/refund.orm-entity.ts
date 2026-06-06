@@ -32,7 +32,7 @@ export class RefundOrmEntity {
   @Column({ type: 'enum', enum: RefundType, default: RefundType.GATEWAY })
   type: RefundType;
 
-  @Column({ name: 'gateway_refund_ref', length: 120, nullable: true })
+  @Column({ type: 'varchar', name: 'gateway_refund_ref', length: 120, nullable: true })
   gatewayRefundRef: string | null;
 
   @Column({ type: 'enum', enum: RefundStatus, default: RefundStatus.PENDING })

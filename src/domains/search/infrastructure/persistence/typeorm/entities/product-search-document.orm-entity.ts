@@ -28,7 +28,7 @@ export class ProductSearchDocumentOrmEntity {
   @Column({ length: 180 })
   title: string;
 
-  @Column({ length: 80, nullable: true })
+  @Column({ type: 'varchar', length: 80, nullable: true })
   brand: string | null;
 
   @Column({ name: 'category_path', type: 'text', nullable: true })
