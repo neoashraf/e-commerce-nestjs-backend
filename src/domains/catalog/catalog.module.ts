@@ -143,6 +143,7 @@ import { InventoryStatusAdapter } from './infrastructure/adapters/inventory-stat
     ProductsService,
     ProductSupportService,
     VariantsService,
+    ProductDetailService,
   ],
 })
 export class CatalogModule {}
