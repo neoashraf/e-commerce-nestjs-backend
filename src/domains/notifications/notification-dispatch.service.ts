@@ -1,14 +1,28 @@
 import { randomUUID } from 'crypto';
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 
 import { NotificationEntity } from './entities/notification.entity';
 import { NotificationTemplateEntity } from './entities/notification-template.entity';
-import { NotificationChannel, NotificationStatus, SenderRoute } from './notification.enums';
+import {
+  NotificationCategory,
+  NotificationChannel,
+  NotificationStatus,
+  PromoOutcome,
+  SenderRoute,
+} from './notification.enums';
 import { getEventDefinition } from './event-catalog';
 import { renderTemplate } from './notification-render.util';
+import { PromotionalService } from './promotional.service';
+import { mintUnsubscribeToken } from './unsubscribe-token.util';
 import { EMAIL_PROVIDER, IEmailProvider } from './providers/email-provider.interface';
 import { ISmsProvider, SMS_PROVIDER, SmsSendError } from './providers/sms-provider.interface';
 import { EmailSendError } from './providers/email-provider.interface';
@@ -33,7 +47,15 @@ export interface DispatchInput {
 }
 
 export interface DispatchResult {
-  notifications: Array<{ id: string; channel: string; status: string }>;
+  notifications: Array<{
+    id: string;
+    channel: string;
+    status: string;
+    /** Suppression reason (`opted_out` / `rate_limited`) when status is `suppressed`. */
+    reason?: string | null;
+    /** True when a promotional send was deferred by quiet hours (status stays `queued`). */
+    deferred?: boolean;
+  }>;
   deduplicated: boolean;
 }
 
@@ -47,6 +69,7 @@ export class NotificationDispatchService {
     private readonly templates: Repository<NotificationTemplateEntity>,
     @Inject(SMS_PROVIDER) private readonly sms: ISmsProvider,
     @Inject(EMAIL_PROVIDER) private readonly email: IEmailProvider,
+    private readonly promotional: PromotionalService,
     private readonly config: ConfigService,
   ) {}
 
@@ -123,6 +146,7 @@ export class NotificationDispatchService {
       }
     }
 
+    const isPromotional = def.category === NotificationCategory.PROMOTIONAL;
     const results: DispatchResult['notifications'] = [];
     for (const channel of requested) {
       const address = channel === NotificationChannel.SMS ? input.recipient.phone : input.recipient.email;
@@ -134,7 +158,36 @@ export class NotificationDispatchService {
         throw new BadRequestException({ code: 'INVALID_RECIPIENT', message: 'International numbers are not permitted.' });
       }
 
-      const template = await this.resolveTemplate(input.eventType, channel, locale);
+      // Promotional compliance gate (FR-NOTIF-051–053). Transactional traffic is never gated (BR-NOTIF-1).
+      let suppressReason: string | null = null;
+      let deferredUntil: Date | null = null;
+      if (isPromotional) {
+        const verdict = await this.promotional.evaluate({
+          eventType: input.eventType,
+          channel,
+          recipient: input.recipient,
+          address,
+        });
+        if (verdict.outcome === PromoOutcome.BLOCKED_NO_BN) {
+          // BTRC: promotional SMS without a bn template is blocked, never sent in English (FR-NOTIF-013).
+          throw new UnprocessableEntityException({
+            code: 'NO_BANGLA_TEMPLATE',
+            message: 'Promotional SMS requires a bn template.',
+          });
+        }
+        if (verdict.outcome === PromoOutcome.OPTED_OUT) suppressReason = PromoOutcome.OPTED_OUT;
+        else if (verdict.outcome === PromoOutcome.RATE_LIMITED) suppressReason = PromoOutcome.RATE_LIMITED;
+        else if (verdict.outcome === PromoOutcome.QUIET_HOURS_DEFERRED) deferredUntil = verdict.deferUntil;
+      }
+
+      // Promotional SMS must render the Bangla template (BTRC) — no English fallback.
+      const forceBn = isPromotional && channel === NotificationChannel.SMS;
+      const template = await this.resolveTemplate(
+        input.eventType,
+        channel,
+        forceBn ? 'bn' : locale,
+        !forceBn,
+      );
       if (!template) {
         throw new BadRequestException({
           code: 'NO_TEMPLATE',
@@ -142,7 +195,11 @@ export class NotificationDispatchService {
         });
       }
       const subject = template.subject ? this.render(template.subject, input.variables) : null;
-      const body = this.render(template.body, input.variables);
+      let body = this.render(template.body, input.variables);
+      // Promotional email carries a one-click unsubscribe link (FR-NOTIF-032).
+      if (isPromotional && channel === NotificationChannel.EMAIL) {
+        body = this.appendUnsubscribeLink(body, input.recipient, address);
+      }
 
       const notif = this.notifs.create({
         id: randomUUID(),
@@ -159,17 +216,67 @@ export class NotificationDispatchService {
         templateVersion: template.version,
         renderedSubject: subject,
         renderedBody: body,
-        status: NotificationStatus.QUEUED,
+        status: suppressReason ? NotificationStatus.SUPPRESSED : NotificationStatus.QUEUED,
+        failureReason: suppressReason,
+        deferredUntil,
         attempts: 0,
         idempotencyKey: input.idempotencyKey ?? null,
       });
       await this.notifs.save(notif);
 
-      await this.deliver(notif, channel, address, subject, body);
-      results.push({ id: notif.id, channel, status: notif.status });
+      // Suppressed sends are logged, not delivered; deferred sends wait for the sweeper (FR-NOTIF-052).
+      if (!suppressReason && !deferredUntil) {
+        await this.deliver(notif, channel, address, subject, body);
+      }
+      results.push({
+        id: notif.id,
+        channel,
+        status: notif.status,
+        reason: suppressReason,
+        deferred: !!deferredUntil,
+      });
     }
 
     return { notifications: results, deduplicated: false };
+  }
+
+  /**
+   * Deliver promotional sends whose quiet-hours deferral has elapsed (FR-NOTIF-052, §12.10). Driven by
+   * `PromotionalDeferralTask`; idempotent — each due notification is cleared of `deferred_until` before
+   * delivery so an overlapping run cannot send it twice. Returns the number delivered.
+   */
+  async processDueDeferrals(limit = 100): Promise<number> {
+    const due = await this.notifs.find({
+      where: {
+        status: NotificationStatus.QUEUED,
+        category: NotificationCategory.PROMOTIONAL,
+        deferredUntil: LessThanOrEqual(new Date()),
+      },
+      take: limit,
+    });
+    let delivered = 0;
+    for (const notif of due) {
+      notif.deferredUntil = null;
+      await this.notifs.save(notif);
+      await this.deliver(
+        notif,
+        notif.channel as NotificationChannel,
+        notif.recipientAddress,
+        notif.renderedSubject,
+        notif.renderedBody,
+      );
+      delivered++;
+    }
+    return delivered;
+  }
+
+  /** Append the tokenized one-click unsubscribe link required on promotional email (FR-NOTIF-032/054). */
+  private appendUnsubscribeLink(body: string, recipient: DispatchRecipient, email: string): string {
+    const secret = this.config.get<string>('NOTIF_UNSUBSCRIBE_SECRET') ?? 'dev-unsubscribe-secret';
+    const base = (this.config.get<string>('PUBLIC_BASE_URL') ?? 'http://localhost:8000').replace(/\/+$/, '');
+    const token = mintUnsubscribeToken({ email, customerId: recipient.customerId }, secret);
+    const url = `${base}/api/v1/notifications/unsubscribe?token=${token}`;
+    return `${body}\n\n—\nTo stop promotional emails, unsubscribe: ${url}`;
   }
 
   /** DLR / status webhook (FR-NOTIF-041): map provider ref → notification, update status. */
@@ -186,11 +293,16 @@ export class NotificationDispatchService {
     eventType: string,
     channel: string,
     locale: string,
+    allowFallback = true,
   ): Promise<NotificationTemplateEntity | null> {
-    return (
-      (await this.templates.findOne({ where: { eventType, channel, locale, isActive: true } })) ??
-      (await this.templates.findOne({ where: { eventType, channel, locale: 'en', isActive: true } }))
-    );
+    const exact = await this.templates.findOne({ where: { eventType, channel, locale, isActive: true } });
+    if (exact || !allowFallback) return exact;
+    return this.templates.findOne({ where: { eventType, channel, locale: 'en', isActive: true } });
+  }
+
+  /** Apply a promotional-email opt-out for a verified unsubscribe token's recipient (FR-NOTIF-054). */
+  async applyEmailUnsubscribe(recipient: { email: string; customerId?: string }): Promise<void> {
+    await this.promotional.applyEmailOptOut(recipient);
   }
 
   private render(tpl: string, vars: Record<string, string | number>): string {

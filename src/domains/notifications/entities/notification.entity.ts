@@ -77,6 +77,9 @@ export class NotificationEntity {
   @Column({ name: 'resent_from_id', type: 'uuid', nullable: true })
   resentFromId: string | null;
 
+  @Column({ name: 'deferred_until', type: 'timestamptz', nullable: true })
+  deferredUntil: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

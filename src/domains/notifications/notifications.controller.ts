@@ -4,13 +4,17 @@ import { ApiAcceptedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipEnvelope } from '../../shared/decorators/skip-envelope.decorator';
 import { NotificationChannel } from './notification.enums';
 import { NotificationDispatchService } from './notification-dispatch.service';
+import { PromotionalService } from './promotional.service';
 import { DispatchDto } from './dto/dispatch.dto';
 import { EmailEventDto, SmsDlrDto } from './dto/dlr-webhook.dto';
 
 @ApiTags('Notifications')
 @Controller()
 export class NotificationsController {
-  constructor(private readonly dispatch: NotificationDispatchService) {}
+  constructor(
+    private readonly dispatch: NotificationDispatchService,
+    private readonly promotional: PromotionalService,
+  ) {}
 
   @Post('internal/notifications/dispatch')
   @HttpCode(HttpStatus.ACCEPTED)
@@ -49,10 +53,15 @@ export class NotificationsController {
   @Post('webhooks/email/events')
   @HttpCode(HttpStatus.OK)
   @SkipEnvelope()
-  @ApiOperation({ summary: 'Email delivery event — provider status update' })
+  @ApiOperation({ summary: 'Email delivery event — status update or promotional unsubscribe' })
   async emailEvent(@Body() dto: EmailEventDto): Promise<{ received: boolean }> {
-    const delivered = dto.event.toLowerCase() === 'delivered';
-    await this.dispatch.handleStatusUpdate(dto.message_ref, delivered);
+    const event = dto.event.toLowerCase();
+    // Unsubscribe delegates a promotional-email opt-out to AUTH (FR-NOTIF-054); it is not a delivery state.
+    if (event === 'unsubscribe') {
+      if (dto.recipient) await this.promotional.applyEmailOptOut({ email: dto.recipient });
+      return { received: true };
+    }
+    await this.dispatch.handleStatusUpdate(dto.message_ref, event === 'delivered');
     return { received: true };
   }
 }
