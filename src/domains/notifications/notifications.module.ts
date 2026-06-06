@@ -9,6 +9,8 @@ import { NotificationTemplateEntity } from './entities/notification-template.ent
 import { NotificationTemplateVersionEntity } from './entities/notification-template-version.entity';
 import { NotificationDispatchService } from './notification-dispatch.service';
 import { NotificationsController } from './notifications.controller';
+import { NotificationsAdminController } from './notifications-admin.controller';
+import { NotificationsAdminService } from './notifications-admin.service';
 import { TemplatesController } from './templates.controller';
 import { TemplatesService } from './templates.service';
 import { CampaignController } from './campaign.controller';
@@ -37,12 +39,14 @@ import { StubSmsAdapter } from './providers/stub-sms.adapter';
   ],
   controllers: [
     NotificationsController,
+    NotificationsAdminController,
     TemplatesController,
     CampaignController,
     UnsubscribeController,
   ],
   providers: [
     NotificationDispatchService,
+    NotificationsAdminService,
     TemplatesService,
     PromotionalService,
     CampaignService,
