@@ -189,6 +189,7 @@ export class OrderCreationService {
       if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: `Order ${orderNo} not found.` });
 
       let confirmedNow = false;
+      let refundedNow = false;
 
       if (paymentState === OrderPaymentState.PAID) {
         // Advance pending_payment → confirmed on the first paid signal (idempotent: a replay of
@@ -207,13 +208,30 @@ export class OrderCreationService {
           confirmedNow = true;
         }
         order.paymentState = OrderPaymentState.PAID;
+      } else if (paymentState === OrderPaymentState.REFUNDED) {
+        // PAY confirmed a refund. A prepaid cancellation refund advances `cancelled → refunded`
+        // (FR-ORD-042, §12.10); on any other status just mirror the payment state. Idempotent: a
+        // replay on an already-`refunded` order changes nothing.
+        order.paymentState = OrderPaymentState.REFUNDED;
+        if (order.status === OrderStatus.CANCELLED) {
+          await this.appendHistory(
+            manager,
+            order.id,
+            order.status,
+            OrderStatus.REFUNDED,
+            OrderActorType.SYSTEM,
+            'Cancellation refund confirmed',
+            now,
+          );
+          order.status = OrderStatus.REFUNDED;
+          refundedNow = true;
+        }
       } else if (
         paymentState === OrderPaymentState.COD_COLLECTED ||
-        paymentState === OrderPaymentState.REFUNDED ||
         paymentState === OrderPaymentState.PARTIALLY_REFUNDED ||
         paymentState === OrderPaymentState.COD_PENDING
       ) {
-        // Record the payment-state mirror (COD collection, refund outcomes) without changing the
+        // Record the payment-state mirror (COD collection, partial refund) without changing the
         // fulfilment status here (FR-ORD-013) — fulfilment transitions are owned by the admin slice.
         order.paymentState = paymentState;
       } else {
@@ -222,13 +240,16 @@ export class OrderCreationService {
       }
 
       await orderRepo.save(order);
-      return { order, confirmedNow };
+      return { order, confirmedNow, refundedNow };
     });
 
     if (outcome.confirmedNow) {
       await this.stock.decrement(outcome.order.id);
       await this.notifier.notify('order.payment_received', this.ctx(outcome.order));
       await this.notifier.notify('order.confirmed', this.ctx(outcome.order));
+    }
+    if (outcome.refundedNow) {
+      await this.notifier.notify('order.cancellation_refund', this.ctx(outcome.order));
     }
 
     return { order_no: outcome.order.orderNo, status: outcome.order.status };
