@@ -188,6 +188,16 @@ export class PaymentsService {
     };
   }
 
+  /** Find a payment by the gateway's payment id (bKash paymentID / SSLCommerz session). */
+  async findByGatewayPaymentId(gatewayPaymentId: string): Promise<PaymentOrmEntity | null> {
+    return this.payments.findOne({ where: { gatewayPaymentId } });
+  }
+
+  /** Find a payment by its merchant internal reference (SSLCommerz tran_id maps to this). */
+  async findByInternalRef(internalRef: string): Promise<PaymentOrmEntity | null> {
+    return this.payments.findOne({ where: { internalRef } });
+  }
+
   // ---------------------------------------------------------------------------
   // Shared creation path
   // ---------------------------------------------------------------------------

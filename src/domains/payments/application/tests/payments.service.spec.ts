@@ -8,8 +8,16 @@ import { SettingsService } from '../services/settings.service';
 import { ORDER_GATEWAY } from '../ports/order-gateway.port';
 import { PAYMENT_PROVIDERS } from '../providers/payment-provider.interface';
 import { CodAdapter } from '../providers/cod.adapter';
-import { BkashStubAdapter } from '../providers/bkash-stub.adapter';
+import { IPaymentProvider } from '../providers/payment-provider.interface';
 import { PaymentMethod, PaymentStatus } from '../../domain/payment-enums';
+
+/** Minimal bKash-method provider for the registry (real adapter is exercised in pay-gateways-test). */
+const bkashTestProvider: IPaymentProvider = {
+  method: PaymentMethod.BKASH,
+  createSession: async () => ({ action: 'redirect', gatewayPaymentId: 'TR-TEST', redirectUrl: 'https://bkash/checkout?paymentID=TR-TEST' }),
+  confirm: async () => ({ status: 'failed' }),
+  query: async () => ({ status: 'failed' }),
+};
 import { PaymentOrmEntity } from '../../infrastructure/persistence/typeorm/entities/payment.orm-entity';
 
 describe('Payments — PaymentsService', () => {
@@ -40,7 +48,7 @@ describe('Payments — PaymentsService', () => {
       providers: [
         PaymentsService,
         { provide: getRepositoryToken(PaymentOrmEntity), useValue: payments },
-        { provide: PAYMENT_PROVIDERS, useValue: [new CodAdapter(), new BkashStubAdapter()] },
+        { provide: PAYMENT_PROVIDERS, useValue: [new CodAdapter(), bkashTestProvider] },
         { provide: ORDER_GATEWAY, useValue: orders },
         { provide: SettingsService, useValue: settings },
         { provide: ReconService, useValue: recon },

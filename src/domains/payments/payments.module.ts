@@ -10,10 +10,14 @@ import { PaymentsService } from './application/services/payments.service';
 import { ReconService } from './application/services/recon.service';
 import { SettingsService } from './application/services/settings.service';
 import { ORDER_GATEWAY, StubOrderGateway } from './application/ports/order-gateway.port';
-import { BkashStubAdapter } from './application/providers/bkash-stub.adapter';
+import { BkashAdapter } from './application/providers/bkash.adapter';
 import { CodAdapter } from './application/providers/cod.adapter';
-import { SslcommerzStubAdapter } from './application/providers/sslcommerz-stub.adapter';
+import { SslcommerzAdapter } from './application/providers/sslcommerz.adapter';
 import { PAYMENT_PROVIDERS } from './application/providers/payment-provider.interface';
+import { BkashTokenService } from './application/services/bkash-token.service';
+import { GatewayFinalizerService } from './application/services/gateway-finalizer.service';
+import { ReconciliationTask } from './application/services/reconciliation.task';
+import { WebhookService } from './application/services/webhook.service';
 import { GatewayConfigOrmEntity } from './infrastructure/persistence/typeorm/entities/gateway-config.orm-entity';
 import { PaymentTransactionLogOrmEntity } from './infrastructure/persistence/typeorm/entities/payment-transaction-log.orm-entity';
 import { PaymentOrmEntity } from './infrastructure/persistence/typeorm/entities/payment.orm-entity';
@@ -21,6 +25,7 @@ import { RefundOrmEntity } from './infrastructure/persistence/typeorm/entities/r
 import { AdminPaymentsController } from './presentation/controllers/admin-payments.controller';
 import { PaymentsController } from './presentation/controllers/payments.controller';
 import { SettingsController } from './presentation/controllers/settings.controller';
+import { WebhooksController } from './presentation/controllers/webhooks.controller';
 
 /**
  * Payments (PAY) domain — the framework (pay-core-be): Payment/Refund/PaymentTransactionLog/
@@ -44,25 +49,30 @@ import { SettingsController } from './presentation/controllers/settings.controll
       GatewayConfigOrmEntity,
     ]),
   ],
-  controllers: [PaymentsController, AdminPaymentsController, SettingsController],
+  controllers: [
+    PaymentsController,
+    AdminPaymentsController,
+    SettingsController,
+    WebhooksController,
+  ],
   providers: [
     PaymentsService,
     CodService,
     ReconService,
     SettingsService,
+    GatewayFinalizerService,
+    WebhookService,
+    BkashTokenService,
+    ReconciliationTask,
     ServiceTokenGuard,
     CodAdapter,
-    BkashStubAdapter,
-    SslcommerzStubAdapter,
-    // Provider registry — the use-case indexes adapters by method (COD real; bKash/SSLCommerz stubs).
+    BkashAdapter,
+    SslcommerzAdapter,
+    // Provider registry — the use-case indexes adapters by method (COD + real bKash/SSLCommerz adapters).
     {
       provide: PAYMENT_PROVIDERS,
-      useFactory: (cod: CodAdapter, bkash: BkashStubAdapter, ssl: SslcommerzStubAdapter) => [
-        cod,
-        bkash,
-        ssl,
-      ],
-      inject: [CodAdapter, BkashStubAdapter, SslcommerzStubAdapter],
+      useFactory: (cod: CodAdapter, bkash: BkashAdapter, ssl: SslcommerzAdapter) => [cod, bkash, ssl],
+      inject: [CodAdapter, BkashAdapter, SslcommerzAdapter],
     },
     // ORD seam: stubbed until ord-core-be is wired in-process (BW5 CART step).
     { provide: ORDER_GATEWAY, useClass: StubOrderGateway },
