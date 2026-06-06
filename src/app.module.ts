@@ -17,6 +17,7 @@ import { PaymentsModule } from './domains/payments/payments.module';
 import { PromotionsModule } from './domains/promotions/promotions.module';
 import { RbacModule } from './domains/rbac/rbac.module';
 import { SearchModule } from './domains/search/search.module';
+import { WishlistModule } from './domains/wishlist/wishlist.module';
 import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
 
 @Module({
@@ -47,6 +48,7 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
     PromotionsModule,
     OrdersModule,
     PaymentsModule,
+    WishlistModule,
   ],
   controllers: [AppController],
   providers: [
