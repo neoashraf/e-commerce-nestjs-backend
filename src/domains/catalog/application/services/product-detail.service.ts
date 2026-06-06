@@ -47,6 +47,29 @@ export interface CartVariantView {
 }
 
 /**
+ * A product resolved for WISH (wishlist read seam). Card fields are live (BR-WISH-2); `available`
+ * is false once the product is unpublished/archived/soft-deleted (rendered as "unavailable" but kept,
+ * FR-WISH-012). `enabled_variant_ids` lets WISH derive product-level availability for items with no
+ * preferred variant in one batched INV call (no N+1).
+ */
+export interface WishlistProductCard {
+  id: string;
+  slug: string;
+  title: string;
+  brand: string | null;
+  primary_image: string | null;
+  /** Live effective price (Decimal 12,2). */
+  effective_price: string;
+  base_price: string;
+  on_sale: boolean;
+  currency: 'BDT';
+  /** Published + not archived/soft-deleted. */
+  available: boolean;
+  /** Enabled, non-deleted variant ids of this product. */
+  enabled_variant_ids: string[];
+}
+
+/**
  * Storefront PDP read-model (FR-CAT-040..048): assembles `GET /products/{slug}` into the contract
  * payload — gallery (primary-first), configurable attributes (with swatches), enabled variants with
  * LIVE INV stock + effective price, specs (is_visible_on_front), and curated links (draft/archived/
@@ -279,6 +302,64 @@ export class ProductDetailService {
       effective_unit_price: this.effectivePriceForVariant(product, variant, now),
       sellable,
     };
+  }
+
+  /**
+   * Wishlist read seam (consumed by WISH via a port): batch-resolve product cards for a set of saved
+   * product ids (BR-WISH-2, FR-WISH-010/012). Includes archived/soft-deleted products (`available:false`)
+   * so the wishlist can keep + flag them as unavailable. Returns a map keyed by product id; ids with no
+   * product row are simply absent. Live price/on-sale; `enabled_variant_ids` for product-level stock.
+   */
+  async getWishlistProductCards(
+    productIds: string[],
+    now: Date = new Date(),
+  ): Promise<Map<string, WishlistProductCard>> {
+    const result = new Map<string, WishlistProductCard>();
+    const unique = Array.from(new Set(productIds));
+    if (unique.length === 0) return result;
+
+    // withDeleted: include soft-deleted/archived so WISH can render them as "unavailable" (FR-WISH-012).
+    const products = await this.products.find({ where: { id: In(unique) }, withDeleted: true });
+    if (products.length === 0) return result;
+
+    const ids = products.map((p) => p.id);
+    const [primaryImages, enabledVariants] = await Promise.all([
+      this.images.find({ where: { productId: In(ids), isPrimary: true } }),
+      this.variants.find({
+        where: { productId: In(ids), isEnabled: true },
+        select: { id: true, productId: true },
+      }),
+    ]);
+
+    const imageByProduct = new Map<string, string>();
+    for (const img of primaryImages) {
+      if (!imageByProduct.has(img.productId)) imageByProduct.set(img.productId, img.url);
+    }
+    const variantsByProduct = new Map<string, string[]>();
+    for (const v of enabledVariants) {
+      const list = variantsByProduct.get(v.productId) ?? [];
+      list.push(v.id);
+      variantsByProduct.set(v.productId, list);
+    }
+
+    for (const product of products) {
+      const available =
+        product.status === ProductStatus.PUBLISHED && product.deletedAt === null;
+      result.set(product.id, {
+        id: product.id,
+        slug: product.slug,
+        title: product.name,
+        brand: product.brand,
+        primary_image: imageByProduct.get(product.id) ?? null,
+        effective_price: this.effectiveProductPrice(product, now),
+        base_price: this.money(product.basePrice),
+        on_sale: this.isSaleActive(product, now),
+        currency: 'BDT',
+        available,
+        enabled_variant_ids: variantsByProduct.get(product.id) ?? [],
+      });
+    }
+    return result;
   }
 
   // ---------------------------------------------------------------------------
