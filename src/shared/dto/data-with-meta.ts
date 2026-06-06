@@ -4,9 +4,9 @@
  * Distinct from {@link Paginated} (whose `data` is the items array). The global ResponseInterceptor
  * renders it as `{ data, meta }` without re-wrapping (SRS §7).
  */
-export class DataWithMeta<T> {
+export class DataWithMeta<T, M = { page: number; limit: number; total: number }> {
   constructor(
     public readonly data: T,
-    public readonly meta: { page: number; limit: number; total: number },
+    public readonly meta: M,
   ) {}
 }
