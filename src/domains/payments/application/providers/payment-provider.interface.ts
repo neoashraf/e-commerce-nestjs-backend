@@ -25,6 +25,12 @@ export interface ConfirmResult {
   amount?: string;
 }
 
+/** Outcome of a gateway refund call (used by pay-refunds-be). */
+export interface RefundResult {
+  status: 'completed' | 'pending' | 'failed';
+  gatewayRefundRef?: string;
+}
+
 /**
  * Gateway-adapter port (FR-PAY-005/020/030; payment-implementation §4). One implementation **per
  * method** keeps use-cases gateway-agnostic. pay-core ships the COD adapter (no external calls) + bKash/
@@ -36,6 +42,8 @@ export interface IPaymentProvider {
   createSession(input: CreateSessionInput): Promise<CreateSessionResult>;
   confirm(reference: string): Promise<ConfirmResult>;
   query(reference: string): Promise<ConfirmResult>;
+  /** Refund a captured payment (online only). Optional — COD has no captured funds. */
+  refund?(reference: string, amount: string): Promise<RefundResult>;
 }
 
 /** DI token registry for provider adapters, keyed by method. */

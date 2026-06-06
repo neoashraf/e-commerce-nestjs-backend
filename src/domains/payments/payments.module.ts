@@ -10,6 +10,12 @@ import { PaymentsService } from './application/services/payments.service';
 import { ReconService } from './application/services/recon.service';
 import { SettingsService } from './application/services/settings.service';
 import { ORDER_GATEWAY, StubOrderGateway } from './application/ports/order-gateway.port';
+import {
+  PAYMENT_NOTIFIER,
+  StubPaymentNotifier,
+} from './application/ports/payment-notifier.port';
+import { ExchangeDifferenceService } from './application/services/exchange-difference.service';
+import { RefundsService } from './application/services/refunds.service';
 import { BkashAdapter } from './application/providers/bkash.adapter';
 import { CodAdapter } from './application/providers/cod.adapter';
 import { SslcommerzAdapter } from './application/providers/sslcommerz.adapter';
@@ -23,7 +29,9 @@ import { PaymentTransactionLogOrmEntity } from './infrastructure/persistence/typ
 import { PaymentOrmEntity } from './infrastructure/persistence/typeorm/entities/payment.orm-entity';
 import { RefundOrmEntity } from './infrastructure/persistence/typeorm/entities/refund.orm-entity';
 import { AdminPaymentsController } from './presentation/controllers/admin-payments.controller';
+import { ExchangeDifferenceController } from './presentation/controllers/exchange-difference.controller';
 import { PaymentsController } from './presentation/controllers/payments.controller';
+import { RefundsController } from './presentation/controllers/refunds.controller';
 import { SettingsController } from './presentation/controllers/settings.controller';
 import { WebhooksController } from './presentation/controllers/webhooks.controller';
 
@@ -54,6 +62,8 @@ import { WebhooksController } from './presentation/controllers/webhooks.controll
     AdminPaymentsController,
     SettingsController,
     WebhooksController,
+    RefundsController,
+    ExchangeDifferenceController,
   ],
   providers: [
     PaymentsService,
@@ -64,6 +74,9 @@ import { WebhooksController } from './presentation/controllers/webhooks.controll
     WebhookService,
     BkashTokenService,
     ReconciliationTask,
+    RefundsService,
+    ExchangeDifferenceService,
+    { provide: PAYMENT_NOTIFIER, useClass: StubPaymentNotifier },
     ServiceTokenGuard,
     CodAdapter,
     BkashAdapter,
