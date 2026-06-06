@@ -32,6 +32,20 @@ import {
 
 const RELATED_FALLBACK_LIMIT = 8;
 
+/** A single variant resolved for CART (cart read seam). */
+export interface CartVariantView {
+  variant_id: string;
+  product_id: string;
+  sku_code: string;
+  title: string;
+  options: Record<string, string>;
+  image: string | null;
+  /** Live effective unit price (Decimal 12,2, BR-CAT-6). */
+  effective_unit_price: string;
+  /** Whether the variant is currently buyable (enabled + published + not archived/deleted). */
+  sellable: boolean;
+}
+
 /**
  * Storefront PDP read-model (FR-CAT-040..048): assembles `GET /products/{slug}` into the contract
  * payload — gallery (primary-first), configurable attributes (with swatches), enabled variants with
@@ -200,6 +214,71 @@ export class ProductDetailService {
     if (variantIds.length === 0) return new Set();
     const rows = await this.variantOptions.find({ where: { variantId: In(variantIds) } });
     return new Set(rows.map((r) => r.optionId));
+  }
+
+  /**
+   * Cart read seam (consumed by CART via a port): resolve a single variant to the snapshot CART needs —
+   * sellability (variant enabled + not soft-deleted, product published + not archived/soft-deleted),
+   * the human-readable option values, a thumbnail, and the live effective unit price (BR-CAT-6). Returns
+   * `null` when the variant doesn't exist; `sellable: false` when it exists but isn't currently buyable.
+   */
+  async getCartVariant(variantId: string, now: Date = new Date()): Promise<CartVariantView | null> {
+    const variant = await this.variants.findOne({ where: { id: variantId } });
+    if (!variant) return null;
+
+    const product = await this.products.findOne({ where: { id: variant.productId } });
+    if (!product) return null;
+
+    const sellable =
+      variant.isEnabled &&
+      variant.deletedAt === null &&
+      product.status === ProductStatus.PUBLISHED &&
+      product.deletedAt === null;
+
+    // Option values (e.g. { color: "Black", size: "42" }) keyed by attribute code.
+    const optionRows = await this.variantOptions.find({ where: { variantId } });
+    const attrCodeById = new Map(
+      (
+        await this.attributes.find({
+          where: { id: In(optionRows.map((o) => o.attributeId)) },
+        })
+      ).map((a) => [a.id, a.code]),
+    );
+    const optionValueById = new Map(
+      (
+        await this.options.find({ where: { id: In(optionRows.map((o) => o.optionId)) } })
+      ).map((o) => [o.id, o.value]),
+    );
+    const options: Record<string, string> = {};
+    for (const row of optionRows) {
+      const code = attrCodeById.get(row.attributeId);
+      const value = optionValueById.get(row.optionId);
+      if (code && value) options[code] = value;
+    }
+
+    // Thumbnail: the variant's image if set, else the product's primary image.
+    let image: string | null = null;
+    if (variant.imageId) {
+      const img = await this.images.findOne({ where: { id: variant.imageId } });
+      image = img?.url ?? null;
+    }
+    if (!image) {
+      const primary = await this.images.findOne({
+        where: { productId: product.id, isPrimary: true },
+      });
+      image = primary?.url ?? null;
+    }
+
+    return {
+      variant_id: variant.id,
+      product_id: product.id,
+      sku_code: variant.skuCode,
+      title: product.name,
+      options,
+      image,
+      effective_unit_price: this.effectivePriceForVariant(product, variant, now),
+      sellable,
+    };
   }
 
   // ---------------------------------------------------------------------------
