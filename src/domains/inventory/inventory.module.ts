@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -31,7 +31,7 @@ import { ReservationController } from './presentation/reservation.controller';
 @Module({
   imports: [
     ConfigModule,
-    RbacModule,
+    forwardRef(() => RbacModule),
     TypeOrmModule.forFeature([
       InventoryOrmEntity,
       StockMovementOrmEntity,

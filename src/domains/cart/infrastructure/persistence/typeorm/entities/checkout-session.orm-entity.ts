@@ -21,25 +21,25 @@ export class CheckoutSessionOrmEntity {
   cartId: string | null;
 
   @Index({ unique: true })
-  @Column({ name: 'idempotency_key', length: 120, nullable: true })
+  @Column({ type: 'varchar', name: 'idempotency_key', length: 120, nullable: true })
   idempotencyKey: string | null;
 
   @Column({ name: 'placed_order_id', type: 'uuid', nullable: true })
   placedOrderId: string | null;
 
-  @Column({ name: 'placed_order_no', length: 20, nullable: true })
+  @Column({ type: 'varchar', name: 'placed_order_no', length: 20, nullable: true })
   placedOrderNo: string | null;
 
-  @Column({ name: 'order_status', length: 32, nullable: true })
+  @Column({ type: 'varchar', name: 'order_status', length: 32, nullable: true })
   orderStatus: string | null;
 
-  @Column({ name: 'payment_action', length: 16, nullable: true })
+  @Column({ type: 'varchar', name: 'payment_action', length: 16, nullable: true })
   paymentAction: string | null;
 
   @Column({ name: 'payment_redirect_url', type: 'text', nullable: true })
   paymentRedirectUrl: string | null;
 
-  @Column({ name: 'payment_status', length: 32, nullable: true })
+  @Column({ type: 'varchar', name: 'payment_status', length: 32, nullable: true })
   paymentStatus: string | null;
 
   @Column({ name: 'grand_total', type: 'decimal', precision: 12, scale: 2, nullable: true })

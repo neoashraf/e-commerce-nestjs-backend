@@ -30,7 +30,7 @@ export class FacetDefinitionOrmEntity {
   @Column({ length: 24 })
   source: string;
 
-  @Column({ name: 'source_attribute_key', length: 60, nullable: true })
+  @Column({ type: 'varchar', name: 'source_attribute_key', length: 60, nullable: true })
   sourceAttributeKey: string | null;
 
   @Column({ name: 'is_multi_select', default: true })

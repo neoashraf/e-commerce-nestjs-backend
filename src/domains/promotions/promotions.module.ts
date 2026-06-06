@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -25,7 +25,7 @@ import { CouponsController } from './presentation/controllers/coupons.controller
 @Module({
   imports: [
     ConfigModule,
-    RbacModule,
+    forwardRef(() => RbacModule),
     TypeOrmModule.forFeature([CouponOrmEntity, CouponRedemptionOrmEntity]),
   ],
   controllers: [CouponsController, CouponEngineController],

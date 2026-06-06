@@ -28,10 +28,10 @@ export class PageOrmEntity {
   @Column({ type: 'text' })
   body: string;
 
-  @Column({ name: 'seo_title', length: 160, nullable: true })
+  @Column({ type: 'varchar', name: 'seo_title', length: 160, nullable: true })
   seoTitle: string | null;
 
-  @Column({ name: 'seo_description', length: 300, nullable: true })
+  @Column({ type: 'varchar', name: 'seo_description', length: 300, nullable: true })
   seoDescription: string | null;
 
   @Column({ name: 'is_published', default: false })

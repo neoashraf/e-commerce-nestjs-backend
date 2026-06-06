@@ -48,13 +48,13 @@ export class OrderOrmEntity {
   @Column({ name: 'customer_id', type: 'uuid', nullable: true })
   customerId: string | null;
 
-  @Column({ name: 'guest_name', length: 120, nullable: true })
+  @Column({ type: 'varchar', name: 'guest_name', length: 120, nullable: true })
   guestName: string | null;
 
-  @Column({ name: 'guest_phone', length: 16, nullable: true })
+  @Column({ type: 'varchar', name: 'guest_phone', length: 16, nullable: true })
   guestPhone: string | null;
 
-  @Column({ name: 'guest_email', length: 160, nullable: true })
+  @Column({ type: 'varchar', name: 'guest_email', length: 160, nullable: true })
   guestEmail: string | null;
 
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.PENDING_PAYMENT })
@@ -86,7 +86,7 @@ export class OrderOrmEntity {
   @Column({ name: 'discount_amount', type: 'decimal', precision: 12, scale: 2, default: 0 })
   discountAmount: string;
 
-  @Column({ name: 'applied_coupon_code', length: 40, nullable: true })
+  @Column({ type: 'varchar', name: 'applied_coupon_code', length: 40, nullable: true })
   appliedCouponCode: string | null;
 
   @Column({ name: 'delivery_charge', type: 'decimal', precision: 12, scale: 2, default: 0 })
@@ -101,10 +101,10 @@ export class OrderOrmEntity {
   @Column({ name: 'grand_total', type: 'decimal', precision: 12, scale: 2 })
   grandTotal: string;
 
-  @Column({ name: 'courier_name', length: 80, nullable: true })
+  @Column({ type: 'varchar', name: 'courier_name', length: 80, nullable: true })
   courierName: string | null;
 
-  @Column({ name: 'tracking_number', length: 80, nullable: true })
+  @Column({ type: 'varchar', name: 'tracking_number', length: 80, nullable: true })
   trackingNumber: string | null;
 
   /** When the auto-cancel reminder was sent (FR-ORD-012a) — null until sent; idempotency guard. */
@@ -113,7 +113,7 @@ export class OrderOrmEntity {
 
   /** CART idempotency key — a replayed placement with the same key returns the same order (BR-CART-7). */
   @Index({ unique: true, where: '"idempotency_key" IS NOT NULL' })
-  @Column({ name: 'idempotency_key', length: 120, nullable: true })
+  @Column({ type: 'varchar', name: 'idempotency_key', length: 120, nullable: true })
   idempotencyKey: string | null;
 
   @Column({ name: 'placed_at', type: 'timestamptz' })

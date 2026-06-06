@@ -39,7 +39,7 @@ export class ProductOrmEntity {
   @Column({ length: 200 })
   slug: string;
 
-  @Column({ length: 80, nullable: true })
+  @Column({ type: 'varchar', length: 80, nullable: true })
   brand: string | null;
 
   @Column({ name: 'short_description', type: 'text', nullable: true })
@@ -78,13 +78,13 @@ export class ProductOrmEntity {
   @Column({ name: 'primary_image_id', type: 'uuid', nullable: true })
   primaryImageId: string | null;
 
-  @Column({ name: 'meta_title', length: 160, nullable: true })
+  @Column({ type: 'varchar', name: 'meta_title', length: 160, nullable: true })
   metaTitle: string | null;
 
-  @Column({ name: 'meta_keywords', length: 255, nullable: true })
+  @Column({ type: 'varchar', name: 'meta_keywords', length: 255, nullable: true })
   metaKeywords: string | null;
 
-  @Column({ name: 'meta_description', length: 320, nullable: true })
+  @Column({ type: 'varchar', name: 'meta_description', length: 320, nullable: true })
   metaDescription: string | null;
 
   @CreateDateColumn({ name: 'created_at' })

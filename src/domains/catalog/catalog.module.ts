@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RbacModule } from '../rbac/rbac.module';
@@ -73,8 +73,8 @@ import { InventoryStatusAdapter } from './infrastructure/adapters/inventory-stat
  */
 @Module({
   imports: [
-    RbacModule,
-    InventoryModule,
+    forwardRef(() => RbacModule),
+    forwardRef(() => InventoryModule),
     TypeOrmModule.forFeature([
       AttributeOrmEntity,
       AttributeOptionOrmEntity,

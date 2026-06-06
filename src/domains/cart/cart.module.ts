@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../auth/auth.module';
@@ -53,13 +53,13 @@ import { AdminGeoController } from './presentation/controllers/admin-geo.control
  */
 @Module({
   imports: [
-    RbacModule,
-    AuthModule,
-    CatalogModule,
-    InventoryModule,
-    OrdersModule,
-    PaymentsModule,
-    PromotionsModule,
+    forwardRef(() => RbacModule),
+    forwardRef(() => AuthModule),
+    forwardRef(() => CatalogModule),
+    forwardRef(() => InventoryModule),
+    forwardRef(() => OrdersModule),
+    forwardRef(() => PaymentsModule),
+    forwardRef(() => PromotionsModule),
     TypeOrmModule.forFeature([
       GeoAreaOrmEntity,
       CartOrmEntity,

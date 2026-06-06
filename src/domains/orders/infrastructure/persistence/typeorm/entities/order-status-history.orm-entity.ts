@@ -28,7 +28,7 @@ export class OrderStatusHistoryOrmEntity {
   @Column({ name: 'actor_id', type: 'uuid', nullable: true })
   actorId: string | null;
 
-  @Column({ length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   note: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
