@@ -3,12 +3,16 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 import { ReportBucket, REPORT_TIMEZONE, SalesBreakdown } from '../../domain/report-period';
+import { ProductMetric } from '../../domain/report-views';
 import {
+  CategorySalesRow,
   IOrdersReadModel,
   OrderRateCounts,
   OrdersByStatusRow,
   PaidOrdersBucketRow,
   PaidOrdersTotals,
+  PaymentSplit,
+  ProductSalesRow,
   ReportRange,
 } from '../../application/ports/orders-read.port';
 
@@ -143,6 +147,107 @@ export class OrdersReadAdapter implements IOrdersReadModel {
       total: Number(row?.total ?? 0),
       cancelled: Number(row?.cancelled ?? 0),
       returned: Number(row?.returned ?? 0),
+    };
+  }
+
+  async getTopProducts(
+    range: ReportRange,
+    metric: ProductMetric,
+    topN: number,
+  ): Promise<ProductSalesRow[]> {
+    // Order by the numeric aggregate (not the ::text alias, which would sort lexicographically).
+    const orderExpr = metric === ProductMetric.REVENUE ? 'SUM(oi.line_total)' : 'SUM(oi.quantity)';
+    const rows: Array<{ product_id: string; title: string; units: number; revenue: string }> =
+      await this.dataSource.query(
+        `SELECT oi.product_id AS product_id,
+                MAX(oi.product_title) AS title,
+                COALESCE(SUM(oi.quantity), 0)::int AS units,
+                COALESCE(SUM(oi.line_total), 0)::text AS revenue
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         WHERE o.payment_state::text = ANY($3) AND ${this.rangePredicate('o.placed_at')}
+         GROUP BY oi.product_id
+         ORDER BY ${orderExpr} DESC
+         LIMIT $4`,
+        [range.from, range.to, REVENUE_STATES, topN],
+      );
+    return rows.map((r) => ({
+      product_id: r.product_id,
+      title: r.title,
+      units: Number(r.units),
+      revenue: r.revenue,
+    }));
+  }
+
+  async getSalesByCategory(range: ReportRange): Promise<CategorySalesRow[]> {
+    const rows: Array<{ category_id: string | null; title: string; units: number; revenue: string }> =
+      await this.dataSource.query(
+        `SELECT c.id::text AS category_id,
+                COALESCE(c.name, 'Uncategorized') AS title,
+                COALESCE(SUM(oi.quantity), 0)::int AS units,
+                COALESCE(SUM(oi.line_total), 0)::text AS revenue
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         LEFT JOIN products p ON p.id = oi.product_id
+         LEFT JOIN categories c ON c.id = p.primary_category_id
+         WHERE o.payment_state::text = ANY($3) AND ${this.rangePredicate('o.placed_at')}
+         GROUP BY c.id, c.name
+         ORDER BY SUM(oi.line_total) DESC`,
+        [range.from, range.to, REVENUE_STATES],
+      );
+    return rows.map((r) => ({
+      category_id: r.category_id ?? '',
+      title: r.title,
+      units: Number(r.units),
+      revenue: r.revenue,
+    }));
+  }
+
+  async getProductSalesMap(range: ReportRange): Promise<ProductSalesRow[]> {
+    const rows: Array<{ product_id: string; title: string; units: number; revenue: string }> =
+      await this.dataSource.query(
+        `SELECT oi.product_id AS product_id,
+                MAX(oi.product_title) AS title,
+                COALESCE(SUM(oi.quantity), 0)::int AS units,
+                COALESCE(SUM(oi.line_total), 0)::text AS revenue
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         WHERE o.payment_state::text = ANY($3) AND ${this.rangePredicate('o.placed_at')}
+         GROUP BY oi.product_id`,
+        [range.from, range.to, REVENUE_STATES],
+      );
+    return rows.map((r) => ({
+      product_id: r.product_id,
+      title: r.title,
+      units: Number(r.units),
+      revenue: r.revenue,
+    }));
+  }
+
+  async getPaymentSplit(range: ReportRange): Promise<PaymentSplit> {
+    const rows: Array<{ method: string; count: number }> = await this.dataSource.query(
+      `SELECT o.payment_method::text AS method, COUNT(*)::int AS count
+       FROM orders o
+       WHERE o.payment_state::text = ANY($3) AND ${this.rangePredicate('o.placed_at')}
+       GROUP BY o.payment_method`,
+      [range.from, range.to, REVENUE_STATES],
+    );
+    const method_split: Record<string, number> = {};
+    for (const r of rows) method_split[r.method] = Number(r.count);
+
+    const [totals]: Array<{ paid_online: string; cod_collected: string }> =
+      await this.dataSource.query(
+        `SELECT
+           COALESCE(SUM(o.grand_total) FILTER (WHERE o.payment_state::text = 'paid'), 0)::text AS paid_online,
+           COALESCE(SUM(o.grand_total) FILTER (WHERE o.payment_state::text = 'cod_collected'), 0)::text AS cod_collected
+         FROM orders o
+         WHERE ${this.rangePredicate('o.placed_at')}`,
+        [range.from, range.to],
+      );
+    return {
+      method_split,
+      paid_online: totals?.paid_online ?? '0.00',
+      cod_collected: totals?.cod_collected ?? '0.00',
     };
   }
 }

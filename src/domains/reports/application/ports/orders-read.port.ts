@@ -1,4 +1,5 @@
 import { ReportBucket, SalesBreakdown } from '../../domain/report-period';
+import { ProductMetric } from '../../domain/report-views';
 
 /** Range filter shared by the read-model queries. Inclusive `[from, to]` Asia/Dhaka calendar days. */
 export interface ReportRange {
@@ -40,6 +41,34 @@ export interface OrderRateCounts {
   returned: number;
 }
 
+/** One product row of the product report (FR-RPT-020). Units/revenue come from order snapshots. */
+export interface ProductSalesRow {
+  product_id: string;
+  /** Snapshot title from the order item (§12.10 — independent of current catalog state). */
+  title: string;
+  units: number;
+  /** Σ line_total over paid/collected order items (BDT, 2dp string). */
+  revenue: string;
+}
+
+/** One category row of the product report `by_category` view (FR-RPT-021). */
+export interface CategorySalesRow {
+  category_id: string;
+  title: string;
+  units: number;
+  revenue: string;
+}
+
+/** Order-side payment figures for the payment report (FR-RPT-050); refunds come from the PAY port. */
+export interface PaymentSplit {
+  /** Count of paid/collected orders by payment method (cod/bkash/sslcommerz). */
+  method_split: Record<string, number>;
+  /** Σ grand_total of online-paid orders (BDT, 2dp string). */
+  paid_online: string;
+  /** Σ grand_total of COD-collected orders (BDT, 2dp string). */
+  cod_collected: string;
+}
+
 /**
  * Read-only view RPT takes over ORD (orders/items). Read-side only — no mutation (BR-RPT-5). Revenue
  * is attributed by `placed_at`; an order counts toward revenue when its payment_state is `paid` or
@@ -60,6 +89,18 @@ export interface IOrdersReadModel {
 
   /** Total / cancelled / returned(exchanged) placed-order counts for the rate calculation. */
   getOrderRateCounts(range: ReportRange): Promise<OrderRateCounts>;
+
+  /** Top products by the chosen metric over paid/collected order items in the period (FR-RPT-020). */
+  getTopProducts(range: ReportRange, metric: ProductMetric, topN: number): Promise<ProductSalesRow[]>;
+
+  /** Paid/collected sales grouped by the product's current primary category (FR-RPT-021). */
+  getSalesByCategory(range: ReportRange): Promise<CategorySalesRow[]>;
+
+  /** Per-product units/revenue for every product sold in the period (drives slow-mover ranking). */
+  getProductSalesMap(range: ReportRange): Promise<ProductSalesRow[]>;
+
+  /** Payment method split + online-paid / COD-collected revenue for the period (FR-RPT-050). */
+  getPaymentSplit(range: ReportRange): Promise<PaymentSplit>;
 }
 
 export const ORDERS_READ_MODEL = Symbol('IOrdersReadModel');
