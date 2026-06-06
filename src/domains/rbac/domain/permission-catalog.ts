@@ -48,6 +48,8 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { code: 'orders.order.update_status', module: 'ORD', description: 'Advance order status / fulfilment' },
   { code: 'orders.order.invoice', module: 'ORD', description: 'Generate order invoices' },
   { code: 'orders.order.refund', module: 'ORD', description: 'Issue order refunds' },
+  { code: 'orders.exchange.read', module: 'ORD', description: 'View the exchange queue and detail' },
+  { code: 'orders.exchange.review', module: 'ORD', description: 'Approve/reject and issue exchanges' },
 
   // CUST — customers
   { code: 'customers.customer.read', module: 'CUST', description: 'View/search customer records' },
