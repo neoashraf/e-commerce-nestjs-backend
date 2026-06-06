@@ -192,7 +192,8 @@ export class PagesService {
     const hasMenuItems = await this.tableExists('cms_menu_items');
     if (!hasMenuItems) return false;
     const rows = await this.dataSource.query(
-      `SELECT 1 FROM "cms_menu_items" WHERE "link_type" = 'page' AND "link_ref" = $1 LIMIT 1`,
+      `SELECT 1 FROM "cms_menu_items"
+        WHERE "link_type" = 'page' AND "link_ref" = $1 AND "is_published" = true LIMIT 1`,
       [slug],
     );
     return rows.length > 0;
