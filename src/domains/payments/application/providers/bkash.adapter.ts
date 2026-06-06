@@ -8,6 +8,7 @@ import {
   CreateSessionInput,
   CreateSessionResult,
   IPaymentProvider,
+  RefundResult,
 } from './payment-provider.interface';
 
 /**
@@ -57,5 +58,13 @@ export class BkashAdapter implements IPaymentProvider {
     // Live: POST {base}/tokenized/checkout/payment/status { paymentID }.
     this.logger.log(`bKash query ${reference}`);
     return { status: 'failed' };
+  }
+
+  /** Refund (prepaid-cancel/duplicate only — never post-delivery returns). */
+  async refund(reference: string, amount: string): Promise<RefundResult> {
+    await this.token.getIdToken();
+    // Live: POST {base}/tokenized/checkout/payment/refund { paymentID, amount, trxID, sku, reason }.
+    this.logger.log(`bKash refund ${reference} amount=${amount}`);
+    return { status: 'completed', gatewayRefundRef: `RF-${reference}` };
   }
 }

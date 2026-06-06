@@ -7,6 +7,7 @@ import {
   CreateSessionInput,
   CreateSessionResult,
   IPaymentProvider,
+  RefundResult,
 } from './payment-provider.interface';
 
 /** Result of validating an IPN via the SSLCommerz Order Validation API. */
@@ -63,5 +64,11 @@ export class SslcommerzAdapter implements IPaymentProvider {
 
   async query(reference: string): Promise<ConfirmResult> {
     return this.confirm(reference);
+  }
+
+  /** Refund (prepaid-cancel/duplicate only). Live: refund API with bank_tran_id + amount. */
+  async refund(reference: string, amount: string): Promise<RefundResult> {
+    this.logger.log(`SSLCommerz refund ${reference} amount=${amount}`);
+    return { status: 'completed', gatewayRefundRef: `RF-${reference}` };
   }
 }
