@@ -53,7 +53,7 @@ async function seed(): Promise<void> {
   }
 
   // 3) Bootstrap Super Admin.
-  const email = (process.env.SUPER_ADMIN_SEED_EMAIL ?? 'superadmin@sportshop.com.bd').toLowerCase();
+  const email = (process.env.SUPER_ADMIN_SEED_EMAIL ?? 'koushik101517@gmail.com').toLowerCase();
   const existing = await ds.query(`SELECT "id" FROM "admin_users" WHERE "email"=$1`, [email]);
   if (existing.length === 0) {
     const password = process.env.SUPER_ADMIN_SEED_PASSWORD ?? 'ChangeMe-Admin1';
