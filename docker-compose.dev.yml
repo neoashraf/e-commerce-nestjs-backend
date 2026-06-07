@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# Development override — hot reload with the source bind-mounted.
+#
+# Run on top of the base compose file:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# The `api` service is switched to the `development` image target (which keeps
+# dev dependencies + the Nest CLI) and runs `start:dev` with a file watcher.
+# Only ./src and ./test are mounted, so the container keeps its own
+# node_modules (avoids host/Alpine native-module mismatches for bcrypt).
+# ---------------------------------------------------------------------------
+
+services:
+  api:
+    build:
+      context: .
+      target: development
+    image: sports-ecommerce-backend:dev
+    environment:
+      NODE_ENV: development
+    command: npm run start:dev
+    volumes:
+      - ./src:/app/src
+      - ./test:/app/test
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.build.json:/app/tsconfig.build.json
+      - ./nest-cli.json:/app/nest-cli.json

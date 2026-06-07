@@ -14,17 +14,36 @@
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts",
     "migration:create": "typeorm-ts-node-commonjs migration:create",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
-    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts"
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
+    "seed:notifications": "ts-node src/database/seeds/notifications.seed.ts",
+    "seed:rbac": "ts-node src/database/seeds/rbac.seed.ts",
+    "seed:catalog-attributes": "ts-node src/database/seeds/catalog-attributes.seed.ts",
+    "seed:catalog-families": "ts-node src/database/seeds/catalog-families.seed.ts",
+    "seed:geo-area": "ts-node src/database/seeds/geo-area.seed.ts",
+    "seed:inventory": "ts-node src/database/seeds/inventory.seed.ts",
+    "seed:cms-pages": "ts-node src/database/seeds/cms-pages.seed.ts",
+    "seed:demo": "ts-node src/database/seeds/demo.seed.ts",
+    "seed:payments": "ts-node src/database/seeds/payments-gateway.seed.ts",
+    "seed:all": "npm run seed:rbac && npm run seed:catalog-attributes && npm run seed:catalog-families && npm run seed:geo-area && npm run seed:notifications && npm run seed:cms-pages && npm run seed:payments && npm run seed:demo && npm run seed:inventory"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",
     "@nestjs/config": "^3.2.3",
     "@nestjs/core": "^10.4.4",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^10.4.4",
     "@nestjs/swagger": "^7.4.2",
+    "@nestjs/throttler": "^6.5.0",
+    "@nestjs/typeorm": "^11.0.1",
+    "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.5",
+    "nodemailer": "^8.0.10",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "pdfkit": "^0.18.0",
     "pg": "^8.13.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -34,9 +53,13 @@
     "@nestjs/cli": "^10.4.5",
     "@nestjs/schematics": "^10.1.4",
     "@nestjs/testing": "^10.4.4",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.13",
     "@types/node": "^22.7.4",
+    "@types/nodemailer": "^8.0.0",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^6.0.2",
     "jest": "^29.7.0",
     "source-map-support": "^0.5.21",
@@ -47,13 +70,23 @@
     "typescript": "^5.6.2"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
-    "transform": { "^.+\\.(t|j)s$": "ts-jest" },
-    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
-    "moduleNameMapper": { "^@/(.*)$": "<rootDir>/$1" }
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1"
+    }
   }
 }

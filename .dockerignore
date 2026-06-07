@@ -1,0 +1,42 @@
+# Dependencies & build output (reinstalled/recompiled inside the image)
+node_modules
+dist
+build
+coverage
+
+# Env & secrets — never bake into the image (passed at runtime via env_file)
+.env
+.env.local
+.env.*.local
+
+# Git & CI
+.git
+.gitignore
+.github
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Editor / OS
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Tests (not needed in the runtime image; CI runs them separately)
+test
+**/*.spec.ts
+
+# Runtime-generated content
+uploads
+storage
+
+# Docs
+DOCKER.md
+*.md
