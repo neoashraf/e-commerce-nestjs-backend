@@ -81,8 +81,8 @@ async function seed(): Promise<void> {
     await ds.query(
       `INSERT INTO "cms_pages"
          ("id","slug","title","body","seo_title","seo_description","is_published","is_system")
-       SELECT gen_random_uuid(),$1,$2,$3,$4,$5,true,true
-       WHERE NOT EXISTS (SELECT 1 FROM "cms_pages" WHERE "slug"=$1)`,
+       SELECT gen_random_uuid(),$1::text,$2,$3,$4,$5,true,true
+       WHERE NOT EXISTS (SELECT 1 FROM "cms_pages" WHERE "slug"=$1::text)`,
       [p.slug, p.title, p.body, p.seoTitle, p.seoDescription],
     );
   }

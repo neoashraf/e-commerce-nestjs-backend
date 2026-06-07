@@ -22,7 +22,9 @@
     "seed:geo-area": "ts-node src/database/seeds/geo-area.seed.ts",
     "seed:inventory": "ts-node src/database/seeds/inventory.seed.ts",
     "seed:cms-pages": "ts-node src/database/seeds/cms-pages.seed.ts",
-    "seed:demo": "ts-node src/database/seeds/demo.seed.ts"
+    "seed:demo": "ts-node src/database/seeds/demo.seed.ts",
+    "seed:payments": "ts-node src/database/seeds/payments-gateway.seed.ts",
+    "seed:all": "npm run seed:rbac && npm run seed:catalog-attributes && npm run seed:catalog-families && npm run seed:geo-area && npm run seed:notifications && npm run seed:cms-pages && npm run seed:payments && npm run seed:demo && npm run seed:inventory"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",

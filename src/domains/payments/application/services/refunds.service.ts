@@ -123,7 +123,11 @@ export class RefundsService {
 
       const provider = this.providers.get(payment.method);
       const gwResult = provider?.refund
-        ? await provider.refund(payment.gatewayPaymentId ?? payment.internalRef, refund.amount)
+        ? await provider.refund(
+            // SSLCommerz refunds key off bank_tran_id (stored as gatewayTxnId); fall back for others.
+            payment.gatewayTxnId ?? payment.gatewayPaymentId ?? payment.internalRef,
+            refund.amount,
+          )
         : { status: 'completed' as const, gatewayRefundRef: undefined };
 
       refund.gatewayRefundRef = gwResult.gatewayRefundRef ?? null;
