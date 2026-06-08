@@ -9,7 +9,9 @@ import { CodService } from './application/services/cod.service';
 import { PaymentsService } from './application/services/payments.service';
 import { ReconService } from './application/services/recon.service';
 import { SettingsService } from './application/services/settings.service';
-import { ORDER_GATEWAY, StubOrderGateway } from './application/ports/order-gateway.port';
+import { ORDER_GATEWAY } from './application/ports/order-gateway.port';
+import { OrderOrmEntity } from '../orders/infrastructure/persistence/typeorm/entities/order.orm-entity';
+import { OrdOrderGateway } from './infrastructure/adapters/ord-order-gateway.adapter';
 import {
   PAYMENT_NOTIFIER,
   StubPaymentNotifier,
@@ -55,6 +57,7 @@ import { WebhooksController } from './presentation/controllers/webhooks.controll
       RefundOrmEntity,
       PaymentTransactionLogOrmEntity,
       GatewayConfigOrmEntity,
+      OrderOrmEntity, // read-only: real ORD↔PAY gateway reads grand_total + reflects paid state
     ]),
   ],
   controllers: [
@@ -87,8 +90,9 @@ import { WebhooksController } from './presentation/controllers/webhooks.controll
       useFactory: (cod: CodAdapter, bkash: BkashAdapter, ssl: SslcommerzAdapter) => [cod, bkash, ssl],
       inject: [CodAdapter, BkashAdapter, SslcommerzAdapter],
     },
-    // ORD seam: stubbed until ord-core-be is wired in-process (BW5 CART step).
-    { provide: ORDER_GATEWAY, useClass: StubOrderGateway },
+    // ORD↔PAY seam — reads the real order grand_total + reflects paid state (was StubOrderGateway).
+    OrdOrderGateway,
+    { provide: ORDER_GATEWAY, useClass: OrdOrderGateway },
   ],
   exports: [PaymentsService, ReconService, SettingsService],
 })
