@@ -40,6 +40,7 @@ import { ConfirmPhoneChangeUseCase } from './application/use-cases/confirm-phone
 import { DeleteAccountUseCase } from './application/use-cases/delete-account.use-case';
 import { ClaimAccountUseCase } from './application/use-cases/claim-account.use-case';
 import { ListAddressesUseCase } from './application/use-cases/list-addresses.use-case';
+import { GetAddressUseCase } from './application/use-cases/get-address.use-case';
 import { CreateAddressUseCase } from './application/use-cases/create-address.use-case';
 import { UpdateAddressUseCase } from './application/use-cases/update-address.use-case';
 import { DeleteAddressUseCase } from './application/use-cases/delete-address.use-case';
@@ -140,6 +141,7 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     DeleteAccountUseCase,
     ClaimAccountUseCase,
     ListAddressesUseCase,
+    GetAddressUseCase,
     CreateAddressUseCase,
     UpdateAddressUseCase,
     DeleteAddressUseCase,
@@ -152,6 +154,7 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     PassportModule,
     IssueEmailVerificationUseCase,
     CreateLightweightAccountUseCase,
+    GetAddressUseCase,
   ],
 })
 export class AuthModule {}

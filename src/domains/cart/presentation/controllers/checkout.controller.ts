@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Headers,
@@ -22,8 +23,10 @@ import { Request, Response } from 'express';
 
 import { AuthenticatedCustomer } from '../../../../shared/decorators/current-customer.decorator';
 import { CreateLightweightAccountUseCase } from '../../../auth/application/use-cases/create-lightweight-account.use-case';
+import { GetAddressUseCase } from '../../../auth/application/use-cases/get-address.use-case';
 import { CartActor } from '../../application/cart/cart.service';
 import {
+  CheckoutAddressInput,
   CheckoutService,
   GuestInput,
   QuoteResult,
@@ -46,6 +49,7 @@ export class CheckoutController {
   constructor(
     private readonly checkout: CheckoutService,
     private readonly lightweightAccount: CreateLightweightAccountUseCase,
+    private readonly getAddress: GetAddressUseCase,
   ) {}
 
   @Post('quote')
@@ -53,12 +57,14 @@ export class CheckoutController {
   @ApiOkResponse({ description: '{ delivery_zone, summary, cod_available, payment_methods }' })
   @ApiBadRequestResponse({ description: 'UNSERVICEABLE_AREA / INVALID_ADDRESS' })
   @ApiConflictResponse({ description: 'COD_UNAVAILABLE' })
-  quote(
+  async quote(
     @Req() req: Request,
     @Headers('x-cart-token') cartToken: string | undefined,
     @Body() dto: QuoteCheckoutDto,
   ): Promise<QuoteResult> {
-    return this.checkout.quote(this.actor(req, cartToken), dto.address, dto.payment_method);
+    const actor = this.actor(req, cartToken);
+    const address = await this.resolveAddress(actor, dto.address);
+    return this.checkout.quote(actor, address, dto.payment_method);
   }
 
   @Post('place')
@@ -74,8 +80,10 @@ export class CheckoutController {
     @Body() dto: PlaceCheckoutDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.checkout.place(this.actor(req, cartToken), idempotencyKey ?? '', {
-      address: dto.address,
+    const actor = this.actor(req, cartToken);
+    const address = await this.resolveAddress(actor, dto.address);
+    const result = await this.checkout.place(actor, idempotencyKey ?? '', {
+      address,
       payment_method: dto.payment_method,
       guest: dto.guest ?? null,
       expected_total: dto.expected_total,
@@ -92,6 +100,36 @@ export class CheckoutController {
   private actor(req: Request, cartToken: string | undefined): CartActor {
     const user = req.user as AuthenticatedCustomer | undefined;
     return { customerId: user?.customerId ?? null, cartToken: cartToken ?? null };
+  }
+
+  /**
+   * Expand a saved `address_id` into a full address (AUTH seam, FR-AUTH-050). Saved addresses belong
+   * to a signed-in customer; guests must supply a full address. A full address passes through as-is.
+   */
+  private async resolveAddress(
+    actor: CartActor,
+    address: CheckoutAddressInput,
+  ): Promise<CheckoutAddressInput> {
+    if (!address?.address_id) return address;
+    if (!actor.customerId) {
+      throw new BadRequestException({
+        code: 'ADDRESS_RESOLUTION_UNAVAILABLE',
+        message: 'Sign in to use a saved address, or provide a full address.',
+      });
+    }
+    const saved = await this.getAddress.execute({
+      customerId: actor.customerId,
+      addressId: address.address_id,
+    });
+    return {
+      recipient_name: saved.recipientName,
+      recipient_phone: saved.recipientPhone,
+      address_line: saved.addressLine,
+      area: saved.area,
+      district: saved.district,
+      division: saved.division,
+      postal_code: saved.postalCode ?? undefined,
+    };
   }
 
   private async resolveGuest(guest: GuestInput): Promise<string> {
