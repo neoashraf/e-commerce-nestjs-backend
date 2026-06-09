@@ -30,10 +30,15 @@ import { Paginated } from '../../../../shared/dto/paginated';
 import { JwtAdminGuard } from '../../../rbac/presentation/guards/jwt-admin.guard';
 import { PermissionsGuard } from '../../../rbac/presentation/guards/permissions.guard';
 import { Requires } from '../../../rbac/presentation/decorators/requires.decorator';
-import { AdminProductRow, ProductsService } from '../../application/services/products.service';
+import {
+  AdminProductDetail,
+  AdminProductRow,
+  ProductsService,
+} from '../../application/services/products.service';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { ListProductsQueryDto } from '../dto/list-products-query.dto';
 import {
+  AdminProductDetailDto,
   AdminProductRowDto,
   CreateProductResponseDto,
   SetProductLinksResponseDto,
@@ -66,6 +71,15 @@ export class ProductsController {
       category: query.category,
       q: query.q,
     });
+  }
+
+  @Get(':id')
+  @Requires('catalog.product.read')
+  @ApiOperation({ summary: 'Get one product in full detail (editor prefill; includes updated_at)' })
+  @ApiOkResponse({ type: AdminProductDetailDto })
+  @ApiNotFoundResponse({ description: 'Product not found' })
+  detail(@Param('id', ParseUUIDPipe) id: string): Promise<AdminProductDetail> {
+    return this.products.getAdminDetail(id);
   }
 
   @Post()
