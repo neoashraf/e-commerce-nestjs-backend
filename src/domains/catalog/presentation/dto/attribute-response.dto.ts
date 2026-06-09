@@ -17,6 +17,25 @@ export class AttributeRowDto {
   @ApiProperty() is_user_defined: boolean;
 }
 
+/** A selectable option of a `select` / `multiselect` attribute. */
+export class AttributeOptionDto {
+  @ApiProperty() id: string;
+  @ApiProperty() value: string;
+  @ApiProperty() label: string;
+  @ApiProperty({ nullable: true }) swatch_type: string | null;
+  @ApiProperty({ nullable: true }) swatch_value: string | null;
+  @ApiProperty() position: number;
+}
+
+/** Full attribute detail (list row + editor fields + options) — `GET /admin/attributes/{id}`. */
+export class AttributeDetailDto extends AttributeRowDto {
+  @ApiProperty({ nullable: true }) validation: string | null;
+  @ApiProperty({ nullable: true }) default_value: string | null;
+  @ApiProperty() position: number;
+  @ApiProperty() is_active: boolean;
+  @ApiProperty({ type: [AttributeOptionDto] }) options: AttributeOptionDto[];
+}
+
 export class ListMetaDto {
   @ApiProperty({ example: 1 }) page: number;
   @ApiProperty({ example: 20 }) limit: number;

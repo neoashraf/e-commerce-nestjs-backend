@@ -34,6 +34,7 @@ import {
 } from '../../application/use-cases/get-admin-category-tree.use-case';
 import { CreateCategoryUseCase } from '../../application/use-cases/create-category.use-case';
 import { DeleteCategoryUseCase } from '../../application/use-cases/delete-category.use-case';
+import { GetCategoryUseCase } from '../../application/use-cases/get-category.use-case';
 import { UpdateCategoryUseCase } from '../../application/use-cases/update-category.use-case';
 import { AdminCategoryTreeQueryDto } from '../dto/admin-category-tree-query.dto';
 import {
@@ -52,6 +53,7 @@ import { UpdateCategoryDto } from '../dto/update-category.dto';
 export class CategoriesController {
   constructor(
     private readonly adminTree: GetAdminCategoryTreeUseCase,
+    private readonly getCategory: GetCategoryUseCase,
     private readonly createCategory: CreateCategoryUseCase,
     private readonly updateCategory: UpdateCategoryUseCase,
     private readonly deleteCategory: DeleteCategoryUseCase,
@@ -63,6 +65,36 @@ export class CategoriesController {
   @ApiOkResponse({ type: AdminCategoryTreeResponseDto })
   async tree(@Query() query: AdminCategoryTreeQueryDto): Promise<AdminCategoryNode[]> {
     return this.adminTree.execute(query.include_deleted ?? false);
+  }
+
+  @Get(':id')
+  @Requires('catalog.category.read')
+  @ApiOperation({ summary: 'Get one category (full detail for the editor)' })
+  @ApiOkResponse({ description: 'Full category node' })
+  @ApiNotFoundResponse({ description: 'Category not found' })
+  async get(@Param('id', ParseUUIDPipe) id: string): Promise<AdminCategoryNode> {
+    const c = await this.getCategory.execute(id);
+    return {
+      id: c.id,
+      parent_id: c.parentId,
+      name: c.name,
+      slug: c.slug,
+      level: c.level,
+      position: c.position,
+      is_published: c.isPublished,
+      show_in_menu: c.showInMenu,
+      display_mode: c.displayMode,
+      description: c.description,
+      image_url: c.imageUrl,
+      logo_url: c.logoUrl,
+      banner_url: c.bannerUrl,
+      meta_title: c.metaTitle,
+      meta_keywords: c.metaKeywords,
+      meta_description: c.metaDescription,
+      filterable_attribute_codes: c.filterableAttributes.map((f) => f.code),
+      is_deleted: c.deletedAt !== null,
+      children: [],
+    };
   }
 
   @Post()
