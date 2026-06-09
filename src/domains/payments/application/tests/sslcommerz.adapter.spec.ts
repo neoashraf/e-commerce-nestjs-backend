@@ -83,6 +83,73 @@ describe('Payments — SslcommerzAdapter', () => {
     await expect(adapter.validateIpn('val1')).resolves.toEqual({ status: 'failed' });
   });
 
+  it('query should hit the Transaction Query API by tran_id and map VALID to paid', async () => {
+    const adapter = new SslcommerzAdapter(makeConfig());
+    const fetchMock = jest.fn().mockResolvedValue({
+      json: async () => ({
+        APIConnect: 'DONE',
+        element: [{ status: 'VALID', amount: '100.00', bank_tran_id: 'BANK1' }],
+      }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(adapter.query('PAY-1')).resolves.toEqual({
+      status: 'paid',
+      amount: '100.00',
+      gatewayTxnId: 'BANK1',
+    });
+    const calledUrl = String(fetchMock.mock.calls[0][0]);
+    expect(calledUrl).toContain('/validator/api/merchantTransIDvalidationAPI.php');
+    expect(calledUrl).toContain('tran_id=PAY-1');
+  });
+
+  it('query should map PENDING to pending (retry, do not finalize)', async () => {
+    const adapter = new SslcommerzAdapter(makeConfig());
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ APIConnect: 'DONE', element: [{ status: 'PENDING' }] }),
+    }) as unknown as typeof fetch;
+
+    await expect(adapter.query('PAY-1')).resolves.toEqual({ status: 'pending' });
+  });
+
+  it('query should map UNATTEMPTED/FAILED to failed after the grace window', async () => {
+    const adapter = new SslcommerzAdapter(makeConfig());
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ APIConnect: 'DONE', element: [{ status: 'UNATTEMPTED' }] }),
+    }) as unknown as typeof fetch;
+
+    await expect(adapter.query('PAY-1')).resolves.toEqual({ status: 'failed' });
+  });
+
+  it('query should map a CANCELLED transaction to cancelled', async () => {
+    const adapter = new SslcommerzAdapter(makeConfig());
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ APIConnect: 'DONE', element: [{ status: 'CANCELLED' }] }),
+    }) as unknown as typeof fetch;
+
+    await expect(adapter.query('PAY-1')).resolves.toEqual({ status: 'cancelled' });
+  });
+
+  it('query should return pending (not failed) when the query API is unreachable', async () => {
+    const adapter = new SslcommerzAdapter(makeConfig());
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ APIConnect: 'FAILED' }),
+    }) as unknown as typeof fetch;
+
+    await expect(adapter.query('PAY-1')).resolves.toEqual({ status: 'pending' });
+  });
+
+  it('query should return pending without any external call when store creds are missing', async () => {
+    const adapter = new SslcommerzAdapter(
+      makeConfig({ SSLCOMMERZ_STORE_ID: '', SSLCOMMERZ_STORE_PASSWORD: '' }),
+    );
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(adapter.query('PAY-1')).resolves.toEqual({ status: 'pending' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('should fall back to a stub session (no external call) when store creds are missing', async () => {
     const adapter = new SslcommerzAdapter(
       makeConfig({ SSLCOMMERZ_STORE_ID: '', SSLCOMMERZ_STORE_PASSWORD: '' }),

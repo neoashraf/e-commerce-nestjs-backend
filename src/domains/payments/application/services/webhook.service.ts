@@ -61,7 +61,8 @@ export class WebhookService {
     const execed = await this.bkash.confirm(paymentID);
     const result = await this.finalizer.finalize({
       paymentId: payment.id,
-      outcome: execed.status,
+      // bKash execute is terminal; coerce any non-terminal status to failed (never finalize `pending`).
+      outcome: execed.status === 'paid' ? 'paid' : execed.status === 'cancelled' ? 'cancelled' : 'failed',
       gatewayReference: paymentID,
       gatewayTxnId: execed.gatewayTxnId ?? null,
       validatedAmount: execed.amount ?? null,

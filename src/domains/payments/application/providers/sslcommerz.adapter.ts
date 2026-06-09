@@ -159,8 +159,51 @@ export class SslcommerzAdapter implements IPaymentProvider {
     return { status: result.status, gatewayTxnId: result.gatewayTxnId, amount: result.amount };
   }
 
-  async query(reference: string): Promise<ConfirmResult> {
-    return this.confirm(reference);
+  /**
+   * Transaction status fallback by `tran_id` — the SSLCommerz Transaction Query API (FR-PAY-034). Used by
+   * reconciliation when the IPN was lost. Unlike {@link validateIpn} (which needs a post-success `val_id`
+   * the gateway only issues on capture), this queries by our own `tran_id`, so it resolves the real status
+   * even when no IPN ever arrived. A non-terminal or unreachable result maps to `pending` so the sweep
+   * retries instead of wrongly failing an in-flight payment.
+   */
+  async query(tranId: string): Promise<ConfirmResult> {
+    if (!this.configured) return { status: 'pending' };
+
+    const url = new URL(`${this.baseUrl}/validator/api/merchantTransIDvalidationAPI.php`);
+    url.searchParams.set('tran_id', tranId);
+    url.searchParams.set('store_id', this.storeId);
+    url.searchParams.set('store_passwd', this.storePasswd);
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('v', '1');
+
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as {
+      APIConnect?: string;
+      element?: Array<{ status?: string; amount?: string; bank_tran_id?: string }>;
+    };
+
+    // The query API itself failed (network/credentials) — retry next sweep; never fail the payment on this.
+    if ((data.APIConnect ?? '').toUpperCase() !== 'DONE') {
+      this.logger.warn(`SSLCommerz tx query tran_id=${tranId}: APIConnect=${data.APIConnect ?? 'none'}`);
+      return { status: 'pending' };
+    }
+
+    const txn = data.element?.find((e) => !!e.status);
+    const status = (txn?.status ?? '').toUpperCase();
+    switch (status) {
+      case 'VALID':
+      case 'VALIDATED':
+        return { status: 'paid', amount: txn?.amount, gatewayTxnId: txn?.bank_tran_id };
+      case 'PENDING':
+      case 'PROCESSING':
+        return { status: 'pending' };
+      case 'CANCELLED':
+        return { status: 'cancelled' };
+      default:
+        // FAILED / EXPIRED / UNATTEMPTED / INVALID_TRANSACTION / not found — after the grace window, not paid.
+        this.logger.warn(`SSLCommerz tx query tran_id=${tranId} → status=${txn?.status ?? 'none'}`);
+        return { status: 'failed' };
+    }
   }
 
   /**

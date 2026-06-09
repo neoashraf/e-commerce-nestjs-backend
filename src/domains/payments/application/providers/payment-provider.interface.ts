@@ -18,9 +18,13 @@ export interface CreateSessionResult {
   gatewayPaymentId?: string;
 }
 
-/** Outcome of confirming/querying a payment with the gateway (used by pay-gateways-be). */
+/**
+ * Outcome of confirming/querying a payment with the gateway (used by pay-gateways-be). `pending` means
+ * the gateway has no terminal result yet (still processing, or temporarily unreachable) — the caller
+ * must retry rather than finalize, so an in-flight payment is never wrongly marked failed.
+ */
 export interface ConfirmResult {
-  status: 'paid' | 'failed' | 'cancelled';
+  status: 'paid' | 'failed' | 'cancelled' | 'pending';
   gatewayTxnId?: string;
   amount?: string;
 }

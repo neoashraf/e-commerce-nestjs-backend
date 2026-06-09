@@ -59,16 +59,20 @@ export class ReconciliationTask implements OnModuleInit, OnModuleDestroy {
       let finalized = 0;
       for (const p of stale) {
         if (p.method === PaymentMethod.COD) continue;
-        const reference = p.gatewayPaymentId ?? p.internalRef;
+        // bKash queries by its paymentID; SSLCommerz queries by tran_id (== internal_ref), NOT the
+        // session key — the Transaction Query API is keyed on tran_id (FR-PAY-034).
+        const queryRef =
+          p.method === PaymentMethod.BKASH ? (p.gatewayPaymentId ?? p.internalRef) : p.internalRef;
         const result =
           p.method === PaymentMethod.BKASH
-            ? await this.bkash.query(reference)
-            : await this.sslcommerz.query(reference);
+            ? await this.bkash.query(queryRef)
+            : await this.sslcommerz.query(queryRef);
+        // `pending` → gateway still processing / unreachable; leave INITIATED for the next sweep.
         if (result.status === 'paid' || result.status === 'failed' || result.status === 'cancelled') {
           await this.finalizer.finalize({
             paymentId: p.id,
             outcome: result.status,
-            gatewayReference: `recon:${reference}`,
+            gatewayReference: `recon:${queryRef}`,
             gatewayTxnId: result.gatewayTxnId ?? null,
             validatedAmount: result.status === 'paid' ? result.amount ?? null : null,
             event: PaymentLogEvent.QUERY,
