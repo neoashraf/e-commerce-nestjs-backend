@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { ProductsService, CreateProductInput } from '../services/products.service';
@@ -14,7 +18,7 @@ import { AttributeFamilyOrmEntity } from '../../infrastructure/persistence/typeo
 import { CategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/category.orm-entity';
 import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductLinkOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-link.orm-entity';
-import { ProductType } from '../../domain/enums/product-type.enum';
+import { ProductStatus, ProductType } from '../../domain/enums/product-type.enum';
 
 const buildCreate = (o: Partial<CreateProductInput> = {}): CreateProductInput => ({
   type: ProductType.SIMPLE,
@@ -31,8 +35,11 @@ describe('Catalog — ProductsService', () => {
   let support: { skuExists: jest.Mock; generateUniqueSlug: jest.Mock; getFamilyAttributes: jest.Mock };
   let families: { findOne: jest.Mock };
   let categories: { findOne: jest.Mock; find: jest.Mock };
-  let products: { findOne: jest.Mock; find: jest.Mock };
-  let dataSource: { transaction: jest.Mock };
+  let products: { findOne: jest.Mock; find: jest.Mock; update: jest.Mock };
+  let images: { count: jest.Mock };
+  let variantPublish: { countEnabledVariants: jest.Mock };
+  let presentAttributeValues: Array<{ attributeId: string }>;
+  let dataSource: { transaction: jest.Mock; getRepository: jest.Mock };
 
   beforeEach(async () => {
     support = {
@@ -45,7 +52,10 @@ describe('Catalog — ProductsService', () => {
       findOne: jest.fn().mockResolvedValue({ id: 'cat-1' }),
       find: jest.fn().mockResolvedValue([]),
     };
-    products = { findOne: jest.fn(), find: jest.fn() };
+    products = { findOne: jest.fn(), find: jest.fn(), update: jest.fn().mockResolvedValue(undefined) };
+    images = { count: jest.fn().mockResolvedValue(1) };
+    variantPublish = { countEnabledVariants: jest.fn().mockResolvedValue(1) };
+    presentAttributeValues = [];
     dataSource = {
       transaction: jest.fn().mockImplementation(async (cb) =>
         cb({
@@ -58,6 +68,10 @@ describe('Catalog — ProductsService', () => {
           }),
         }),
       ),
+      // Non-transactional reads (e.g. publish-trinity EAV lookup) read the present attribute values.
+      getRepository: jest.fn(() => ({
+        find: jest.fn().mockImplementation(() => Promise.resolve(presentAttributeValues)),
+      })),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -66,14 +80,14 @@ describe('Catalog — ProductsService', () => {
         { provide: getRepositoryToken(ProductOrmEntity), useValue: products },
         { provide: getRepositoryToken(AttributeFamilyOrmEntity), useValue: families },
         { provide: getRepositoryToken(CategoryOrmEntity), useValue: categories },
-        { provide: getRepositoryToken(ProductImageOrmEntity), useValue: { count: jest.fn() } },
+        { provide: getRepositoryToken(ProductImageOrmEntity), useValue: images },
         { provide: getRepositoryToken(ProductLinkOrmEntity), useValue: {} },
         { provide: DataSource, useValue: dataSource },
         { provide: ProductSupportService, useValue: support },
         { provide: AttributeAssignmentValidator, useValue: { assertValid: jest.fn() } },
         { provide: ProductPublishValidator, useValue: new ProductPublishValidator() },
         { provide: INVENTORY_QTY_PORT, useValue: { getQtyByProductIds: jest.fn() } },
-        { provide: PRODUCT_VARIANT_PUBLISH_PORT, useValue: { countEnabledVariants: jest.fn() } },
+        { provide: PRODUCT_VARIANT_PUBLISH_PORT, useValue: variantPublish },
       ],
     }).compile();
     service = module.get(ProductsService);
@@ -86,6 +100,31 @@ describe('Catalog — ProductsService', () => {
     expect(result.status).toBe('draft');
     expect(result.slug).toBe('adidas-predator-elite');
     expect(dataSource.transaction).toHaveBeenCalled();
+  });
+
+  it('should PUBLISH when only a required SYSTEM attribute is absent from EAV (stored on columns)', async () => {
+    // System attributes (isUserDefined=false) live on product columns, never in product_attribute_values,
+    // so requiring them in the EAV publish-check wrongly blocked every product. After the fix they're skipped.
+    products.findOne.mockResolvedValue({ id: 'p1', type: ProductType.SIMPLE, primaryImageId: 'img1' });
+    support.getFamilyAttributes.mockResolvedValue(
+      new Map([['sku', { id: 'a-sku', code: 'sku', isRequired: true, isUserDefined: false }]]),
+    );
+    presentAttributeValues = []; // nothing in the EAV table
+
+    const result = await service.setStatus('p1', ProductStatus.PUBLISHED);
+    expect(result.status).toBe(ProductStatus.PUBLISHED);
+  });
+
+  it('should BLOCK publish when a required USER-DEFINED attribute is missing', async () => {
+    products.findOne.mockResolvedValue({ id: 'p1', type: ProductType.SIMPLE, primaryImageId: 'img1' });
+    support.getFamilyAttributes.mockResolvedValue(
+      new Map([['gender', { id: 'a-gender', code: 'gender', isRequired: true, isUserDefined: true }]]),
+    );
+    presentAttributeValues = []; // user-defined required value not provided
+
+    await expect(service.setStatus('p1', ProductStatus.PUBLISHED)).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
   });
 
   it('should reject a duplicate SKU with 409 SKU_CONFLICT', async () => {
