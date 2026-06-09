@@ -135,6 +135,55 @@ describe('Payments — GatewayFinalizerService', () => {
     expect(payRepo.save).not.toHaveBeenCalled();
   });
 
+  it('should RECOVER a wrongly-failed payment to paid on an authoritative paid validation (amount match)', async () => {
+    // A reconciliation/callback failed it, but the gateway-validated capture says paid — self-heal.
+    lockReturns(buildPayment({ status: PaymentStatus.FAILED, amount: '18570.00' }));
+    const result = await service.finalize(
+      {
+        paymentId: 'pay_1',
+        outcome: 'paid',
+        gatewayReference: 'VAL-AUTHORITATIVE',
+        gatewayTxnId: 'BANKTRX',
+        validatedAmount: '18570.00',
+        event: PaymentLogEvent.VALIDATE,
+      },
+      NOW,
+    );
+    expect(result.status).toBe(PaymentStatus.PAID);
+    expect(payRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: PaymentStatus.PAID, paidAt: NOW }),
+    );
+    expect(orders.markOrderPaid).toHaveBeenCalledWith('ord_1', 'pay_1');
+  });
+
+  it('should NOT recover a failed payment on a non-paid replay (stays a terminal no-op)', async () => {
+    lockReturns(buildPayment({ status: PaymentStatus.FAILED }));
+    const result = await service.finalize(
+      { paymentId: 'pay_1', outcome: 'failed', gatewayReference: 'NEW-REF', event: PaymentLogEvent.QUERY },
+      NOW,
+    );
+    expect(result.duplicate).toBe(true);
+    expect(payRepo.save).not.toHaveBeenCalled();
+    expect(orders.markOrderPaid).not.toHaveBeenCalled();
+  });
+
+  it('should NOT recover a failed payment to paid when the validated amount mismatches', async () => {
+    lockReturns(buildPayment({ status: PaymentStatus.FAILED, amount: '18570.00' }));
+    const result = await service.finalize(
+      {
+        paymentId: 'pay_1',
+        outcome: 'paid',
+        gatewayReference: 'VAL-MISMATCH',
+        validatedAmount: '100.00',
+        event: PaymentLogEvent.VALIDATE,
+      },
+      NOW,
+    );
+    expect(result.mismatch).toBe(true);
+    expect(result.status).not.toBe(PaymentStatus.PAID);
+    expect(orders.markOrderPaid).not.toHaveBeenCalled();
+  });
+
   it('should mark failed and notify the order on a failed outcome (order stays for retry)', async () => {
     lockReturns(buildPayment());
     const result = await service.finalize(

@@ -76,11 +76,18 @@ export class GatewayFinalizerService {
         return { status: PaymentStatus.PENDING };
       }
 
-      // Already final → idempotent no-op (a replay after the first apply).
+      // Already PAID is terminal — never un-pay (idempotent replay).
+      if (payment.status === PaymentStatus.PAID) {
+        await this.log(manager, payment, input, PaymentLogResult.DUPLICATE_IGNORED, { note: 'already_paid' });
+        return { status: PaymentStatus.PAID, duplicate: true };
+      }
+      // FAILED/CANCELLED is terminal too — EXCEPT an authoritative `paid` outcome recovers it: a
+      // gateway-validated capture (IPN validate / reconciliation query) overrides a callback or a
+      // reconciliation that wrongly failed a payment the customer actually completed. The amount-match
+      // guard below still gates the real transition (BR-PAY-4/5). A non-`paid` replay stays a no-op.
       if (
-        payment.status === PaymentStatus.PAID ||
-        payment.status === PaymentStatus.FAILED ||
-        payment.status === PaymentStatus.CANCELLED
+        (payment.status === PaymentStatus.FAILED || payment.status === PaymentStatus.CANCELLED) &&
+        input.outcome !== 'paid'
       ) {
         await this.log(manager, payment, input, PaymentLogResult.DUPLICATE_IGNORED, { note: 'already_final' });
         return { status: payment.status, duplicate: true };
