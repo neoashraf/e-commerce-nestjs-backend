@@ -21,7 +21,7 @@ export const rbacConfigProvider: Provider = {
   provide: RBAC_CONFIG,
   inject: [ConfigService],
   useFactory: (config: ConfigService): RbacConfig => ({
-    accessTtlSeconds: parseDurationToSeconds(config.get<string>('ADMIN_JWT_ACCESS_TTL'), 900),
+    accessTtlSeconds: parseDurationToSeconds(config.get<string>('ADMIN_JWT_ACCESS_TTL'), 21_600), // 6h default
     refreshTtlSeconds: parseDurationToSeconds(config.get<string>('ADMIN_JWT_REFRESH_TTL'), 2_592_000),
     refreshTtlRememberSeconds: parseDurationToSeconds(
       config.get<string>('ADMIN_JWT_REFRESH_TTL_REMEMBER'),
