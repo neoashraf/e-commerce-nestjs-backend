@@ -13,11 +13,11 @@ with a 4-layer **DDD** structure (one domain per SRS module). See
 
 ## 1. Prerequisites
 
-| Tool | Version |
-|---|---|
-| Node.js | 22.x (LTS) |
-| npm | 10.x |
-| PostgreSQL | 16 / 17 |
+| Tool       | Version    |
+| ---------- | ---------- |
+| Node.js    | 22.x (LTS) |
+| npm        | 10.x       |
+| PostgreSQL | 16 / 17    |
 
 > Prefer containers? Skip straight to [§7 Docker](#7-docker) — it brings up
 > PostgreSQL, runs migrations, and starts the API with one command.
@@ -71,9 +71,9 @@ npm run start:prod         # run the compiled build (node dist/main)
 
 Once running:
 
-- API:     <http://localhost:8000/api/v1>
+- API: <http://localhost:8000/api/v1>
 - Swagger: <http://localhost:8000/api/v1/docs>
-- Health:  <http://localhost:8000/api/v1/health>
+- Health: <http://localhost:8000/api/v1/health>
 
 ---
 
@@ -135,14 +135,14 @@ A realistic dataset so an admin can explore the panel and reports end-to-end:
 - **4 products** (boots, jersey, turf shoes, football) → **10 variants** + inventory
 - **6 orders** covering every payment + lifecycle scenario:
 
-  | Order | Method | Status | Payment | Refund |
-  |---|---|---|---|---|
-  | SO-DEMO-001 | COD | delivered | cod_collected | — |
-  | SO-DEMO-002 | bKash | delivered | paid (coupon discount) | — |
-  | SO-DEMO-003 | SSLCommerz | refunded | refunded | full |
-  | SO-DEMO-004 | bKash | pending_payment | unpaid | — |
-  | SO-DEMO-005 | COD | shipped | cod_pending | — |
-  | SO-DEMO-006 | SSLCommerz | delivered | partially_refunded | partial |
+  | Order       | Method     | Status          | Payment                | Refund  |
+  | ----------- | ---------- | --------------- | ---------------------- | ------- |
+  | SO-DEMO-001 | COD        | delivered       | cod_collected          | —       |
+  | SO-DEMO-002 | bKash      | delivered       | paid (coupon discount) | —       |
+  | SO-DEMO-003 | SSLCommerz | refunded        | refunded               | full    |
+  | SO-DEMO-004 | bKash      | pending_payment | unpaid                 | —       |
+  | SO-DEMO-005 | COD        | shipped         | cod_pending            | —       |
+  | SO-DEMO-006 | SSLCommerz | delivered       | partially_refunded     | partial |
 
 The bootstrap **admin** login comes from `seed:rbac` (defaults in `.env`):
 `superadmin@sportshop.com.bd` / `ChangeMe-Admin1` — change before any real use.
@@ -209,4 +209,9 @@ src/
   business logic; ORM entities ≠ domain entities (mappers in between).
 
 See [`CLAUDE.md`](./CLAUDE.md) for the complete process and golden rules.
+
+develop by koushik
+
+```
+
 ```
