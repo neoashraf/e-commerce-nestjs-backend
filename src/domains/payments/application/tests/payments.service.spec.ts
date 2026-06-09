@@ -69,6 +69,14 @@ describe('Payments — PaymentsService', () => {
     );
   });
 
+  it('should initiate COD even when the order is confirmed (not pending) — COD is placed confirmed', async () => {
+    // Real COD orders are created `confirmed` + `cod_pending`, so isPendingPayment is false.
+    orders.getOrder.mockResolvedValue({ ...order, isPendingPayment: false });
+    const result = await service.initiate({ order_id: 'ord_1', method: PaymentMethod.COD });
+    expect(result.status).toBe(PaymentStatus.COD_PENDING);
+    expect(result.action).toBe('none');
+  });
+
   it('should initiate an online payment as initiated with a redirect (stub)', async () => {
     const result = await service.initiate({ order_id: 'ord_1', method: PaymentMethod.BKASH });
     expect(result.status).toBe(PaymentStatus.INITIATED);

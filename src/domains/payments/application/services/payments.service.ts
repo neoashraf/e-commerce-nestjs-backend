@@ -106,9 +106,14 @@ export class PaymentsService {
     if (!order) {
       throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: `Order ${cmd.order_id} not found.` });
     }
-    // Only an order awaiting payment may be initiated (order purpose only; exchange-difference is a
-    // distinct capture handled by pay-refunds-be and skips this guard via its own entry point).
-    if (purpose === PaymentPurpose.ORDER && !order.isPendingPayment) {
+    // Online orders must be awaiting payment. COD orders are placed `confirmed` + `cod_pending`
+    // (BR-ORD-3), so the COD payment record is created against a confirmed order — it must NOT be gated
+    // on `pending_payment`. Exchange-difference captures skip this entirely via their own entry point.
+    if (
+      purpose === PaymentPurpose.ORDER &&
+      cmd.method !== PaymentMethod.COD &&
+      !order.isPendingPayment
+    ) {
       throw new BadRequestException({
         code: 'ORDER_NOT_PENDING',
         message: 'Order is not awaiting payment.',
