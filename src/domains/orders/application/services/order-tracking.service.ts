@@ -3,9 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Paginated } from '../../../../shared/dto/paginated';
+import { OrderPaymentState, OrderStatus } from '../../domain/order-enums';
 import { OrderItemOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-item.orm-entity';
 import { OrderStatusHistoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-status-history.orm-entity';
 import { OrderOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order.orm-entity';
+import { AdminOrderRowDto } from '../../presentation/dto/admin-orders.dto';
 import {
   GuestHistoryEntryDto,
   GuestTrackResultDto,
@@ -13,6 +15,18 @@ import {
   OrderHistoryEntryDto,
   OrderSummaryDto,
 } from '../../presentation/dto/tracking.dto';
+
+/** Filters for the admin order list/search (FR-ORD-070). All optional; combined with AND. */
+export interface AdminOrderFilters {
+  status?: OrderStatus;
+  paymentState?: OrderPaymentState;
+  q?: string;
+  phone?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+}
 
 /** An order plus its line items and full status history — the read aggregate for detail + invoice. */
 export interface OrderReadAggregate {
@@ -56,6 +70,43 @@ export class OrderTrackingService {
     });
     const summaries = rows.map((order) => this.toSummary(order));
     return new Paginated(summaries, { page, limit, total });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Admin — list / search (FR-ORD-070)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Paginated, newest-first admin order list with optional status / payment-state / order-no / phone /
+   * placed-at-range filters (contract: Admin — List/search orders). The buyer name + phone come from the
+   * order snapshot (guest fields, else the address recipient), so the read stays within the order
+   * aggregate — no AUTH call. A date-only `to` is treated as inclusive of the whole day.
+   */
+  async listAdminOrders(filters: AdminOrderFilters): Promise<Paginated<AdminOrderRowDto>> {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+
+    const qb = this.orders
+      .createQueryBuilder('o')
+      .orderBy('o.placedAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (filters.status) qb.andWhere('o.status = :status', { status: filters.status });
+    if (filters.paymentState)
+      qb.andWhere('o.paymentState = :paymentState', { paymentState: filters.paymentState });
+    if (filters.q) qb.andWhere('o.orderNo ILIKE :q', { q: `%${filters.q}%` });
+    if (filters.phone) {
+      qb.andWhere(
+        "(o.guestPhone ILIKE :phone OR o.address_snapshot->>'recipient_phone' ILIKE :phone)",
+        { phone: `%${filters.phone}%` },
+      );
+    }
+    if (filters.from) qb.andWhere('o.placedAt >= :from', { from: filters.from });
+    if (filters.to) qb.andWhere('o.placedAt <= :to', { to: this.endOfDay(filters.to) });
+
+    const [rows, total] = await qb.getManyAndCount();
+    return new Paginated(rows.map((o) => this.toAdminRow(o)), { page, limit, total });
   }
 
   // ---------------------------------------------------------------------------
@@ -191,6 +242,26 @@ export class OrderTrackingService {
       grand_total: order.grandTotal,
       item_count: itemCount,
     };
+  }
+
+  private toAdminRow(order: OrderOrmEntity): AdminOrderRowDto {
+    return {
+      order_no: order.orderNo,
+      customer: {
+        name: order.guestName ?? order.addressSnapshot?.recipient_name ?? '',
+        phone: order.guestPhone ?? order.addressSnapshot?.recipient_phone ?? '',
+      },
+      status: order.status,
+      payment_method: order.paymentMethod,
+      payment_state: order.paymentState,
+      grand_total: order.grandTotal,
+      placed_at: order.placedAt.toISOString(),
+    };
+  }
+
+  /** Make a date-only `to` bound (YYYY-MM-DD) inclusive of the whole day; pass through full timestamps. */
+  private endOfDay(to: string): string {
+    return /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999Z` : to;
   }
 
   /** True when `phone` matches the order's guest phone or recipient phone (normalised, digits only). */
