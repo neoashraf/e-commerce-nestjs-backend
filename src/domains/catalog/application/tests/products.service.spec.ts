@@ -13,6 +13,7 @@ import { ProductPublishValidator } from '../services/product-publish.validator';
 import { AttributeAssignmentValidator } from '../services/attribute-assignment.validator';
 import { INVENTORY_QTY_PORT } from '../ports/inventory-qty.port';
 import { PRODUCT_VARIANT_PUBLISH_PORT } from '../ports/product-variant-publish.port';
+import { SEARCH_INDEX_PORT } from '../ports/search-index.port';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
 import { AttributeFamilyOrmEntity } from '../../infrastructure/persistence/typeorm/entities/attribute-family.orm-entity';
 import { CategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/category.orm-entity';
@@ -38,6 +39,7 @@ describe('Catalog — ProductsService', () => {
   let products: { findOne: jest.Mock; find: jest.Mock; update: jest.Mock };
   let images: { count: jest.Mock };
   let variantPublish: { countEnabledVariants: jest.Mock };
+  let searchIndex: { upsert: jest.Mock; remove: jest.Mock };
   let presentAttributeValues: Array<{ attributeId: string }>;
   let dataSource: { transaction: jest.Mock; getRepository: jest.Mock };
 
@@ -55,6 +57,7 @@ describe('Catalog — ProductsService', () => {
     products = { findOne: jest.fn(), find: jest.fn(), update: jest.fn().mockResolvedValue(undefined) };
     images = { count: jest.fn().mockResolvedValue(1) };
     variantPublish = { countEnabledVariants: jest.fn().mockResolvedValue(1) };
+    searchIndex = { upsert: jest.fn().mockResolvedValue(undefined), remove: jest.fn().mockResolvedValue(undefined) };
     presentAttributeValues = [];
     dataSource = {
       transaction: jest.fn().mockImplementation(async (cb) =>
@@ -88,6 +91,7 @@ describe('Catalog — ProductsService', () => {
         { provide: ProductPublishValidator, useValue: new ProductPublishValidator() },
         { provide: INVENTORY_QTY_PORT, useValue: { getQtyByProductIds: jest.fn() } },
         { provide: PRODUCT_VARIANT_PUBLISH_PORT, useValue: variantPublish },
+        { provide: SEARCH_INDEX_PORT, useValue: searchIndex },
       ],
     }).compile();
     service = module.get(ProductsService);
@@ -113,6 +117,8 @@ describe('Catalog — ProductsService', () => {
 
     const result = await service.setStatus('p1', ProductStatus.PUBLISHED);
     expect(result.status).toBe(ProductStatus.PUBLISHED);
+    // The storefront index is refreshed so the published product appears in listings immediately.
+    expect(searchIndex.upsert).toHaveBeenCalledWith('p1');
   });
 
   it('should BLOCK publish when a required USER-DEFINED attribute is missing', async () => {
