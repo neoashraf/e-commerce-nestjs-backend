@@ -582,7 +582,10 @@ export class ProductsService {
     );
     const missingRequiredAttributeCodes: string[] = [];
     for (const [code, attribute] of familyAttributes) {
-      if (attribute.isRequired && !presentAttributeIds.has(attribute.id)) {
+      // Only user-defined attributes live in the EAV table. System attributes (sku/name/price/url_key,
+      // isUserDefined=false) are stored on the product columns, so they're never present in
+      // product_attribute_values and must NOT be required-checked here — otherwise nothing publishes.
+      if (attribute.isRequired && attribute.isUserDefined && !presentAttributeIds.has(attribute.id)) {
         missingRequiredAttributeCodes.push(code);
       }
     }
