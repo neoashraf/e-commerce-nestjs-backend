@@ -11,6 +11,7 @@ import { CategorySupportService } from './application/services/category-support.
 import { FamilyGroupingValidator } from './application/services/family-grouping.validator';
 import { CreateAttributeUseCase } from './application/use-cases/create-attribute.use-case';
 import { DeleteAttributeUseCase } from './application/use-cases/delete-attribute.use-case';
+import { GetAttributeUseCase } from './application/use-cases/get-attribute.use-case';
 import { ListAttributesUseCase } from './application/use-cases/list-attributes.use-case';
 import { UpdateAttributeUseCase } from './application/use-cases/update-attribute.use-case';
 import { CreateAttributeFamilyUseCase } from './application/use-cases/create-attribute-family.use-case';
@@ -21,6 +22,7 @@ import { UpdateAttributeFamilyUseCase } from './application/use-cases/update-att
 import { CreateCategoryUseCase } from './application/use-cases/create-category.use-case';
 import { DeleteCategoryUseCase } from './application/use-cases/delete-category.use-case';
 import { GetAdminCategoryTreeUseCase } from './application/use-cases/get-admin-category-tree.use-case';
+import { GetCategoryUseCase } from './application/use-cases/get-category.use-case';
 import { GetPublicCategoryTreeUseCase } from './application/use-cases/get-public-category-tree.use-case';
 import { UpdateCategoryUseCase } from './application/use-cases/update-category.use-case';
 import { AttributeOrmEntity } from './infrastructure/persistence/typeorm/entities/attribute.orm-entity';
@@ -109,6 +111,7 @@ import { InventoryStatusAdapter } from './infrastructure/adapters/inventory-stat
     { provide: ATTRIBUTE_FAMILY_REPOSITORY, useClass: TypeOrmAttributeFamilyRepository },
     { provide: CATEGORY_REPOSITORY, useClass: TypeOrmCategoryRepository },
     ListAttributesUseCase,
+    GetAttributeUseCase,
     CreateAttributeUseCase,
     UpdateAttributeUseCase,
     DeleteAttributeUseCase,
@@ -124,6 +127,7 @@ import { InventoryStatusAdapter } from './infrastructure/adapters/inventory-stat
     UpdateCategoryUseCase,
     DeleteCategoryUseCase,
     GetAdminCategoryTreeUseCase,
+    GetCategoryUseCase,
     GetPublicCategoryTreeUseCase,
     ProductsService,
     ProductSupportService,

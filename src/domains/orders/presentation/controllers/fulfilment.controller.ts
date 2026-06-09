@@ -44,6 +44,7 @@ import {
   UpdateOrderStatusDto,
   UpdateOrderStatusResultDto,
 } from '../dto/fulfilment.dto';
+import { OrderDetailDto } from '../dto/tracking.dto';
 
 /**
  * Admin fulfilment management (FR-ORD-020–024, 041, 072; contract: Admin — Management). Advance an
@@ -75,6 +76,17 @@ export class FulfilmentController {
       page: query.page,
       limit: query.limit,
     });
+  }
+
+  @Get(':orderNo')
+  @Requires('orders.order.read')
+  @ApiParam({ name: 'orderNo', example: 'SO-100245' })
+  @ApiOperation({ summary: 'Get full order detail (snapshot, items, amounts, shipment, history)' })
+  @ApiOkResponse({ type: OrderDetailDto })
+  @ApiNotFoundResponse({ description: 'ORDER_NOT_FOUND' })
+  async detail(@Param('orderNo') orderNo: string): Promise<OrderDetailDto> {
+    const aggregate = await this.tracking.loadOrder(orderNo);
+    return this.tracking.toDetail(aggregate);
   }
 
   @Patch(':orderNo/status')

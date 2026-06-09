@@ -31,9 +31,11 @@ import { Requires } from '../../../rbac/presentation/decorators/requires.decorat
 import { Attribute } from '../../domain/entities/attribute.entity';
 import { CreateAttributeUseCase } from '../../application/use-cases/create-attribute.use-case';
 import { DeleteAttributeUseCase } from '../../application/use-cases/delete-attribute.use-case';
+import { GetAttributeUseCase } from '../../application/use-cases/get-attribute.use-case';
 import { ListAttributesUseCase } from '../../application/use-cases/list-attributes.use-case';
 import { UpdateAttributeUseCase } from '../../application/use-cases/update-attribute.use-case';
 import {
+  AttributeDetailDto,
   AttributeListResponseDto,
   AttributeRowDto,
   CreateAttributeResponseDto,
@@ -51,6 +53,7 @@ import { UpdateAttributeDto } from '../dto/update-attribute.dto';
 export class AttributesController {
   constructor(
     private readonly listAttributes: ListAttributesUseCase,
+    private readonly getAttribute: GetAttributeUseCase,
     private readonly createAttribute: CreateAttributeUseCase,
     private readonly updateAttribute: UpdateAttributeUseCase,
     private readonly deleteAttribute: DeleteAttributeUseCase,
@@ -78,6 +81,16 @@ export class AttributesController {
       data: result.items.map((a) => AttributesController.toRow(a)),
       meta: { page: result.page, limit: result.limit, total: result.total },
     };
+  }
+
+  @Get(':id')
+  @Requires('catalog.attribute.read')
+  @ApiOperation({ summary: 'Get one attribute (full detail incl. options)' })
+  @ApiOkResponse({ type: AttributeDetailDto })
+  @ApiNotFoundResponse({ description: 'Attribute not found' })
+  async get(@Param('id', ParseUUIDPipe) id: string): Promise<AttributeDetailDto> {
+    const attribute = await this.getAttribute.execute(id);
+    return AttributesController.toDetail(attribute);
   }
 
   @Post()
@@ -173,6 +186,24 @@ export class AttributesController {
       is_visible_on_front: a.isVisibleOnFront,
       is_comparable: a.isComparable,
       is_user_defined: a.isUserDefined,
+    };
+  }
+
+  private static toDetail(a: Attribute): AttributeDetailDto {
+    return {
+      ...AttributesController.toRow(a),
+      validation: a.validation,
+      default_value: a.defaultValue,
+      position: a.position,
+      is_active: a.isActive,
+      options: a.options.map((o) => ({
+        id: o.id,
+        value: o.value,
+        label: o.label,
+        swatch_type: o.swatchType,
+        swatch_value: o.swatchValue,
+        position: o.position,
+      })),
     };
   }
 }

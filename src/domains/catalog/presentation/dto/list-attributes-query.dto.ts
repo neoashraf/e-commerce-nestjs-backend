@@ -20,12 +20,12 @@ export class ListAttributesQueryDto {
   @Min(1)
   page?: number;
 
-  @ApiPropertyOptional({ example: 20, minimum: 1, maximum: 200, default: 20 })
+  @ApiPropertyOptional({ example: 20, minimum: 1, maximum: 500, default: 20 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(200)
+  @Max(500)
   limit?: number;
 
   @ApiPropertyOptional({ enum: AttributeType })
