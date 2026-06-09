@@ -57,6 +57,42 @@ export class AdminProductRowDto {
   qty: number | null;
 }
 
+/** Full product detail for the admin editor — `GET /admin/products/{id}` (includes `updated_at`). */
+export class AdminProductDetailDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ example: 'configurable' }) type: string;
+  @ApiProperty() family_id: string;
+  @ApiProperty({ nullable: true }) family_code: string | null;
+  @ApiProperty() sku: string;
+  @ApiProperty() name: string;
+  @ApiProperty() slug: string;
+  @ApiProperty({ example: 'draft' }) status: string;
+  @ApiProperty({ nullable: true }) brand: string | null;
+  @ApiProperty({ nullable: true }) short_description: string | null;
+  @ApiProperty({ nullable: true }) description: string | null;
+  @ApiProperty({ example: '14000.00' }) base_price: string;
+  @ApiProperty({ nullable: true, example: '12500.00' }) sale_price: string | null;
+  @ApiProperty({ nullable: true }) sale_starts_at: string | null;
+  @ApiProperty({ nullable: true }) sale_ends_at: string | null;
+  @ApiProperty() is_featured: boolean;
+  @ApiProperty() is_new: boolean;
+  @ApiProperty({ nullable: true }) weight: string | null;
+  @ApiProperty() primary_category_id: string;
+  @ApiProperty({ type: [String] }) category_ids: string[];
+  @ApiProperty({ nullable: true }) primary_image_id: string | null;
+  @ApiProperty({ nullable: true }) meta_title: string | null;
+  @ApiProperty({ nullable: true }) meta_keywords: string | null;
+  @ApiProperty({ nullable: true }) meta_description: string | null;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description: 'Attribute code → value (value[] for multiselect)',
+  })
+  attributes: Record<string, unknown>;
+  @ApiProperty() created_at: string;
+  @ApiProperty({ description: 'Send this back on PATCH for optimistic concurrency' }) updated_at: string;
+}
+
 /** Image-upload response. */
 export class UploadImageResponseDto {
   @ApiProperty({ example: 'i1-uuid' })

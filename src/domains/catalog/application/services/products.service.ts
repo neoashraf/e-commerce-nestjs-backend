@@ -17,6 +17,8 @@ import {
   ProductStatus,
   ProductType,
 } from '../../domain/enums/product-type.enum';
+import { AttributeOrmEntity } from '../../infrastructure/persistence/typeorm/entities/attribute.orm-entity';
+import { AttributeOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/attribute-option.orm-entity';
 import { AttributeFamilyOrmEntity } from '../../infrastructure/persistence/typeorm/entities/attribute-family.orm-entity';
 import { CategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/category.orm-entity';
 import { ProductAttributeValueOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-attribute-value.orm-entity';
@@ -92,6 +94,37 @@ export interface AdminProductRow {
   status: string;
   primary_category: string | null;
   qty: number | null;
+}
+
+/** Full product detail for the admin editor (all editable fields + `updated_at` for optimistic writes). */
+export interface AdminProductDetail {
+  id: string;
+  type: string;
+  family_id: string;
+  family_code: string | null;
+  sku: string;
+  name: string;
+  slug: string;
+  status: string;
+  brand: string | null;
+  short_description: string | null;
+  description: string | null;
+  base_price: string;
+  sale_price: string | null;
+  sale_starts_at: string | null;
+  sale_ends_at: string | null;
+  is_featured: boolean;
+  is_new: boolean;
+  weight: string | null;
+  primary_category_id: string;
+  category_ids: string[];
+  primary_image_id: string | null;
+  meta_title: string | null;
+  meta_keywords: string | null;
+  meta_description: string | null;
+  attributes: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
@@ -196,6 +229,96 @@ export class ProductsService {
   // ---------------------------------------------------------------------------
   // Update
   // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // Admin detail (editor prefill)
+  // ---------------------------------------------------------------------------
+
+  /** Full product detail for the admin editor: scalars + additional categories + EAV values + updated_at. */
+  async getAdminDetail(id: string): Promise<AdminProductDetail> {
+    const p = await this.products.findOne({ where: { id } });
+    if (!p) {
+      throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: `Product ${id} not found.` });
+    }
+    const family = await this.families.findOne({ where: { id: p.familyId } });
+    const categoryLinks = await this.dataSource
+      .getRepository(ProductCategoryOrmEntity)
+      .find({ where: { productId: id } });
+    const attributes = await this.loadProductAttributes(id);
+
+    return {
+      id: p.id,
+      type: p.type,
+      family_id: p.familyId,
+      family_code: family?.code ?? null,
+      sku: p.sku,
+      name: p.name,
+      slug: p.slug,
+      status: p.status,
+      brand: p.brand,
+      short_description: p.shortDescription,
+      description: p.description,
+      base_price: p.basePrice,
+      sale_price: p.salePrice,
+      sale_starts_at: p.saleStartsAt?.toISOString() ?? null,
+      sale_ends_at: p.saleEndsAt?.toISOString() ?? null,
+      is_featured: p.isFeatured,
+      is_new: p.isNew,
+      weight: p.weight,
+      primary_category_id: p.primaryCategoryId,
+      category_ids: categoryLinks.map((c) => c.categoryId),
+      primary_image_id: p.primaryImageId,
+      meta_title: p.metaTitle,
+      meta_keywords: p.metaKeywords,
+      meta_description: p.metaDescription,
+      attributes,
+      created_at: p.createdAt.toISOString(),
+      updated_at: p.updatedAt.toISOString(),
+    };
+  }
+
+  /** Resolve a product's stored EAV rows to an editor-friendly `{ code: value | value[] }` map. */
+  private async loadProductAttributes(productId: string): Promise<Record<string, unknown>> {
+    const values = await this.dataSource
+      .getRepository(ProductAttributeValueOrmEntity)
+      .find({ where: { productId } });
+    if (values.length === 0) return {};
+
+    const attrIds = Array.from(new Set(values.map((v) => v.attributeId)));
+    const attrs = await this.dataSource
+      .getRepository(AttributeOrmEntity)
+      .find({ where: { id: In(attrIds) } });
+    const codeById = new Map(attrs.map((a) => [a.id, a.code]));
+
+    const optionIds = values.filter((v) => v.optionId).map((v) => v.optionId as string);
+    const optionValueById = new Map(
+      (optionIds.length > 0
+        ? await this.dataSource
+            .getRepository(AttributeOptionOrmEntity)
+            .find({ where: { id: In(optionIds) } })
+        : []
+      ).map((o) => [o.id, o.value]),
+    );
+
+    const out: Record<string, unknown> = {};
+    for (const v of values) {
+      const code = codeById.get(v.attributeId);
+      if (!code) continue;
+      const value = v.optionId
+        ? optionValueById.get(v.optionId) ?? v.optionId
+        : v.valueBoolean !== null && v.valueBoolean !== undefined
+          ? v.valueBoolean
+          : v.valueDecimal !== null && v.valueDecimal !== undefined
+            ? Number(v.valueDecimal)
+            : v.valueDatetime
+              ? v.valueDatetime.toISOString()
+              : v.valueText ?? null;
+      // multiselect persists one row per option → collect repeated codes into an array.
+      if (out[code] === undefined) out[code] = value;
+      else out[code] = Array.isArray(out[code]) ? [...(out[code] as unknown[]), value] : [out[code], value];
+    }
+    return out;
+  }
 
   async update(input: UpdateProductInput): Promise<{ id: string }> {
     const product = await this.products.findOne({ where: { id: input.id } });
