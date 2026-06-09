@@ -35,6 +35,7 @@ import {
   PRODUCT_VARIANT_PUBLISH_PORT,
   IProductVariantPublishPort,
 } from '../ports/product-variant-publish.port';
+import { SEARCH_INDEX_PORT, ISearchIndexPort } from '../ports/search-index.port';
 import { ProductPublishValidator } from './product-publish.validator';
 import { ProductSupportService } from './product-support.service';
 
@@ -155,6 +156,8 @@ export class ProductsService {
     private readonly inventoryQty: IInventoryQtyPort,
     @Inject(PRODUCT_VARIANT_PUBLISH_PORT)
     private readonly variantPublish: IProductVariantPublishPort,
+    @Inject(SEARCH_INDEX_PORT)
+    private readonly searchIndex: ISearchIndexPort,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -399,6 +402,8 @@ export class ProductsService {
       }
     });
 
+    // Keep the storefront index in sync with edits to a published product (graceful; no-op for drafts).
+    await this.searchIndex.upsert(product.id);
     return { id: product.id };
   }
 
@@ -474,6 +479,9 @@ export class ProductsService {
     }
 
     await this.products.update({ id: productId }, { status });
+    // Reflect the new status in the storefront index: upsert re-projects when published, removes
+    // otherwise (unpublish/archive). Degrades gracefully — never fails the status change (FR-SRCH-072).
+    await this.searchIndex.upsert(productId);
     return { id: productId, status };
   }
 
@@ -493,6 +501,8 @@ export class ProductsService {
       });
     }
     await this.products.softDelete(productId);
+    // Drop the product from the storefront index (idempotent; graceful).
+    await this.searchIndex.remove(productId);
   }
 
   // ---------------------------------------------------------------------------

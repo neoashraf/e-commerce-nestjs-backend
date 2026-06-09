@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RbacModule } from '../rbac/rbac.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { SearchModule } from '../search/search.module';
 import { ATTRIBUTE_REPOSITORY } from './domain/repositories/attribute.repository.interface';
 import { ATTRIBUTE_FAMILY_REPOSITORY } from './domain/repositories/attribute-family.repository.interface';
 import { CATEGORY_REPOSITORY } from './domain/repositories/category.repository.interface';
@@ -61,9 +62,11 @@ import { ProductDetailService } from './application/services/product-detail.serv
 import { INVENTORY_QTY_PORT } from './application/ports/inventory-qty.port';
 import { PRODUCT_VARIANT_PUBLISH_PORT } from './application/ports/product-variant-publish.port';
 import { INVENTORY_STATUS_PORT } from './application/ports/inventory-status.port';
+import { SEARCH_INDEX_PORT } from './application/ports/search-index.port';
 import { InventoryQtyAdapter } from './infrastructure/adapters/inventory-qty.adapter';
 import { VariantPublishAdapter } from './infrastructure/adapters/variant-publish.adapter';
 import { InventoryStatusAdapter } from './infrastructure/adapters/inventory-status.adapter';
+import { SearchIndexAdapter } from './infrastructure/adapters/search-index.adapter';
 
 /**
  * Catalog domain (CAT). Slices so far: the attribute system (Attribute + AttributeOption) and
@@ -77,6 +80,7 @@ import { InventoryStatusAdapter } from './infrastructure/adapters/inventory-stat
   imports: [
     forwardRef(() => RbacModule),
     forwardRef(() => InventoryModule),
+    forwardRef(() => SearchModule),
     TypeOrmModule.forFeature([
       AttributeOrmEntity,
       AttributeOptionOrmEntity,
@@ -137,6 +141,7 @@ import { InventoryStatusAdapter } from './infrastructure/adapters/inventory-stat
     ProductDetailService,
     { provide: INVENTORY_QTY_PORT, useClass: InventoryQtyAdapter },
     { provide: PRODUCT_VARIANT_PUBLISH_PORT, useClass: VariantPublishAdapter },
+    { provide: SEARCH_INDEX_PORT, useClass: SearchIndexAdapter },
     { provide: INVENTORY_STATUS_PORT, useClass: InventoryStatusAdapter },
   ],
   exports: [

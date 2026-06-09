@@ -55,6 +55,7 @@ function makeService(
     {},
     {},
     {},
+    { upsert: jest.fn(), remove: jest.fn() }, // search-index port (unused by getAdminDetail)
   ]) as ProductsService;
 }
 
