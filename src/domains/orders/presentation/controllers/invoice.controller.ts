@@ -87,7 +87,9 @@ export class InvoiceController {
 
   private send(res: Response, rendered: RenderedInvoice): void {
     res.setHeader('Content-Type', rendered.contentType);
-    res.setHeader('Content-Disposition', `inline; filename="${rendered.filename}"`);
+    // `attachment` so the invoice routes download as a file rather than rendering
+    // inline — both the customer and admin endpoints are "Download" operations.
+    res.setHeader('Content-Disposition', `attachment; filename="${rendered.filename}"`);
     res.send(rendered.buffer);
   }
 }
