@@ -215,12 +215,20 @@ export class InvoiceService {
       });
       doc.moveDown(1);
 
-      // Totals
+      // Totals — label (left-aligned) and value (right-aligned) sit in two fixed
+      // columns on the SAME baseline; the row advances by the label's measured height
+      // so a wrapped label never pushes its value onto a separate line (alignment fix).
       const labelX = 300;
+      const labelW = 150; // 300 → 450
+      const valueX = 300; // value is right-aligned across the whole block, ending at 547
+      const valueW = 247;
       const drawTotal = (label: string, value: string, strong = false) => {
         doc.font(strong ? bold : body).fontSize(strong ? 12 : 10).fillColor('#111');
-        doc.text(label, labelX, doc.y, { width: 150, continued: true });
-        doc.text(value, { align: 'right' });
+        const y = doc.y;
+        const h = doc.heightOfString(label, { width: labelW });
+        doc.text(label, labelX, y, { width: labelW });
+        doc.text(value, valueX, y, { width: valueW, align: 'right' });
+        doc.y = y + h + 4;
       };
       drawTotal('Subtotal', view.amounts.subtotal);
       if (view.amounts.has_discount) {
@@ -228,7 +236,7 @@ export class InvoiceService {
       }
       drawTotal('Delivery', view.amounts.delivery_charge);
       if (view.amounts.has_cod) drawTotal('COD Surcharge', view.amounts.cod_surcharge);
-      drawTotal('VAT (15%, inclusive, informational)', view.amounts.vat_informational);
+      drawTotal('VAT (15%, included)', view.amounts.vat_informational);
       doc.moveDown(0.2);
       drawTotal('Grand Total (BDT)', view.amounts.grand_total, true);
       doc.moveDown(1);
@@ -252,16 +260,26 @@ export class InvoiceService {
     header = false,
   ): void {
     const xs = [48, 78, 300, 380, 430, 490];
-    const widths = [28, 218, 78, 48, 58, 57];
+    const widths = [26, 215, 76, 46, 56, 57];
+    const aligns: Array<'left' | 'right'> = ['left', 'left', 'left', 'right', 'right', 'right'];
     const y = doc.y;
     doc.font(font).fontSize(header ? 10 : 9).fillColor(header ? '#111' : '#222');
+
+    // Measure the tallest cell first so a wrapped Description/SKU sets the row height —
+    // otherwise the separator (and next row) are drawn over the wrapped text (overlap fix).
+    let rowHeight = 0;
     cells.forEach((cell, i) => {
-      const align = i >= 3 ? 'right' : 'left';
-      doc.text(cell, xs[i], y, { width: widths[i], align });
+      const h = doc.heightOfString(cell, { width: widths[i], align: aligns[i] });
+      if (h > rowHeight) rowHeight = h;
     });
-    doc.moveDown(0.4);
-    doc.moveTo(48, doc.y).lineTo(547, doc.y).strokeColor('#eee').stroke();
-    doc.moveDown(0.2);
+
+    cells.forEach((cell, i) => {
+      doc.text(cell, xs[i], y, { width: widths[i], align: aligns[i] });
+    });
+
+    const lineY = y + rowHeight + 4;
+    doc.moveTo(48, lineY).lineTo(547, lineY).strokeColor(header ? '#ccc' : '#eee').stroke();
+    doc.y = lineY + 4;
   }
 
   // ---------------------------------------------------------------------------
