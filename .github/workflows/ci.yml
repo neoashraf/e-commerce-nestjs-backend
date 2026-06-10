@@ -1,14 +1,12 @@
 # ---------------------------------------------------------------------------
 # CI — build, unit tests, e2e tests, and Docker build sanity check.
-# Runs on every push / PR to main and features branches.
+# Runs only on push to main branch.
 # ---------------------------------------------------------------------------
 name: CI
 
 on:
   push:
-    branches: [main, features]
-  pull_request:
-    branches: [main, features]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -67,6 +65,7 @@ jobs:
       JWT_ACCESS_SECRET: test-access-secret
       JWT_REFRESH_SECRET: test-refresh-secret
       INTERNAL_SERVICE_TOKEN: test-internal-token
+      NOTIF_UNSUBSCRIBE_SECRET: test-internal-token
       NOTIF_UNSUBSCRIBE_SECRET: test-unsubscribe-secret
 
     steps:
