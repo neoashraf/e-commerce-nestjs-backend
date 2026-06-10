@@ -1,64 +1,81 @@
 # ---------------------------------------------------------------------------
-# CD — build the production Docker image and push it to the GitHub Container
-# Registry (ghcr.io). Runs on pushes to main and on version tags (v*), or
-# manually via the Actions tab.
-#
-# No extra secrets required: GITHUB_TOKEN is provided automatically and is
-# given `packages: write` below. Images are published to:
-#   ghcr.io/<owner>/<repo>:<tag>
+# CD — deploy backend to VPS.
+# Runs after CI succeeds on main branch, or manually from Actions tab.
 # ---------------------------------------------------------------------------
 name: CD
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
-    tags: ["v*"]
+
   workflow_dispatch:
 
 concurrency:
-  group: cd-${{ github.ref }}
+  group: cd-main
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Build & push image
+  deploy:
+    name: Deploy backend to VPS
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Setup Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Deploy on VPS
+        run: |
+          ssh -i ~/.ssh/id_rsa "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" << 'EOF'
+            set -e
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+            APP_DIR="$HOME/E-commerce/e-commerce-nestjs-backend"
+            CONTAINER_NAME="ecommerce-nestjs-backend"
+            IMAGE_NAME="ecommerce-nestjs-backend:latest"
 
-      - name: Derive image tags & labels
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
+            echo "Going to project directory..."
+            cd "$APP_DIR"
 
-      - name: Build & push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: production
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            echo "Pulling latest code from main..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "Building Docker image..."
+            docker build -t "$IMAGE_NAME" .
+
+            echo "Stopping old container..."
+            docker rm -f "$CONTAINER_NAME" || true
+
+            echo "Starting new container..."
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              -p 6001:8000 \
+              --add-host=host.docker.internal:host-gateway \
+              --env-file .env \
+              --restart unless-stopped \
+              "$IMAGE_NAME"
+
+            echo "Checking running container..."
+            docker ps --filter "name=$CONTAINER_NAME"
+
+            echo "Waiting for app to start..."
+            sleep 10
+
+            echo "Health check..."
+            curl -f http://localhost:6001/api/health
+
+            echo "Recent logs..."
+            docker logs --tail=100 "$CONTAINER_NAME"
+
+            echo "Cleaning unused Docker images..."
+            docker image prune -f
+          EOF
