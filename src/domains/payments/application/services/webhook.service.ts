@@ -55,7 +55,7 @@ export class WebhookService {
         gatewayReference: paymentID,
         event: PaymentLogEvent.CALLBACK,
       });
-      return { redirectUrl: this.resultUrl(payment.orderId, 'failed') };
+      return { redirectUrl: this.resultUrl(payment.orderId, 'failed', payment.internalRef) };
     }
 
     const execed = await this.bkash.confirm(paymentID);
@@ -69,7 +69,13 @@ export class WebhookService {
       event: PaymentLogEvent.EXECUTE,
     });
 
-    return { redirectUrl: this.resultUrl(payment.orderId, result.status === 'paid' ? 'success' : 'failed') };
+    return {
+      redirectUrl: this.resultUrl(
+        payment.orderId,
+        result.status === 'paid' ? 'success' : 'failed',
+        payment.internalRef,
+      ),
+    };
   }
 
   // ---------------------------------------------------------------------------

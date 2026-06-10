@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -17,6 +19,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
@@ -69,6 +72,21 @@ export class PaymentsController {
   @ApiBadRequestResponse({ description: 'METHOD_DISABLED / ORDER_NOT_PENDING' })
   retry(@Body() dto: RetryPaymentDto): Promise<InitiateResult> {
     return this.payments.retry(dto.order_id, dto.method);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary: 'Get a payment status by merchant ref (public — the gateway-return capability token)',
+  })
+  @ApiQuery({ name: 'ref', required: true, example: 'PAY-6A4552C61E4F47F4B7F67A95' })
+  @ApiOkResponse({ type: PaymentStatusDto })
+  @ApiBadRequestResponse({ description: 'REF_REQUIRED' })
+  @ApiNotFoundResponse({ description: 'PAYMENT_NOT_FOUND' })
+  getStatusByRef(@Query('ref') ref?: string): Promise<PaymentStatusView> {
+    if (!ref) {
+      throw new BadRequestException({ code: 'REF_REQUIRED', message: 'Query param `ref` is required.' });
+    }
+    return this.payments.getStatusByRef(ref);
   }
 
   @Get(':paymentId')

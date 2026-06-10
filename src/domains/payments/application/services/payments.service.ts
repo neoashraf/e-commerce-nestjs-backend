@@ -47,6 +47,8 @@ export interface InitiateResult {
 export interface PaymentStatusView {
   payment_id: string;
   order_id: string;
+  /** Human order number (SO-…), resolved from ORD — used by the storefront result page deep-links. */
+  order_no: string | null;
   method: PaymentMethod;
   status: PaymentStatus;
   amount: string;
@@ -180,9 +182,29 @@ export class PaymentsService {
     if (!payment) {
       throw new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: `Payment ${paymentId} not found.` });
     }
+    return this.toStatusView(payment);
+  }
+
+  /**
+   * Status lookup by merchant internal reference (the `PAY-…` token in the gateway return URL). The ref
+   * is an unguessable capability token, so this powers the PUBLIC storefront result page (guests have no
+   * JWT). FR-PAY-044; contract: GET /payments?ref=…
+   */
+  async getStatusByRef(internalRef: string): Promise<PaymentStatusView> {
+    const payment = await this.payments.findOne({ where: { internalRef } });
+    if (!payment) {
+      throw new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: `Payment ${internalRef} not found.` });
+    }
+    return this.toStatusView(payment);
+  }
+
+  private async toStatusView(payment: PaymentOrmEntity): Promise<PaymentStatusView> {
+    // Resolve the human order number for the storefront deep-links; tolerate a missing order.
+    const order = await this.orders.getOrder(payment.orderId).catch(() => null);
     return {
       payment_id: payment.id,
       order_id: payment.orderId,
+      order_no: order?.orderNo ?? null,
       method: payment.method,
       status: payment.status,
       amount: payment.amount,
