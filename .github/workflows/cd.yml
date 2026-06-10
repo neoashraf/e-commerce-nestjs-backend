@@ -1,16 +1,12 @@
 # ---------------------------------------------------------------------------
 # CD — deploy backend to VPS.
-# Runs after CI succeeds on main branch, or manually from Actions tab.
+# Runs only on push to main branch.
 # ---------------------------------------------------------------------------
 name: CD
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
     branches: [main]
-
-  workflow_dispatch:
 
 concurrency:
   group: cd-main
@@ -20,10 +16,6 @@ jobs:
   deploy:
     name: Deploy backend to VPS
     runs-on: ubuntu-latest
-
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Setup SSH
