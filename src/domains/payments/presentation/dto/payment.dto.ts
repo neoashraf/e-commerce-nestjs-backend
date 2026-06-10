@@ -54,6 +54,9 @@ export class PaymentStatusDto {
   @ApiProperty({ example: 'ord_88…' })
   order_id: string;
 
+  @ApiPropertyOptional({ example: 'SO-100245', description: 'Human order number (null if unresolved).' })
+  order_no: string | null;
+
   @ApiProperty({ enum: PaymentMethod })
   method: PaymentMethod;
 
