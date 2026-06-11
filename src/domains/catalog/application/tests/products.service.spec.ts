@@ -12,6 +12,7 @@ import { ProductSupportService } from '../services/product-support.service';
 import { ProductPublishValidator } from '../services/product-publish.validator';
 import { AttributeAssignmentValidator } from '../services/attribute-assignment.validator';
 import { INVENTORY_QTY_PORT } from '../ports/inventory-qty.port';
+import { INVENTORY_ADMIN_PORT } from '../ports/inventory-admin.port';
 import { PRODUCT_VARIANT_PUBLISH_PORT } from '../ports/product-variant-publish.port';
 import { SEARCH_INDEX_PORT } from '../ports/search-index.port';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
@@ -92,6 +93,13 @@ describe('Catalog — ProductsService', () => {
         { provide: INVENTORY_QTY_PORT, useValue: { getQtyByProductIds: jest.fn() } },
         { provide: PRODUCT_VARIANT_PUBLISH_PORT, useValue: variantPublish },
         { provide: SEARCH_INDEX_PORT, useValue: searchIndex },
+        {
+          provide: INVENTORY_ADMIN_PORT,
+          useValue: {
+            ensureRecordForVariant: jest.fn().mockResolvedValue(undefined),
+            getLevelsByVariantIds: jest.fn().mockResolvedValue(new Map()),
+          },
+        },
       ],
     }).compile();
     service = module.get(ProductsService);
