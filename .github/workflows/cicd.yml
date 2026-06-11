@@ -146,7 +146,7 @@ jobs:
       - name: Validate VPS secrets
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USE }}
+          VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           if [ -z "$VPS_HOST" ]; then
@@ -155,7 +155,7 @@ jobs:
           fi
 
           if [ -z "$VPS_USER" ]; then
-            echo "ERROR: VPS_USE secret is missing"
+            echo "ERROR: VPS_USER secret is missing"
             exit 1
           fi
 
@@ -181,7 +181,6 @@ jobs:
       - name: Deploy backend on VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
-          # FIX 3: Corrected typo secrets.VPS_USE -> secrets.VPS_USER
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           echo "Connecting to $VPS_USER@$VPS_HOST"
