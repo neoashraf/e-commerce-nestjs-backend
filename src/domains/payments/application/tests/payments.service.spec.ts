@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { PaymentsService } from '../services/payments.service';
 import { ReconService } from '../services/recon.service';
+import { ReconciliationTask } from '../services/reconciliation.task';
 import { SettingsService } from '../services/settings.service';
 import { ORDER_GATEWAY } from '../ports/order-gateway.port';
 import { PAYMENT_PROVIDERS } from '../providers/payment-provider.interface';
@@ -52,6 +53,7 @@ describe('Payments — PaymentsService', () => {
         { provide: ORDER_GATEWAY, useValue: orders },
         { provide: SettingsService, useValue: settings },
         { provide: ReconService, useValue: recon },
+        { provide: ReconciliationTask, useValue: { reconcileOnDemand: jest.fn() } },
       ],
     }).compile();
 
