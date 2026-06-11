@@ -26,11 +26,17 @@ import { ProductCategoryOrmEntity } from '../../infrastructure/persistence/typeo
 import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductLinkOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-link.orm-entity';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
+import { ProductVariantOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant.orm-entity';
+import { ProductVariantOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant-option.orm-entity';
 import { AttributeAssignmentValidator } from './attribute-assignment.validator';
 import {
   INVENTORY_QTY_PORT,
   IInventoryQtyPort,
 } from '../ports/inventory-qty.port';
+import {
+  INVENTORY_ADMIN_PORT,
+  IInventoryAdminPort,
+} from '../ports/inventory-admin.port';
 import {
   PRODUCT_VARIANT_PUBLISH_PORT,
   IProductVariantPublishPort,
@@ -98,6 +104,27 @@ export interface AdminProductRow {
 }
 
 /** Full product detail for the admin editor (all editable fields + `updated_at` for optimistic writes). */
+/** One variant row in the admin editor's variant matrix, with live INV stock (FR-CAT-020/021). */
+export interface AdminProductVariant {
+  id: string;
+  sku_code: string;
+  options: Record<string, string>;
+  price: string | null;
+  is_enabled: boolean;
+  on_hand: number;
+  low_stock_threshold: number;
+}
+
+/** One image in the admin editor gallery (FR-CAT-030/032). */
+export interface AdminProductImage {
+  id: string;
+  url: string;
+  renditions: Record<string, string>;
+  alt_text: string;
+  is_primary: boolean;
+  display_order: number;
+}
+
 export interface AdminProductDetail {
   id: string;
   type: string;
@@ -120,6 +147,8 @@ export interface AdminProductDetail {
   primary_category_id: string;
   category_ids: string[];
   primary_image_id: string | null;
+  images: AdminProductImage[];
+  variants: AdminProductVariant[];
   meta_title: string | null;
   meta_keywords: string | null;
   meta_description: string | null;
@@ -158,6 +187,8 @@ export class ProductsService {
     private readonly variantPublish: IProductVariantPublishPort,
     @Inject(SEARCH_INDEX_PORT)
     private readonly searchIndex: ISearchIndexPort,
+    @Inject(INVENTORY_ADMIN_PORT)
+    private readonly inventoryAdmin: IInventoryAdminPort,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -249,6 +280,21 @@ export class ProductsService {
       .find({ where: { productId: id } });
     const attributes = await this.loadProductAttributes(id);
 
+    // Gallery for the editor (primary first, then display order) — lets the UI show + preview images.
+    const imageRows = await this.images.find({ where: { productId: id } });
+    const images: AdminProductImage[] = imageRows
+      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.displayOrder - b.displayOrder)
+      .map((img) => ({
+        id: img.id,
+        url: img.url,
+        renditions: img.renditions ?? { detail: img.url, listing: img.url, thumb: img.url },
+        alt_text: img.altText,
+        is_primary: img.isPrimary,
+        display_order: img.displayOrder,
+      }));
+
+    const variants = await this.loadProductVariants(id);
+
     return {
       id: p.id,
       type: p.type,
@@ -271,6 +317,8 @@ export class ProductsService {
       primary_category_id: p.primaryCategoryId,
       category_ids: categoryLinks.map((c) => c.categoryId),
       primary_image_id: p.primaryImageId,
+      images,
+      variants,
       meta_title: p.metaTitle,
       meta_keywords: p.metaKeywords,
       meta_description: p.metaDescription,
@@ -278,6 +326,62 @@ export class ProductsService {
       created_at: p.createdAt.toISOString(),
       updated_at: p.updatedAt.toISOString(),
     };
+  }
+
+  /**
+   * Load a product's variants for the editor matrix: options as `{ code: label }`, the price override,
+   * enabled flag, and live on-hand stock + threshold joined from INV (per-variant). Soft-deleted
+   * variants are excluded. Empty for simple products.
+   */
+  private async loadProductVariants(productId: string): Promise<AdminProductVariant[]> {
+    const variants = await this.dataSource
+      .getRepository(ProductVariantOrmEntity)
+      .find({ where: { productId }, order: { createdAt: 'ASC' } });
+    if (variants.length === 0) return [];
+
+    const variantIds = variants.map((v) => v.id);
+    const optionRows = await this.dataSource
+      .getRepository(ProductVariantOptionOrmEntity)
+      .find({ where: { variantId: In(variantIds) } });
+
+    const attrIds = Array.from(new Set(optionRows.map((o) => o.attributeId)));
+    const optIds = Array.from(new Set(optionRows.map((o) => o.optionId)));
+    const attrCodeById = new Map(
+      (attrIds.length
+        ? await this.dataSource.getRepository(AttributeOrmEntity).find({ where: { id: In(attrIds) } })
+        : []
+      ).map((a) => [a.id, a.code]),
+    );
+    const optLabelById = new Map(
+      (optIds.length
+        ? await this.dataSource
+            .getRepository(AttributeOptionOrmEntity)
+            .find({ where: { id: In(optIds) } })
+        : []
+      ).map((o) => [o.id, o.label]),
+    );
+
+    const optionsByVariant = new Map<string, Record<string, string>>();
+    for (const row of optionRows) {
+      const map = optionsByVariant.get(row.variantId) ?? {};
+      const code = attrCodeById.get(row.attributeId);
+      const label = optLabelById.get(row.optionId);
+      if (code && label) map[code] = label;
+      optionsByVariant.set(row.variantId, map);
+    }
+
+    // Live stock per variant (INV is the single source of truth; absent ids default to 0).
+    const levels = await this.inventoryAdmin.getLevelsByVariantIds(variantIds);
+
+    return variants.map((v) => ({
+      id: v.id,
+      sku_code: v.skuCode,
+      options: optionsByVariant.get(v.id) ?? {},
+      price: v.priceOverride,
+      is_enabled: v.isEnabled,
+      on_hand: levels.get(v.id)?.on_hand ?? 0,
+      low_stock_threshold: levels.get(v.id)?.low_stock_threshold ?? 0,
+    }));
   }
 
   /** Resolve a product's stored EAV rows to an editor-friendly `{ code: value | value[] }` map. */
@@ -292,6 +396,7 @@ export class ProductsService {
       .getRepository(AttributeOrmEntity)
       .find({ where: { id: In(attrIds) } });
     const codeById = new Map(attrs.map((a) => [a.id, a.code]));
+    const typeById = new Map(attrs.map((a) => [a.id, a.type]));
 
     const optionIds = values.filter((v) => v.optionId).map((v) => v.optionId as string);
     const optionValueById = new Map(
@@ -316,9 +421,15 @@ export class ProductsService {
             : v.valueDatetime
               ? v.valueDatetime.toISOString()
               : v.valueText ?? null;
-      // multiselect persists one row per option → collect repeated codes into an array.
-      if (out[code] === undefined) out[code] = value;
-      else out[code] = Array.isArray(out[code]) ? [...(out[code] as unknown[]), value] : [out[code], value];
+      // multiselect persists one row per option → always an array (even single value) so the editor
+      // round-trips it back as an array; the assignment validator rejects a scalar for multiselect.
+      if (typeById.get(v.attributeId) === AttributeType.MULTISELECT) {
+        out[code] = Array.isArray(out[code]) ? [...(out[code] as unknown[]), value] : [value];
+      } else if (out[code] === undefined) {
+        out[code] = value;
+      } else {
+        out[code] = Array.isArray(out[code]) ? [...(out[code] as unknown[]), value] : [out[code], value];
+      }
     }
     return out;
   }

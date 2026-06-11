@@ -62,10 +62,12 @@ import { ProductDetailService } from './application/services/product-detail.serv
 import { INVENTORY_QTY_PORT } from './application/ports/inventory-qty.port';
 import { PRODUCT_VARIANT_PUBLISH_PORT } from './application/ports/product-variant-publish.port';
 import { INVENTORY_STATUS_PORT } from './application/ports/inventory-status.port';
+import { INVENTORY_ADMIN_PORT } from './application/ports/inventory-admin.port';
 import { SEARCH_INDEX_PORT } from './application/ports/search-index.port';
 import { InventoryQtyAdapter } from './infrastructure/adapters/inventory-qty.adapter';
 import { VariantPublishAdapter } from './infrastructure/adapters/variant-publish.adapter';
 import { InventoryStatusAdapter } from './infrastructure/adapters/inventory-status.adapter';
+import { InventoryAdminAdapter } from './infrastructure/adapters/inventory-admin.adapter';
 import { SearchIndexAdapter } from './infrastructure/adapters/search-index.adapter';
 
 /**
@@ -143,6 +145,7 @@ import { SearchIndexAdapter } from './infrastructure/adapters/search-index.adapt
     { provide: PRODUCT_VARIANT_PUBLISH_PORT, useClass: VariantPublishAdapter },
     { provide: SEARCH_INDEX_PORT, useClass: SearchIndexAdapter },
     { provide: INVENTORY_STATUS_PORT, useClass: InventoryStatusAdapter },
+    { provide: INVENTORY_ADMIN_PORT, useClass: InventoryAdminAdapter },
   ],
   exports: [
     AttributeAssignmentValidator,

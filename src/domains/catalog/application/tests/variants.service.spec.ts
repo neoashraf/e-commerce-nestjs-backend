@@ -11,6 +11,7 @@ import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entit
 import { ProductVariantOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant.orm-entity';
 import { ProductVariantOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant-option.orm-entity';
 import { ProductConfigurableAttributeOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-configurable-attribute.orm-entity';
+import { INVENTORY_ADMIN_PORT } from '../ports/inventory-admin.port';
 
 const colorAttr = {
   id: 'attr-color',
@@ -112,6 +113,10 @@ describe('Catalog — VariantsService', () => {
         { provide: getRepositoryToken(ProductConfigurableAttributeOrmEntity), useValue: { find: jest.fn() } },
         { provide: ATTRIBUTE_REPOSITORY, useValue: attributes },
         { provide: DataSource, useValue: dataSource },
+        {
+          provide: INVENTORY_ADMIN_PORT,
+          useValue: { ensureRecordForVariant: jest.fn(), getLevelsByVariantIds: jest.fn() },
+        },
       ],
     }).compile();
     service = module.get(VariantsService);

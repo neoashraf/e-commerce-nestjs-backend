@@ -56,8 +56,11 @@ export class SessionIssuerService {
     now: Date,
   ): Promise<IssuedTokens> {
     const access = await this.tokens.signAccessToken(adminId, roleId);
+    // device_label is a varchar(255) sourced from the User-Agent header; cap it so an
+    // unusually long UA can never overflow the column and 500 the login/verify/refresh flow.
+    const label = deviceLabel != null ? deviceLabel.slice(0, 255) : null;
     await this.sessions.save(
-      AdminSession.issue(randomUUID(), adminId, refreshHash, expiresAt, now, deviceLabel),
+      AdminSession.issue(randomUUID(), adminId, refreshHash, expiresAt, now, label),
     );
     return { accessToken: access.token, refreshToken: rawRefresh, expiresIn: access.expiresIn };
   }

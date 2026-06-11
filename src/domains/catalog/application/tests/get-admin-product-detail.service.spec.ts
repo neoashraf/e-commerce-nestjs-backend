@@ -43,12 +43,13 @@ function makeService(
         ? { find: jest.fn().mockResolvedValue(categoryLinks) }
         : { find: jest.fn().mockResolvedValue([]) }, // attribute-value / attribute / option repos
   };
+  const images = { find: jest.fn().mockResolvedValue([]) }; // product_images repo (gallery)
   return Reflect.construct(ProductsService, [
     products,
     families,
-    {},
-    {},
-    {},
+    {}, // categories
+    images, // images
+    {}, // links
     dataSource,
     {},
     {},
@@ -56,6 +57,8 @@ function makeService(
     {},
     {},
     { upsert: jest.fn(), remove: jest.fn() }, // search-index port (unused by getAdminDetail)
+    // inventory-admin port (variant stock levels) — no variants in this fixture, so unused
+    { getLevelsByVariantIds: jest.fn().mockResolvedValue(new Map()), ensureRecordForVariant: jest.fn() },
   ]) as ProductsService;
 }
 

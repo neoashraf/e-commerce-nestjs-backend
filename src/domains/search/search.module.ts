@@ -36,6 +36,8 @@ import { AdminSearchConfigController } from './presentation/controllers/admin-se
 import { AdminSearchIndexController } from './presentation/controllers/admin-search-index.controller';
 import { ListingController } from './presentation/controllers/listing.controller';
 import { SearchController } from './presentation/controllers/search.controller';
+import { ShowcaseController } from './presentation/controllers/showcase.controller';
+import { ShowcaseService } from './application/services/showcase.service';
 
 /**
  * Search & Browse domain (SRCH) — PostgreSQL FTS storefront discovery over a denormalized index
@@ -71,11 +73,13 @@ import { SearchController } from './presentation/controllers/search.controller';
   controllers: [
     ListingController,
     SearchController,
+    ShowcaseController,
     AdminSearchConfigController,
     AdminSearchIndexController,
     AdminFacetsController,
   ],
   providers: [
+    ShowcaseService,
     ListingService,
     SearchService,
     SuggestService,

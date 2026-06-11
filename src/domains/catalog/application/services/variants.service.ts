@@ -18,6 +18,7 @@ import { ProductConfigurableAttributeOrmEntity } from '../../infrastructure/pers
 import { ProductVariantOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant-option.orm-entity';
 import { ProductVariantOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant.orm-entity';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
+import { INVENTORY_ADMIN_PORT, IInventoryAdminPort } from '../ports/inventory-admin.port';
 
 export interface ConfigurableAxisInput {
   code: string;
@@ -65,6 +66,8 @@ export class VariantsService {
     @Inject(ATTRIBUTE_REPOSITORY)
     private readonly attributes: IAttributeRepository,
     private readonly dataSource: DataSource,
+    @Inject(INVENTORY_ADMIN_PORT)
+    private readonly inventoryAdmin: IInventoryAdminPort,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -139,6 +142,12 @@ export class VariantsService {
         existing.add(key);
       }
     });
+
+    // FR-INV-002: every new variant gets a zero-stock inventory record so it is immediately
+    // stock-manageable (editor grid / inventory page). Done after commit; INV degrades gracefully.
+    for (const variant of created) {
+      await this.inventoryAdmin.ensureRecordForVariant(variant.id, productId);
+    }
 
     return { variants_created: created.length, variants: created };
   }

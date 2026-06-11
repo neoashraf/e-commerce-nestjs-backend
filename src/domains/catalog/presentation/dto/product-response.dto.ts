@@ -58,6 +58,30 @@ export class AdminProductRowDto {
 }
 
 /** Full product detail for the admin editor — `GET /admin/products/{id}` (includes `updated_at`). */
+/** One variant row in the admin editor matrix (with live INV stock). */
+export class AdminProductVariantDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ example: 'BOOT-BLACK-42' }) sku_code: string;
+  @ApiProperty({ example: { color: 'Black', size: '42' }, description: 'Attribute code → option label' })
+  options: Record<string, string>;
+  @ApiProperty({ nullable: true, example: '9500.00', description: 'Per-variant price override' })
+  price: string | null;
+  @ApiProperty() is_enabled: boolean;
+  @ApiProperty({ example: 50, description: 'Live on-hand stock from INV' }) on_hand: number;
+  @ApiProperty({ example: 5 }) low_stock_threshold: number;
+}
+
+/** One image in the admin editor gallery. */
+export class AdminProductImageDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ example: 'http://localhost:8000/media/products/…/123-boot.jpg' }) url: string;
+  @ApiProperty({ example: { thumb: '…', listing: '…', detail: '…' } })
+  renditions: Record<string, string>;
+  @ApiProperty() alt_text: string;
+  @ApiProperty() is_primary: boolean;
+  @ApiProperty() display_order: number;
+}
+
 export class AdminProductDetailDto {
   @ApiProperty() id: string;
   @ApiProperty({ example: 'configurable' }) type: string;
@@ -80,6 +104,8 @@ export class AdminProductDetailDto {
   @ApiProperty() primary_category_id: string;
   @ApiProperty({ type: [String] }) category_ids: string[];
   @ApiProperty({ nullable: true }) primary_image_id: string | null;
+  @ApiProperty({ type: [AdminProductImageDto] }) images: AdminProductImageDto[];
+  @ApiProperty({ type: [AdminProductVariantDto] }) variants: AdminProductVariantDto[];
   @ApiProperty({ nullable: true }) meta_title: string | null;
   @ApiProperty({ nullable: true }) meta_keywords: string | null;
   @ApiProperty({ nullable: true }) meta_description: string | null;

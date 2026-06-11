@@ -103,6 +103,26 @@ export class InventoryService {
     return result;
   }
 
+  /**
+   * On-hand + threshold per variant id (for the admin product editor's variant grid). Variants with
+   * no inventory record are simply absent from the map (the caller defaults them to 0).
+   */
+  async getLevelsByVariantIds(
+    variantIds: string[],
+  ): Promise<Map<string, { onHand: number; lowStockThreshold: number }>> {
+    const result = new Map<string, { onHand: number; lowStockThreshold: number }>();
+    const unique = Array.from(new Set(variantIds));
+    if (unique.length === 0) return result;
+    const rows = await this.inventory.find({ where: { variantId: In(unique) } });
+    for (const row of rows) {
+      result.set(row.variantId, {
+        onHand: row.onHand,
+        lowStockThreshold: row.lowStockThreshold,
+      });
+    }
+    return result;
+  }
+
   // ---------------------------------------------------------------------------
   // Admin list (FR-INV-001/042)
   // ---------------------------------------------------------------------------

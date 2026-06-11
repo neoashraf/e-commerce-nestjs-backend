@@ -12,7 +12,7 @@ export class AdminSessionOrmEntity {
   @Column({ name: 'refresh_token_hash', length: 255 })
   refreshTokenHash: string;
 
-  @Column({ name: 'device_label', type: 'varchar', length: 120, nullable: true })
+  @Column({ name: 'device_label', type: 'varchar', length: 255, nullable: true })
   deviceLabel: string | null;
 
   @Column({ name: 'expires_at', type: 'timestamptz' })
