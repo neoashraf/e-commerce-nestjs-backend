@@ -1,4 +1,8 @@
+import { mkdir, writeFile } from 'fs/promises';
+import { resolve as resolvePath } from 'path';
+
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
@@ -42,6 +46,11 @@ export interface AddVideoInput {
  */
 @Injectable()
 export class ProductMediaService {
+  /** Absolute on-disk root for stored originals (served statically at `/media`, see main.ts). */
+  private readonly uploadDir: string;
+  /** Public origin the stored URLs are prefixed with so `<img src>` resolves from any frontend. */
+  private readonly publicBaseUrl: string;
+
   constructor(
     @InjectRepository(ProductOrmEntity)
     private readonly products: Repository<ProductOrmEntity>,
@@ -50,7 +59,13 @@ export class ProductMediaService {
     @InjectRepository(ProductVideoOrmEntity)
     private readonly videos: Repository<ProductVideoOrmEntity>,
     private readonly dataSource: DataSource,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.uploadDir = resolvePath(config.get<string>('MEDIA_UPLOAD_DIR') ?? 'uploads');
+    this.publicBaseUrl = (
+      config.get<string>('PUBLIC_BASE_URL') ?? 'http://localhost:8000'
+    ).replace(/\/+$/, '');
+  }
 
   async addImage(
     file: UploadedImageFile | undefined,
@@ -82,7 +97,7 @@ export class ProductMediaService {
 
     // Store the original (storage backend abstracted to a URL) and seed renditions with the
     // original-URL fallback; async generation replaces these later (§12.8).
-    const url = this.storeOriginal(input.productId, file);
+    const url = await this.storeOriginal(input.productId, file);
     const renditions: Record<string, string> = { thumb: url, listing: url, detail: url };
 
     // First image (or an explicit is_primary) becomes the primary; only one primary per product.
@@ -139,7 +154,7 @@ export class ProductMediaService {
           message: 'A video file is required for source=upload.',
         });
       }
-      url = this.storeOriginal(input.productId, file);
+      url = await this.storeOriginal(input.productId, file);
     }
 
     const existingCount = await this.videos.count({ where: { productId: input.productId } });
@@ -155,12 +170,18 @@ export class ProductMediaService {
   }
 
   /**
-   * Persist the uploaded original to the configured storage backend and return its URL. The binary
-   * sink (local disk / S3) is an ops concern; this returns the canonical stored URL the gallery uses.
+   * Persist the uploaded original to the configured storage backend and return its public URL.
+   * Writes the binary to `${MEDIA_UPLOAD_DIR}/products/{id}/{file}` (served at `/uploads`, main.ts)
+   * and returns an absolute URL (`${PUBLIC_BASE_URL}/uploads/...`) so the gallery renders from any
+   * frontend origin. Swap this body for an S3 put without touching callers.
    */
-  private storeOriginal(productId: string, file: UploadedImageFile): string {
+  private async storeOriginal(productId: string, file: UploadedImageFile): Promise<string> {
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    return `/media/products/${productId}/${Date.now()}-${safeName}`;
+    const fileName = `${Date.now()}-${safeName}`;
+    const dir = resolvePath(this.uploadDir, 'products', productId);
+    await mkdir(dir, { recursive: true });
+    await writeFile(resolvePath(dir, fileName), file.buffer);
+    return `${this.publicBaseUrl}/uploads/products/${productId}/${fileName}`;
   }
 
   /**
