@@ -23,6 +23,7 @@ import {
   PAYMENT_PROVIDERS,
 } from '../providers/payment-provider.interface';
 import { ReconService } from './recon.service';
+import { ReconciliationTask } from './reconciliation.task';
 import { SettingsService } from './settings.service';
 
 export interface InitiateCommand {
@@ -88,6 +89,7 @@ export class PaymentsService {
     @Inject(ORDER_GATEWAY) private readonly orders: IOrderGateway,
     private readonly settings: SettingsService,
     private readonly recon: ReconService,
+    private readonly reconciliation: ReconciliationTask,
   ) {
     this.providers = new Map(providers.map((p) => [p.method, p]));
   }
@@ -178,10 +180,11 @@ export class PaymentsService {
   // ---------------------------------------------------------------------------
 
   async getStatus(paymentId: string): Promise<PaymentStatusView> {
-    const payment = await this.payments.findOne({ where: { id: paymentId } });
+    let payment = await this.payments.findOne({ where: { id: paymentId } });
     if (!payment) {
       throw new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: `Payment ${paymentId} not found.` });
     }
+    payment = await this.reconcileIfStillInitiated(payment);
     return this.toStatusView(payment);
   }
 
@@ -191,11 +194,26 @@ export class PaymentsService {
    * JWT). FR-PAY-044; contract: GET /payments?ref=…
    */
   async getStatusByRef(internalRef: string): Promise<PaymentStatusView> {
-    const payment = await this.payments.findOne({ where: { internalRef } });
+    let payment = await this.payments.findOne({ where: { internalRef } });
     if (!payment) {
       throw new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: `Payment ${internalRef} not found.` });
     }
+    payment = await this.reconcileIfStillInitiated(payment);
     return this.toStatusView(payment);
+  }
+
+  /**
+   * When a status read finds an online payment still `initiated` (its IPN hasn't landed — common on
+   * localhost/sandbox where the gateway can't reach the backend), run the authoritative on-demand
+   * gateway query (FR-PAY-034) and re-read, so the storefront result page confirms in seconds instead of
+   * waiting out the reconciliation sweep. Best-effort: any gateway error leaves the payment untouched.
+   */
+  private async reconcileIfStillInitiated(payment: PaymentOrmEntity): Promise<PaymentOrmEntity> {
+    if (payment.status !== PaymentStatus.INITIATED || payment.method === PaymentMethod.COD) {
+      return payment;
+    }
+    await this.reconciliation.reconcileOnDemand(payment);
+    return (await this.payments.findOne({ where: { id: payment.id } })) ?? payment;
   }
 
   private async toStatusView(payment: PaymentOrmEntity): Promise<PaymentStatusView> {

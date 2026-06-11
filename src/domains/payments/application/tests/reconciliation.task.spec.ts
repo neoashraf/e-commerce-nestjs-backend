@@ -93,4 +93,51 @@ describe('Payments — ReconciliationTask', () => {
     expect(sslcommerz.query).not.toHaveBeenCalled();
     expect(finalizer.finalize).not.toHaveBeenCalled();
   });
+
+  describe('reconcileOnDemand (poll-driven, FR-PAY-034)', () => {
+    const initiatedSsl = {
+      id: 'pay-5',
+      method: PaymentMethod.SSLCOMMERZ,
+      status: PaymentStatus.INITIATED,
+      internalRef: 'PAY-5',
+      gatewayPaymentId: 'SESSIONKEY-5',
+    } as PaymentOrmEntity;
+
+    it('should query SSLCommerz by tran_id and finalize an initiated payment immediately', async () => {
+      const { task, sslcommerz, finalizer } = makeTask([]);
+      sslcommerz.query.mockResolvedValue({ status: 'paid', amount: '100.00', gatewayTxnId: 'BANK5' });
+
+      await task.reconcileOnDemand(initiatedSsl, now);
+
+      expect(sslcommerz.query).toHaveBeenCalledWith('PAY-5');
+      expect(finalizer.finalize).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentId: 'pay-5', outcome: 'paid', gatewayReference: 'recon:PAY-5' }),
+      );
+    });
+
+    it('should NOT query for a COD or already-terminal payment', async () => {
+      const { task, sslcommerz, bkash, finalizer } = makeTask([]);
+
+      await task.reconcileOnDemand({ ...initiatedSsl, method: PaymentMethod.COD }, now);
+      await task.reconcileOnDemand({ ...initiatedSsl, status: PaymentStatus.PAID }, now);
+
+      expect(sslcommerz.query).not.toHaveBeenCalled();
+      expect(bkash.query).not.toHaveBeenCalled();
+      expect(finalizer.finalize).not.toHaveBeenCalled();
+    });
+
+    it('should throttle repeated polls for the same still-pending payment', async () => {
+      const { task, sslcommerz } = makeTask([]);
+      sslcommerz.query.mockResolvedValue({ status: 'pending' });
+
+      await task.reconcileOnDemand(initiatedSsl, now);
+      // Second poll 1s later — inside the 5s throttle window → no second gateway hit.
+      await task.reconcileOnDemand(initiatedSsl, new Date(now.getTime() + 1000));
+      expect(sslcommerz.query).toHaveBeenCalledTimes(1);
+
+      // A poll past the throttle window queries again.
+      await task.reconcileOnDemand(initiatedSsl, new Date(now.getTime() + 6000));
+      expect(sslcommerz.query).toHaveBeenCalledTimes(2);
+    });
+  });
 });

@@ -14,4 +14,11 @@ export class AppController {
   health(): { status: string; service: string } {
     return this.appService.health();
   }
+
+  @Get('test')
+  @ApiOperation({ summary: 'Test endpoint' })
+  @ApiOkResponse({ description: 'Returns a test value' })
+  test(): { data: string } {
+    return { data: 'test 1' };
+  }
 }
