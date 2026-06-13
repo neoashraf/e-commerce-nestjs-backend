@@ -32,6 +32,7 @@ function makeService(qb: ReturnType<typeof buildQb>) {
     orders,
     {} as Repository<OrderItemOrmEntity>,
     {} as Repository<OrderStatusHistoryOrmEntity>,
+    { getByProductIds: jest.fn().mockResolvedValue(new Map()) },
   );
 }
 
@@ -99,5 +100,57 @@ describe('Orders — OrderTrackingService.listAdminOrders', () => {
 
     expect(qb.skip).toHaveBeenCalledWith(0);
     expect(qb.take).toHaveBeenCalledWith(20);
+  });
+});
+
+describe('Orders — OrderTrackingService.toDetail (RW6)', () => {
+  function detailService(snapshotMap: Map<string, { product_image: string | null; product_title_bn: string | null }>) {
+    return new OrderTrackingService(
+      {} as Repository<OrderOrmEntity>,
+      {} as Repository<OrderItemOrmEntity>,
+      {} as Repository<OrderStatusHistoryOrmEntity>,
+      { getByProductIds: jest.fn().mockResolvedValue(snapshotMap) },
+    );
+  }
+
+  const item = (over: Partial<OrderItemOrmEntity> = {}): OrderItemOrmEntity =>
+    ({
+      productId: 'prod-1',
+      productTitle: 'Adidas Predator Elite',
+      skuCode: 'PRED-BLK-42',
+      variantOptions: { color: 'Black', size: '42' },
+      unitPrice: '12500.00',
+      quantity: 1,
+      lineTotal: '12500.00',
+      ...over,
+    }) as OrderItemOrmEntity;
+
+  const aggregate = (items: OrderItemOrmEntity[]) => ({
+    order: order({ appliedCouponCode: null, courierName: null, trackingNumber: null }) as OrderOrmEntity,
+    items,
+    history: [],
+  });
+
+  it('surfaces placed_at + enriches each line with product_image + product_title_bn', async () => {
+    const svc = detailService(
+      new Map([['prod-1', { product_image: 'https://cdn/listing.webp', product_title_bn: 'প্রিডেটর এলিট' }]]),
+    );
+    const detail = await svc.toDetail(aggregate([item()]));
+
+    expect(detail.placed_at).toBe('2026-06-03T10:00:00.000Z');
+    expect(detail.items[0]).toMatchObject({
+      product_title: 'Adidas Predator Elite',
+      product_title_bn: 'প্রিডেটর এলিট',
+      product_image: 'https://cdn/listing.webp',
+      line_total: '12500.00',
+    });
+  });
+
+  it('falls back to null image/Bangla title when the product snapshot is absent', async () => {
+    const svc = detailService(new Map());
+    const detail = await svc.toDetail(aggregate([item({ productId: 'gone' })]));
+
+    expect(detail.items[0].product_image).toBeNull();
+    expect(detail.items[0].product_title_bn).toBeNull();
   });
 });
