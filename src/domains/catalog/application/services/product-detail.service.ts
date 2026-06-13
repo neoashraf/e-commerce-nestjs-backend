@@ -21,6 +21,7 @@ import {
   INVENTORY_STATUS_PORT,
   IInventoryStatusPort,
 } from '../ports/inventory-status.port';
+import { SizeGuideService } from './size-guide.service';
 import {
   PdpConfigurableAttributeDto,
   PdpImageDto,
@@ -131,6 +132,7 @@ export class ProductDetailService {
     private readonly options: Repository<AttributeOptionOrmEntity>,
     @Inject(INVENTORY_STATUS_PORT)
     private readonly inventoryStatus: IInventoryStatusPort,
+    private readonly sizeGuides: SizeGuideService,
   ) {}
 
   async getBySlug(slug: string, now: Date = new Date()): Promise<ProductDetailResponseDto> {
@@ -151,6 +153,8 @@ export class ProductDetailService {
     const configurable = await this.buildConfigurableAttributes(product.id);
     const specs = await this.buildSpecs(product.id);
     const links = await this.buildLinks(product, now);
+    // RW6: nearest category-level size guide up the primary-category chain (null when none).
+    const sizeGuide = await this.sizeGuides.resolveForCategory(product.primaryCategoryId);
 
     // Product-level price block reflects the representative (lowest effective-price) enabled variant.
     const representative = this.representativePrice(product, variants, now);
@@ -177,6 +181,7 @@ export class ProductDetailService {
       configurable_attributes: configurable,
       variants: variantDtos,
       specs,
+      size_guide: sizeGuide,
       links,
     };
   }

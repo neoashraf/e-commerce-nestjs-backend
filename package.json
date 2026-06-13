@@ -25,7 +25,8 @@
     "seed:demo": "ts-node src/database/seeds/demo.seed.ts",
     "seed:payments": "ts-node src/database/seeds/payments-gateway.seed.ts",
     "seed:search": "ts-node src/database/seeds/search-reindex.seed.ts",
-    "seed:all": "npm run seed:rbac && npm run seed:catalog-attributes && npm run seed:catalog-families && npm run seed:geo-area && npm run seed:notifications && npm run seed:cms-pages && npm run seed:payments && npm run seed:demo && npm run seed:inventory && npm run seed:search",
+    "seed:size-guides": "ts-node src/database/seeds/size-guides.seed.ts",
+    "seed:all": "npm run seed:rbac && npm run seed:catalog-attributes && npm run seed:catalog-families && npm run seed:geo-area && npm run seed:notifications && npm run seed:cms-pages && npm run seed:payments && npm run seed:demo && npm run seed:size-guides && npm run seed:inventory && npm run seed:search",
     "db:reset": "ts-node src/database/db-reset.ts && npm run migration:run && npm run seed:all"
   },
   "dependencies": {
