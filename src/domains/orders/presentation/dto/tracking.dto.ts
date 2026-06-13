@@ -104,6 +104,12 @@ export class OrderItemLineDto {
   @ApiProperty({ example: 'Adidas Predator Elite' })
   product_title!: string;
 
+  @ApiPropertyOptional({ example: 'অ্যাডিডাস প্রিডেটর এলিট', nullable: true, description: 'Bangla product title (RW6); null when unset.' })
+  product_title_bn?: string | null;
+
+  @ApiPropertyOptional({ example: 'https://cdn/listing.webp', nullable: true, description: 'Listing-rendition thumbnail (RW6); null when none.' })
+  product_image?: string | null;
+
   @ApiProperty({ example: 'PRED-BLK-42' })
   sku_code!: string;
 
@@ -173,6 +179,9 @@ export class OrderDetailDto {
 
   @ApiProperty({ enum: OrderStatus, example: OrderStatus.SHIPPED })
   status!: OrderStatus;
+
+  @ApiProperty({ example: '2026-06-03T10:00:00Z', description: 'Order placement date (RW6).' })
+  placed_at!: string;
 
   @ApiProperty({ enum: OrderPaymentMethod, example: OrderPaymentMethod.BKASH })
   payment_method!: OrderPaymentMethod;

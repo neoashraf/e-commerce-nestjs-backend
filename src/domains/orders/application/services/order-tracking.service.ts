@@ -1,8 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Paginated } from '../../../../shared/dto/paginated';
+import {
+  IProductSnapshotReader,
+  PRODUCT_SNAPSHOT_READER,
+} from '../ports/product-snapshot.port';
 import { OrderPaymentState, OrderStatus } from '../../domain/order-enums';
 import { OrderItemOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-item.orm-entity';
 import { OrderStatusHistoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-status-history.orm-entity';
@@ -49,6 +53,8 @@ export class OrderTrackingService {
     @InjectRepository(OrderItemOrmEntity) private readonly items: Repository<OrderItemOrmEntity>,
     @InjectRepository(OrderStatusHistoryOrmEntity)
     private readonly history: Repository<OrderStatusHistoryOrmEntity>,
+    @Inject(PRODUCT_SNAPSHOT_READER)
+    private readonly productSnapshots: IProductSnapshotReader,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -176,11 +182,16 @@ export class OrderTrackingService {
   // Mappers / helpers
   // ---------------------------------------------------------------------------
 
-  /** Build the full customer/admin detail DTO from a read aggregate. */
-  toDetail({ order, items, history }: OrderReadAggregate): OrderDetailDto {
+  /**
+   * Build the full customer/admin detail DTO from a read aggregate. Enriches each line with the
+   * current product's listing thumbnail + Bangla title (RW6, read-time CAT lookup — null when gone).
+   */
+  async toDetail({ order, items, history }: OrderReadAggregate): Promise<OrderDetailDto> {
+    const snapshots = await this.productSnapshots.getByProductIds(items.map((it) => it.productId));
     return {
       order_no: order.orderNo,
       status: order.status,
+      placed_at: order.placedAt.toISOString(),
       payment_method: order.paymentMethod,
       payment_state: order.paymentState,
       delivery_zone: order.deliveryZone,
@@ -193,14 +204,19 @@ export class OrderTrackingService {
         division: order.addressSnapshot.division ?? null,
         postal_code: order.addressSnapshot.postal_code ?? null,
       },
-      items: items.map((it) => ({
-        product_title: it.productTitle,
-        sku_code: it.skuCode,
-        variant_options: it.variantOptions ?? {},
-        unit_price: it.unitPrice,
-        quantity: it.quantity,
-        line_total: it.lineTotal,
-      })),
+      items: items.map((it) => {
+        const snap = snapshots.get(it.productId);
+        return {
+          product_title: it.productTitle,
+          product_title_bn: snap?.product_title_bn ?? null,
+          product_image: snap?.product_image ?? null,
+          sku_code: it.skuCode,
+          variant_options: it.variantOptions ?? {},
+          unit_price: it.unitPrice,
+          quantity: it.quantity,
+          line_total: it.lineTotal,
+        };
+      }),
       amounts: {
         subtotal: order.subtotal,
         discount: order.discountAmount,

@@ -33,6 +33,10 @@ import {
   STOCK_COORDINATOR,
   StubStockCoordinator,
 } from './application/ports/stock-coordinator.port';
+import { ProductOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product.orm-entity';
+import { ProductImageOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product-image.orm-entity';
+import { PRODUCT_SNAPSHOT_READER } from './application/ports/product-snapshot.port';
+import { ProductSnapshotAdapter } from './infrastructure/adapters/product-snapshot.adapter';
 import { ExchangeAttachmentOrmEntity } from './infrastructure/persistence/typeorm/entities/exchange-attachment.orm-entity';
 import { ExchangeOrmEntity } from './infrastructure/persistence/typeorm/entities/exchange.orm-entity';
 import { OrderItemOrmEntity } from './infrastructure/persistence/typeorm/entities/order-item.orm-entity';
@@ -72,6 +76,9 @@ import { PaymentStateController } from './presentation/controllers/payment-state
       OrderNoteOrmEntity,
       ExchangeOrmEntity,
       ExchangeAttachmentOrmEntity,
+      // CAT read-surface for order-line presentation (RW6 product image + Bangla title).
+      ProductOrmEntity,
+      ProductImageOrmEntity,
     ]),
   ],
   controllers: [
@@ -101,6 +108,8 @@ import { PaymentStateController } from './presentation/controllers/payment-state
     { provide: REFUND_REQUESTER, useClass: StubRefundRequester },
     { provide: EXCHANGE_PAYMENT, useClass: StubExchangePayment },
     { provide: EXCHANGE_CATALOG, useClass: StubExchangeCatalog },
+    // RW6: real CAT-backed read seam for order-line image + Bangla title (not stubbed).
+    { provide: PRODUCT_SNAPSHOT_READER, useClass: ProductSnapshotAdapter },
   ],
   exports: [OrderCreationService, OrderQueryService],
 })
