@@ -27,6 +27,8 @@ export class PublicCategoryNodeDto {
   @ApiProperty() id: string;
   @ApiProperty() name: string;
   @ApiProperty() slug: string;
+  @ApiProperty({ nullable: true, description: 'Category tile/thumbnail image (RW6); null → storefront colour-tint placeholder.' })
+  image_url: string | null;
   @ApiProperty({ type: () => [PublicCategoryNodeDto] })
   children: PublicCategoryNodeDto[];
 }
