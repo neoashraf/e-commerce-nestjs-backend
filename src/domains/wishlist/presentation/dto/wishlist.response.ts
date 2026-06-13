@@ -11,11 +11,38 @@ export class WishlistProductDto {
   @ApiProperty({ example: 'Adidas Predator Elite' })
   title: string;
 
+  @ApiProperty({ example: 'অ্যাডিডাস প্রিডেটর এলিট', nullable: true, description: 'Optional Bangla product name (RW6).' })
+  name_bn: string | null;
+
   @ApiProperty({ example: 'Adidas', nullable: true })
   brand: string | null;
 
   @ApiProperty({ example: 'https://cdn/listing.webp', nullable: true })
   primary_image: string | null;
+
+  @ApiProperty({ example: 'https://cdn/listing-2.webp', nullable: true, description: 'Hover cross-fade image (RW6); null → zoom fallback.' })
+  hover_image: string | null;
+
+  @ApiProperty({
+    type: 'array',
+    description: 'Colourways flattened from the color attribute (≤6); [] → no rail (RW6).',
+    items: {
+      type: 'object',
+      properties: {
+        image: { type: 'string' },
+        label: { type: 'string' },
+        color_hex: { type: 'string', nullable: true },
+      },
+    },
+    example: [{ image: 'https://cdn/black.webp', label: 'Black', color_hex: '#000000' }],
+  })
+  swatches: { image: string; label: string; color_hex: string | null }[];
+
+  @ApiProperty({ example: true, description: 'true → "Choose size" (configurable); false → "Add to bag" (RW6).' })
+  requires_variant: boolean;
+
+  @ApiProperty({ nullable: true, enum: ['new', 'bestSeller', 'authentic'], example: 'new', description: 'Merch label; new from is_new (RW6).' })
+  merch_label: 'new' | 'bestSeller' | 'authentic' | null;
 
   @ApiProperty({ example: '12500.00' })
   effective_price: string;

@@ -11,7 +11,8 @@ import { ProductImageOrmEntity } from '../../../catalog/infrastructure/persisten
 import { ProductVariantOptionOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/product-variant-option.orm-entity';
 import { ProductVariantOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/product-variant.orm-entity';
 import { ProductOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/product.orm-entity';
-import { ProductStatus } from '../../../catalog/domain/enums/product-type.enum';
+import { ProductStatus, ProductType } from '../../../catalog/domain/enums/product-type.enum';
+import { SwatchType } from '../../../catalog/domain/enums/swatch-type.enum';
 import { ProductSearchDocumentOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-search-document.orm-entity';
 import {
   IInventoryAvailabilityPort,
@@ -27,6 +28,9 @@ import { SearchAvailability } from '../../domain/search-enums';
  * a shadow table then swaps, so storefront search stays served on the old index during the rebuild
  * (§12.9/§14). SRCH owns NO source truth — it only mirrors CAT pricing + INV availability.
  */
+/** Max colourways shown on the card swatch rail (RW6); beyond this the card shows "+N colours". */
+const SWATCH_CAP = 6;
+
 @Injectable()
 export class SearchIndexerService {
   private readonly logger = new Logger(SearchIndexerService.name);
@@ -118,9 +122,10 @@ export class SearchIndexerService {
     now: Date,
   ): Promise<ProductSearchDocumentOrmEntity> {
     const [categoryPath, categoryIds] = await this.buildCategoryProjection(product);
-    const primaryImage = await this.resolvePrimaryImage(product);
+    const { primaryImage, hoverImage } = await this.resolveCardImages(product);
     const { colors, sizes, availability } = await this.buildVariantProjection(product.id);
     const attributes = await this.buildAttributeProjection(product.id);
+    const swatches = await this.buildSwatches(colors);
 
     const saleActive = this.isSaleActive(product, now);
     const effectivePrice =
@@ -141,6 +146,13 @@ export class SearchIndexerService {
     doc.categoryPath = categoryPath;
     doc.searchText = searchText;
     doc.primaryImage = primaryImage;
+    doc.nameBn = product.nameBn;
+    doc.hoverImage = hoverImage;
+    doc.swatches = swatches;
+    // `configurable` products need a variant chosen on the PDP; `simple` are directly addable.
+    doc.requiresVariant = product.type === ProductType.CONFIGURABLE;
+    // `new` from the is_new flag; bestSeller/authentic have no per-product source yet → null (RW6 flag).
+    doc.merchLabel = product.isNew ? 'new' : null;
     doc.effectivePrice = this.money(effectivePrice);
     doc.basePrice = this.money(product.basePrice);
     doc.onSale = saleActive && product.salePrice !== null;
@@ -176,13 +188,76 @@ export class SearchIndexerService {
     return [names.length > 0 ? names.join(' / ') : null, Array.from(ids)];
   }
 
-  private async resolvePrimaryImage(product: ProductOrmEntity): Promise<string | null> {
-    if (!product.primaryImageId) {
-      const any = await this.images.findOne({ where: { productId: product.id } });
-      return any?.renditions?.listing ?? any?.url ?? null;
+  /**
+   * Resolve the card's primary + hover image (RW6). The primary is `Product.primary_image_id` (or
+   * the first image when unset); the hover image is the **next** image after the primary by
+   * `display_order` — the design's desktop cross-fade target. `null` hover when the product has only
+   * one image (the card falls back to a ≤1.03 zoom). Both prefer the `listing` rendition, then `url`.
+   */
+  private async resolveCardImages(
+    product: ProductOrmEntity,
+  ): Promise<{ primaryImage: string | null; hoverImage: string | null }> {
+    const images = await this.images.find({
+      where: { productId: product.id },
+      order: { isPrimary: 'DESC', displayOrder: 'ASC', createdAt: 'ASC' },
+    });
+    if (images.length === 0) return { primaryImage: null, hoverImage: null };
+
+    const listing = (img: ProductImageOrmEntity): string | null =>
+      img.renditions?.listing ?? img.url ?? null;
+
+    // Primary = the explicit primary image when set, else the first by the ordering above.
+    const primaryIdx = product.primaryImageId
+      ? Math.max(0, images.findIndex((i) => i.id === product.primaryImageId))
+      : 0;
+    const primary = images[primaryIdx];
+    // Hover = the first OTHER image (the next listing rendition after the primary).
+    const hover = images.find((i) => i.id !== primary.id) ?? null;
+
+    return { primaryImage: listing(primary), hoverImage: hover ? listing(hover) : null };
+  }
+
+  /**
+   * Flatten the product's colourways into the card swatch rail (RW6, ≤6). Takes the enabled-variant
+   * color option ids (already computed for the color facet), resolves them to {@link AttributeOptionOrmEntity}
+   * (label + `swatch_value` hex), and pairs each with its color-tagged listing image (a product image
+   * whose `color_option_id` matches) when one exists — else the option's own image swatch. Ordered by
+   * the option's `position`. Returns `[]` when the product has no color options (card omits the rail).
+   */
+  private async buildSwatches(
+    colorOptionIds: string[],
+  ): Promise<{ image: string; label: string; color_hex: string | null }[]> {
+    if (colorOptionIds.length === 0) return [];
+
+    const [options, taggedImages] = await Promise.all([
+      this.options.find({ where: { id: In(colorOptionIds) } }),
+      this.images.find({ where: { colorOptionId: In(colorOptionIds) } }),
+    ]);
+
+    // Pick one representative image per color option (lowest display_order).
+    const imageByOption = new Map<string, ProductImageOrmEntity>();
+    for (const img of taggedImages) {
+      if (!img.colorOptionId) continue;
+      const current = imageByOption.get(img.colorOptionId);
+      if (!current || img.displayOrder < current.displayOrder) {
+        imageByOption.set(img.colorOptionId, img);
+      }
     }
-    const img = await this.images.findOne({ where: { id: product.primaryImageId } });
-    return img?.renditions?.listing ?? img?.url ?? null;
+
+    return options
+      .sort((a, b) => a.position - b.position)
+      .map((opt) => {
+        const img = imageByOption.get(opt.id);
+        const isImageSwatch = opt.swatchType === SwatchType.IMAGE;
+        const isColorSwatch = opt.swatchType === SwatchType.COLOR;
+        return {
+          // Prefer a color-tagged product image; fall back to the option's own image swatch ('' if none).
+          image: img?.renditions?.listing ?? img?.url ?? (isImageSwatch ? (opt.swatchValue ?? '') : ''),
+          label: opt.label,
+          color_hex: isColorSwatch ? opt.swatchValue : null,
+        };
+      })
+      .slice(0, SWATCH_CAP);
   }
 
   private async buildVariantProjection(
