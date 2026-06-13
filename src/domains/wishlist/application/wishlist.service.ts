@@ -23,8 +23,13 @@ export interface WishlistItemView {
     id: string;
     slug: string;
     title: string;
+    name_bn: string | null;
     brand: string | null;
     primary_image: string | null;
+    hover_image: string | null;
+    swatches: { image: string; label: string; color_hex: string | null }[];
+    requires_variant: boolean;
+    merch_label: 'new' | 'bestSeller' | 'authentic' | null;
     effective_price: string;
     base_price: string;
     on_sale: boolean;
@@ -367,8 +372,13 @@ export class WishlistService {
           id: card.id,
           slug: card.slug,
           title: card.title,
+          name_bn: card.name_bn,
           brand: card.brand,
           primary_image: card.primary_image,
+          hover_image: card.hover_image,
+          swatches: card.swatches,
+          requires_variant: card.requires_variant,
+          merch_label: card.merch_label,
           effective_price: card.effective_price,
           base_price: card.base_price,
           on_sale: card.on_sale,
@@ -378,8 +388,13 @@ export class WishlistService {
           id: row.productId,
           slug: '',
           title: '',
+          name_bn: null,
           brand: null,
           primary_image: null,
+          hover_image: null,
+          swatches: [],
+          requires_variant: false,
+          merch_label: null,
           effective_price: '0.00',
           base_price: '0.00',
           on_sale: false,

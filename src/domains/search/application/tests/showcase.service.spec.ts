@@ -5,8 +5,13 @@ function makeDoc(id: string, over: Record<string, unknown> = {}) {
     productId: id,
     slug: `slug-${id}`,
     title: `Product ${id}`,
+    nameBn: null,
     brand: 'Adidas',
     primaryImage: `/uploads/products/${id}.jpg`,
+    hoverImage: null,
+    swatches: [],
+    requiresVariant: false,
+    merchLabel: null,
     effectivePrice: '100.00',
     basePrice: '120.00',
     onSale: true,
@@ -60,8 +65,13 @@ describe('Search — ShowcaseService.featured', () => {
       product_id: 'f1',
       slug: 'slug-f1',
       title: 'Featured 1',
+      name_bn: null,
       brand: 'Nike',
       primary_image: '/uploads/products/f1.jpg',
+      hover_image: null,
+      swatches: [],
+      requires_variant: false,
+      merch_label: null,
       effective_price: '9500.00',
       base_price: '9500.00',
       on_sale: false,
@@ -83,8 +93,13 @@ describe('Search — ShowcaseService.featured', () => {
         id: 'f1',
         slug: 'slug-f1',
         title: 'Featured 1',
+        name_bn: null,
         brand: 'Nike',
         primary_image: '/uploads/products/f1.jpg',
+        hover_image: null,
+        swatches: [],
+        requires_variant: false,
+        merch_label: null,
         effective_price: '9500.00',
         base_price: '9500.00',
         on_sale: false,
@@ -94,5 +109,41 @@ describe('Search — ShowcaseService.featured', () => {
     ]);
     // OFFSET = (page-1)*limit = 3 passed to the page query.
     expect(dataSource.query.mock.calls[0][1]).toEqual([3, 3]);
+  });
+
+  it('maps the RW6 card fields (hover image, swatches, name_bn, requires_variant, merch_label) through', async () => {
+    const rawRow = {
+      product_id: 'f2',
+      slug: 'slug-f2',
+      title: 'Featured 2',
+      name_bn: 'ফিচার্ড দুই',
+      brand: 'Adidas',
+      primary_image: '/uploads/products/f2.jpg',
+      hover_image: '/uploads/products/f2-2.jpg',
+      swatches: [{ image: '/uploads/products/f2-black.jpg', label: 'Black', color_hex: '#000000' }],
+      requires_variant: true,
+      merch_label: 'new',
+      effective_price: '4290.00',
+      base_price: '5990.00',
+      on_sale: true,
+      availability: 'in_stock',
+    };
+    const dataSource = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce([rawRow])
+        .mockResolvedValueOnce([{ count: 1 }]),
+    };
+    const svc = Reflect.construct(ShowcaseService, [{}, dataSource]) as ShowcaseService;
+
+    const result = await svc.featured(1, 20);
+
+    expect(result.items[0]).toMatchObject({
+      name_bn: 'ফিচার্ড দুই',
+      hover_image: '/uploads/products/f2-2.jpg',
+      swatches: [{ image: '/uploads/products/f2-black.jpg', label: 'Black', color_hex: '#000000' }],
+      requires_variant: true,
+      merch_label: 'new',
+    });
   });
 });

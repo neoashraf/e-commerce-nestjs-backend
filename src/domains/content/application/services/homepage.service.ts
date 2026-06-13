@@ -5,7 +5,8 @@ import { In, IsNull, Repository } from 'typeorm';
 import { CategoryOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/category.orm-entity';
 import { ProductImageOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductOrmEntity } from '../../../catalog/infrastructure/persistence/typeorm/entities/product.orm-entity';
-import { ProductStatus } from '../../../catalog/domain/enums/product-type.enum';
+import { ProductStatus, ProductType } from '../../../catalog/domain/enums/product-type.enum';
+import { ProductSearchDocumentOrmEntity } from '../../../search/infrastructure/persistence/typeorm/entities/product-search-document.orm-entity';
 import { BannerOrmEntity } from '../../infrastructure/persistence/typeorm/entities/banner.orm-entity';
 import { HomeSectionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/home-section.orm-entity';
 import { SlideOrmEntity } from '../../infrastructure/persistence/typeorm/entities/slide.orm-entity';
@@ -69,6 +70,8 @@ export class HomepageService {
     private readonly products: Repository<ProductOrmEntity>,
     @InjectRepository(ProductImageOrmEntity)
     private readonly images: Repository<ProductImageOrmEntity>,
+    @InjectRepository(ProductSearchDocumentOrmEntity)
+    private readonly searchDocs: Repository<ProductSearchDocumentOrmEntity>,
     private readonly menus: MenusService,
   ) {}
 
@@ -150,21 +153,47 @@ export class HomepageService {
       ]),
     );
 
+    // RW6: the published search mirror carries the precomputed card fields (hover_image, swatches,
+    // name_bn, requires_variant, merch_label) — enrich each section item so the home rails render the
+    // full v2 ProductCard. A product not yet indexed falls back to product-derivable fields only.
+    const docById = new Map(
+      (await this.searchDocs.find({ where: { productId: In(ordered.map((p) => p.id)) } })).map(
+        (d) => [d.productId, d],
+      ),
+    );
+
     return ordered.map((p) => {
       const img = p.primaryImageId ? imageById.get(p.primaryImageId) : undefined;
+      const doc = docById.get(p.id);
       return {
         slug: p.slug,
         title: p.name,
+        name_bn: p.nameBn ?? null,
         effective_price: this.effectivePrice(p, now),
+        base_price: Number(p.basePrice).toFixed(2),
+        on_sale: this.isOnSale(p, now),
         image: img?.renditions?.listing ?? img?.url ?? null,
+        hover_image: doc?.hoverImage ?? null,
+        swatches: doc?.swatches ?? [],
+        requires_variant: doc?.requiresVariant ?? p.type === ProductType.CONFIGURABLE,
+        merch_label: doc?.merchLabel ?? (p.isNew ? ('new' as const) : null),
       };
     });
   }
 
   private effectivePrice(p: ProductOrmEntity, now: Date): string {
-    const saleActive =
-      p.salePrice !== null && !!p.saleStartsAt && !!p.saleEndsAt && now >= p.saleStartsAt && now <= p.saleEndsAt;
-    return Number(saleActive && p.salePrice !== null ? p.salePrice : p.basePrice).toFixed(2);
+    return Number(this.isOnSale(p, now) && p.salePrice !== null ? p.salePrice : p.basePrice).toFixed(2);
+  }
+
+  /** Sale active = a sale price within the optional schedule window at read time (BR-CAT-6). */
+  private isOnSale(p: ProductOrmEntity, now: Date): boolean {
+    return (
+      p.salePrice !== null &&
+      !!p.saleStartsAt &&
+      !!p.saleEndsAt &&
+      now >= p.saleStartsAt &&
+      now <= p.saleEndsAt
+    );
   }
 
   /** "Live" = within the optional schedule window at read time (FR-CMS-051). */

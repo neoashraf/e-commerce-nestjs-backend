@@ -43,12 +43,31 @@ export class PdpSpecDto {
   value: string | string[];
 }
 
+/** A single colourway on a link/related card's swatch rail (RW6). */
+export class PdpCardSwatchDto {
+  @ApiProperty({ example: 'https://…/black-thumb.webp' }) image: string;
+  @ApiProperty({ example: 'Black' }) label: string;
+  @ApiProperty({ nullable: true, example: '#000000' }) color_hex: string | null;
+}
+
 export class PdpLinkCardDto {
   @ApiProperty() id: string;
   @ApiProperty() slug: string;
   @ApiProperty() name: string;
+  @ApiProperty({ nullable: true, description: 'Optional Bangla product name (RW6).' })
+  name_bn: string | null;
   @ApiProperty({ nullable: true }) primary_image: string | null;
+  @ApiProperty({ nullable: true, description: 'Hover cross-fade image (RW6); null → zoom fallback.' })
+  hover_image: string | null;
+  @ApiProperty({ type: [PdpCardSwatchDto], description: 'Colourways (≤6); [] → no rail (RW6).' })
+  swatches: PdpCardSwatchDto[];
+  @ApiProperty({ description: 'true → "Choose size" (configurable); false → "Add to bag" (RW6).' })
+  requires_variant: boolean;
+  @ApiProperty({ nullable: true, enum: ['new', 'bestSeller', 'authentic'], description: 'Merch label (RW6).' })
+  merch_label: 'new' | 'bestSeller' | 'authentic' | null;
   @ApiProperty({ example: '9800.00' }) effective_price: string;
+  @ApiProperty({ example: '9800.00' }) base_price: string;
+  @ApiProperty() on_sale: boolean;
 }
 
 export class PdpLinksDto {
@@ -63,6 +82,8 @@ export class ProductDetailResponseDto {
   @ApiProperty() type: string;
   @ApiProperty({ nullable: true }) family: string | null;
   @ApiProperty() name: string;
+  @ApiProperty({ nullable: true, description: 'Optional Bangla product name (RW6).' })
+  name_bn: string | null;
   @ApiProperty() slug: string;
   @ApiProperty({ nullable: true }) brand: string | null;
   @ApiProperty({ type: [String] }) breadcrumb: string[];
