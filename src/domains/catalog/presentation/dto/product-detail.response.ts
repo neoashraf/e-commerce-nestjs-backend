@@ -76,6 +76,20 @@ export class PdpLinksDto {
   @ApiProperty({ type: [PdpLinkCardDto] }) cross_sell: PdpLinkCardDto[];
 }
 
+/** One row of the PDP size-guide chart — UK size ↔ foot length (RW6). */
+export class PdpSizeGuideRowDto {
+  @ApiProperty({ example: '7' }) uk: string;
+  @ApiProperty({ example: '25.4' }) foot: string;
+}
+
+/** The PDP size guide resolved onto the product detail (RW6); null when no category chart applies. */
+export class PdpSizeGuideDto {
+  @ApiProperty({ example: 'Measure your foot heel-to-toe and match the closest length below.' })
+  measure_note: string;
+  @ApiProperty({ example: 'cm' }) unit: string;
+  @ApiProperty({ type: [PdpSizeGuideRowDto] }) rows: PdpSizeGuideRowDto[];
+}
+
 /** The full storefront PDP payload (contract: Storefront → GET — Product detail, FR-CAT-041). */
 export class ProductDetailResponseDto {
   @ApiProperty() id: string;
@@ -101,5 +115,7 @@ export class ProductDetailResponseDto {
   configurable_attributes: PdpConfigurableAttributeDto[];
   @ApiProperty({ type: [PdpVariantDto] }) variants: PdpVariantDto[];
   @ApiProperty({ type: [PdpSpecDto] }) specs: PdpSpecDto[];
+  @ApiProperty({ type: PdpSizeGuideDto, nullable: true, description: 'Resolved category size guide (RW6); null → no chart applies.' })
+  size_guide: PdpSizeGuideDto | null;
   @ApiProperty({ type: PdpLinksDto }) links: PdpLinksDto;
 }
