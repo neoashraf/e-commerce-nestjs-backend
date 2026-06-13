@@ -4,28 +4,22 @@ import { DataSource, In, Repository } from 'typeorm';
 
 import { Paginated } from '../../../../shared/dto/paginated';
 import { ProductSearchDocumentOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-search-document.orm-entity';
+import { ProductCard, ProductCardSwatch, MerchLabel, toProductCard } from './product-card.mapper';
 
-/** Storefront product card (matches ProductCardDto / the contract data.products[] shape). */
-export interface ProductCard {
-  id: string;
-  slug: string;
-  title: string;
-  brand: string | null;
-  primary_image: string | null;
-  effective_price: string;
-  base_price: string;
-  on_sale: boolean;
-  currency: 'BDT';
-  availability: string;
-}
+export type { ProductCard } from './product-card.mapper';
 
 /** Raw row shape (snake_case DB columns) returned by the featured raw-SQL join. */
 interface ShowcaseRawRow {
   product_id: string;
   slug: string;
   title: string;
+  name_bn: string | null;
   brand: string | null;
   primary_image: string | null;
+  hover_image: string | null;
+  swatches: ProductCardSwatch[];
+  requires_variant: boolean;
+  merch_label: MerchLabel;
   effective_price: string;
   base_price: string;
   on_sale: boolean;
@@ -68,7 +62,8 @@ export class ShowcaseService {
   async featured(page: number, limit: number): Promise<Paginated<ProductCard>> {
     const where = `p.is_featured = true AND p.deleted_at IS NULL`;
     const rows: ShowcaseRawRow[] = await this.dataSource.query(
-      `SELECT doc.product_id, doc.slug, doc.title, doc.brand, doc.primary_image,
+      `SELECT doc.product_id, doc.slug, doc.title, doc.name_bn, doc.brand, doc.primary_image,
+              doc.hover_image, doc.swatches, doc.requires_variant, doc.merch_label,
               doc.effective_price, doc.base_price, doc.on_sale, doc.availability
        FROM product_search_document doc
        JOIN products p ON p.id = doc.product_id
@@ -134,8 +129,14 @@ export class ShowcaseService {
       id: r.product_id,
       slug: r.slug,
       title: r.title,
+      name_bn: r.name_bn ?? null,
       brand: r.brand,
       primary_image: r.primary_image,
+      hover_image: r.hover_image ?? null,
+      // jsonb decodes to an array already; guard for an unindexed/legacy row.
+      swatches: Array.isArray(r.swatches) ? r.swatches : [],
+      requires_variant: r.requires_variant ?? false,
+      merch_label: r.merch_label ?? null,
       effective_price: r.effective_price,
       base_price: r.base_price,
       on_sale: r.on_sale,
@@ -145,17 +146,6 @@ export class ShowcaseService {
   }
 
   private toCard(d: ProductSearchDocumentOrmEntity): ProductCard {
-    return {
-      id: d.productId,
-      slug: d.slug,
-      title: d.title,
-      brand: d.brand,
-      primary_image: d.primaryImage,
-      effective_price: d.effectivePrice,
-      base_price: d.basePrice,
-      on_sale: d.onSale,
-      currency: 'BDT',
-      availability: d.availability,
-    };
+    return toProductCard(d);
   }
 }

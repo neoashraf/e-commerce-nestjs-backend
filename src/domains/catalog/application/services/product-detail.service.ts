@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 
 import { AttributeType } from '../../domain/enums/attribute-type.enum';
-import { ProductLinkType, ProductStatus } from '../../domain/enums/product-type.enum';
+import { ProductLinkType, ProductStatus, ProductType } from '../../domain/enums/product-type.enum';
+import { SwatchType } from '../../domain/enums/swatch-type.enum';
 import { AttributeOrmEntity } from '../../infrastructure/persistence/typeorm/entities/attribute.orm-entity';
 import { AttributeOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/attribute-option.orm-entity';
 import { CategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/category.orm-entity';
@@ -20,6 +21,7 @@ import {
   INVENTORY_STATUS_PORT,
   IInventoryStatusPort,
 } from '../ports/inventory-status.port';
+import { SizeGuideService } from './size-guide.service';
 import {
   PdpConfigurableAttributeDto,
   PdpImageDto,
@@ -31,6 +33,21 @@ import {
 } from '../../presentation/dto/product-detail.response';
 
 const RELATED_FALLBACK_LIMIT = 8;
+/** Max colourways on the card swatch rail (RW6); beyond this the card shows "+N colours". */
+const CARD_SWATCH_CAP = 6;
+
+/** A single colourway on the storefront card swatch rail (RW6). */
+export interface CardSwatch {
+  image: string;
+  label: string;
+  color_hex: string | null;
+}
+
+/** The two batched, image/colour-derived card fields shared by the wishlist + link cards (RW6). */
+interface CardMediaEnrichment {
+  hover_image: string | null;
+  swatches: CardSwatch[];
+}
 
 /** A single variant resolved for CART (cart read seam). */
 export interface CartVariantView {
@@ -56,8 +73,18 @@ export interface WishlistProductCard {
   id: string;
   slug: string;
   title: string;
+  /** Optional Bangla product name (RW6). */
+  name_bn: string | null;
   brand: string | null;
   primary_image: string | null;
+  /** Second listing image for the desktop hover cross-fade (RW6); null → zoom fallback. */
+  hover_image: string | null;
+  /** Colourways flattened from the color attribute (RW6, ≤6); [] → no rail. */
+  swatches: { image: string; label: string; color_hex: string | null }[];
+  /** true → "Choose size" (configurable); false → "Add to bag" (simple) (RW6). */
+  requires_variant: boolean;
+  /** new (from is_new) | bestSeller | authentic | null (RW6). */
+  merch_label: 'new' | 'bestSeller' | 'authentic' | null;
   /** Live effective price (Decimal 12,2). */
   effective_price: string;
   base_price: string;
@@ -105,6 +132,7 @@ export class ProductDetailService {
     private readonly options: Repository<AttributeOptionOrmEntity>,
     @Inject(INVENTORY_STATUS_PORT)
     private readonly inventoryStatus: IInventoryStatusPort,
+    private readonly sizeGuides: SizeGuideService,
   ) {}
 
   async getBySlug(slug: string, now: Date = new Date()): Promise<ProductDetailResponseDto> {
@@ -125,6 +153,8 @@ export class ProductDetailService {
     const configurable = await this.buildConfigurableAttributes(product.id);
     const specs = await this.buildSpecs(product.id);
     const links = await this.buildLinks(product, now);
+    // RW6: nearest category-level size guide up the primary-category chain (null when none).
+    const sizeGuide = await this.sizeGuides.resolveForCategory(product.primaryCategoryId);
 
     // Product-level price block reflects the representative (lowest effective-price) enabled variant.
     const representative = this.representativePrice(product, variants, now);
@@ -134,6 +164,7 @@ export class ProductDetailService {
       type: product.type,
       family: family?.code ?? null,
       name: product.name,
+      name_bn: product.nameBn ?? null,
       slug: product.slug,
       brand: product.brand,
       breadcrumb,
@@ -150,6 +181,7 @@ export class ProductDetailService {
       configurable_attributes: configurable,
       variants: variantDtos,
       specs,
+      size_guide: sizeGuide,
       links,
     };
   }
@@ -323,12 +355,14 @@ export class ProductDetailService {
     if (products.length === 0) return result;
 
     const ids = products.map((p) => p.id);
-    const [primaryImages, enabledVariants] = await Promise.all([
+    const [primaryImages, enabledVariants, cardMedia] = await Promise.all([
       this.images.find({ where: { productId: In(ids), isPrimary: true } }),
       this.variants.find({
         where: { productId: In(ids), isEnabled: true },
         select: { id: true, productId: true },
       }),
+      // RW6: hover image + colour swatch rail, batched from CAT source (no N+1).
+      this.buildCardMedia(ids),
     ]);
 
     const imageByProduct = new Map<string, string>();
@@ -345,12 +379,18 @@ export class ProductDetailService {
     for (const product of products) {
       const available =
         product.status === ProductStatus.PUBLISHED && product.deletedAt === null;
+      const media = cardMedia.get(product.id);
       result.set(product.id, {
         id: product.id,
         slug: product.slug,
         title: product.name,
+        name_bn: product.nameBn ?? null,
         brand: product.brand,
         primary_image: imageByProduct.get(product.id) ?? null,
+        hover_image: media?.hover_image ?? null,
+        swatches: media?.swatches ?? [],
+        requires_variant: product.type === ProductType.CONFIGURABLE,
+        merch_label: product.isNew ? 'new' : null,
         effective_price: this.effectiveProductPrice(product, now),
         base_price: this.money(product.basePrice),
         on_sale: this.isSaleActive(product, now),
@@ -489,7 +529,7 @@ export class ProductDetailService {
     });
     const order = new Map(ids.map((id, idx) => [id, idx]));
     const sorted = rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-    return Promise.all(sorted.map((p) => this.toCard(p, now)));
+    return this.toCards(sorted, now);
   }
 
   /** Empty-related fallback: up to 8 same-(primary-)category published products (FR-CAT-045). */
@@ -503,20 +543,153 @@ export class ProductDetailService {
       take: RELATED_FALLBACK_LIMIT + 1,
     });
     const others = rows.filter((p) => p.id !== product.id).slice(0, RELATED_FALLBACK_LIMIT);
-    return Promise.all(others.map((p) => this.toCard(p, now)));
+    return this.toCards(others, now);
   }
 
-  private async toCard(p: ProductOrmEntity, now: Date): Promise<PdpLinkCardDto> {
-    const primaryImage = p.primaryImageId
-      ? await this.images.findOne({ where: { id: p.primaryImageId } })
-      : null;
-    return {
-      id: p.id,
-      slug: p.slug,
-      name: p.name,
-      primary_image: primaryImage?.url ?? null,
-      effective_price: this.effectiveProductPrice(p, now),
-    };
+  /**
+   * Build the related/cross-sell card payload for a set of products, preserving order. Resolves the
+   * RW6 card fields (hover image + swatch rail batched; name_bn/requires_variant/merch_label off the
+   * row) and the primary image in one batched pass (no N+1).
+   */
+  private async toCards(products: ProductOrmEntity[], now: Date): Promise<PdpLinkCardDto[]> {
+    if (products.length === 0) return [];
+    const ids = products.map((p) => p.id);
+    const [cardMedia, primaryImages] = await Promise.all([
+      this.buildCardMedia(ids),
+      this.images.find({
+        where: { id: In(products.map((p) => p.primaryImageId).filter((id): id is string => !!id)) },
+      }),
+    ]);
+    const imageById = new Map(primaryImages.map((img) => [img.id, img]));
+
+    return products.map((p) => {
+      const media = cardMedia.get(p.id);
+      const primary = p.primaryImageId ? imageById.get(p.primaryImageId) : undefined;
+      return {
+        id: p.id,
+        slug: p.slug,
+        name: p.name,
+        name_bn: p.nameBn ?? null,
+        primary_image: primary?.renditions?.listing ?? primary?.url ?? null,
+        hover_image: media?.hover_image ?? null,
+        swatches: media?.swatches ?? [],
+        requires_variant: p.type === ProductType.CONFIGURABLE,
+        merch_label: p.isNew ? 'new' : null,
+        effective_price: this.effectiveProductPrice(p, now),
+        base_price: this.money(p.basePrice),
+        on_sale: this.isSaleActive(p, now),
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Card media enrichment (RW6) — batched hover image + colour swatch rail
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Batch-resolve the two image/colour-derived storefront card fields for a set of products (RW6):
+   *   - `hover_image` — the second image (next after the primary by display_order) for the desktop
+   *     cross-fade; `null` when a product has only one image.
+   *   - `swatches`    — colourways flattened from the product's enabled-variant `color` options +
+   *     color-tagged images (≤6), ordered by the option `position`; `[]` when there is no colour axis.
+   * One query per relation (no N+1). The other three card fields (`name_bn`, `requires_variant`,
+   * `merch_label`) are read straight off the product row by the caller.
+   */
+  private async buildCardMedia(productIds: string[]): Promise<Map<string, CardMediaEnrichment>> {
+    const result = new Map<string, CardMediaEnrichment>();
+    const ids = Array.from(new Set(productIds));
+    if (ids.length === 0) return result;
+
+    const products = await this.products.find({
+      where: { id: In(ids) },
+      withDeleted: true,
+      select: { id: true, primaryImageId: true },
+    });
+    const primaryImageIdByProduct = new Map(products.map((p) => [p.id, p.primaryImageId]));
+
+    // All images for these products, deterministically ordered (primary first, then display_order).
+    const images = await this.images.find({
+      where: { productId: In(ids) },
+      order: { isPrimary: 'DESC', displayOrder: 'ASC', createdAt: 'ASC' },
+    });
+    const imagesByProduct = new Map<string, ProductImageOrmEntity[]>();
+    for (const img of images) {
+      const list = imagesByProduct.get(img.productId) ?? [];
+      list.push(img);
+      imagesByProduct.set(img.productId, list);
+    }
+
+    // Enabled-variant color option ids per product (for the swatch rail).
+    const colorAttrIds = new Set(
+      (await this.attributes.find({ where: { code: 'color' } })).map((a) => a.id),
+    );
+    const enabledVariants = await this.variants.find({
+      where: { productId: In(ids), isEnabled: true },
+      select: { id: true, productId: true },
+    });
+    const productByVariant = new Map(enabledVariants.map((v) => [v.id, v.productId]));
+    const variantOptionRows =
+      enabledVariants.length > 0
+        ? await this.variantOptions.find({
+            where: { variantId: In(enabledVariants.map((v) => v.id)) },
+          })
+        : [];
+    const colorOptionIdsByProduct = new Map<string, Set<string>>();
+    for (const row of variantOptionRows) {
+      if (!colorAttrIds.has(row.attributeId)) continue;
+      const productId = productByVariant.get(row.variantId);
+      if (!productId) continue;
+      const set = colorOptionIdsByProduct.get(productId) ?? new Set<string>();
+      set.add(row.optionId);
+      colorOptionIdsByProduct.set(productId, set);
+    }
+
+    // Resolve every referenced colour option + its color-tagged representative image in one pass.
+    const allColorOptionIds = Array.from(
+      new Set(Array.from(colorOptionIdsByProduct.values()).flatMap((s) => Array.from(s))),
+    );
+    const optionById = new Map(
+      (allColorOptionIds.length > 0
+        ? await this.options.find({ where: { id: In(allColorOptionIds) } })
+        : []
+      ).map((o) => [o.id, o]),
+    );
+    const imageByColorOption = new Map<string, ProductImageOrmEntity>();
+    for (const img of images) {
+      if (!img.colorOptionId) continue;
+      const current = imageByColorOption.get(img.colorOptionId);
+      if (!current || img.displayOrder < current.displayOrder) imageByColorOption.set(img.colorOptionId, img);
+    }
+
+    const listing = (img: ProductImageOrmEntity | undefined): string | null =>
+      img ? (img.renditions?.listing ?? img.url ?? null) : null;
+
+    for (const id of ids) {
+      const imgs = imagesByProduct.get(id) ?? [];
+      const primaryId = primaryImageIdByProduct.get(id) ?? null;
+      const primary = (primaryId && imgs.find((i) => i.id === primaryId)) || imgs[0];
+      const hover = primary ? imgs.find((i) => i.id !== primary.id) : undefined;
+
+      const colorOptionIds = Array.from(colorOptionIdsByProduct.get(id) ?? []);
+      const swatches: CardSwatch[] = colorOptionIds
+        .map((optId) => optionById.get(optId))
+        .filter((o): o is AttributeOptionOrmEntity => !!o)
+        .sort((a, b) => a.position - b.position)
+        .map((opt) => {
+          const taggedImg = imageByColorOption.get(opt.id);
+          const isImageSwatch = opt.swatchType === SwatchType.IMAGE;
+          const isColorSwatch = opt.swatchType === SwatchType.COLOR;
+          return {
+            image: listing(taggedImg) ?? (isImageSwatch ? (opt.swatchValue ?? '') : ''),
+            label: opt.label,
+            color_hex: isColorSwatch ? opt.swatchValue : null,
+          };
+        })
+        .slice(0, CARD_SWATCH_CAP);
+
+      result.set(id, { hover_image: hover ? listing(hover) : null, swatches });
+    }
+    return result;
   }
 
   // ---------------------------------------------------------------------------

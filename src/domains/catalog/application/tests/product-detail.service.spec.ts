@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
 
 import { ProductDetailService } from '../services/product-detail.service';
+import { SizeGuideService } from '../services/size-guide.service';
 import { INVENTORY_STATUS_PORT } from '../ports/inventory-status.port';
 import { ProductStatus, ProductType } from '../../domain/enums/product-type.enum';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
@@ -53,6 +54,7 @@ describe('Catalog — ProductDetailService', () => {
   let products: { findOne: jest.Mock; find: jest.Mock };
   let variants: { find: jest.Mock };
   let stockPort: { getStatusByVariantIds: jest.Mock };
+  let sizeGuides: { resolveForCategory: jest.Mock };
 
   const emptyRepo = () => ({ find: jest.fn().mockResolvedValue([]), findOne: jest.fn().mockResolvedValue(null) });
 
@@ -60,6 +62,7 @@ describe('Catalog — ProductDetailService', () => {
     products = { findOne: jest.fn(), find: jest.fn().mockResolvedValue([]) };
     variants = { find: jest.fn().mockResolvedValue([]) };
     stockPort = { getStatusByVariantIds: jest.fn().mockResolvedValue(new Map()) };
+    sizeGuides = { resolveForCategory: jest.fn().mockResolvedValue(null) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -77,6 +80,7 @@ describe('Catalog — ProductDetailService', () => {
         { provide: getRepositoryToken(AttributeOrmEntity), useValue: emptyRepo() },
         { provide: getRepositoryToken(AttributeOptionOrmEntity), useValue: emptyRepo() },
         { provide: INVENTORY_STATUS_PORT, useValue: stockPort },
+        { provide: SizeGuideService, useValue: sizeGuides },
       ],
     }).compile();
     service = module.get(ProductDetailService);
@@ -134,5 +138,24 @@ describe('Catalog — ProductDetailService', () => {
     expect(result.variants).toHaveLength(1);
     expect(result.variants[0].stock_status).toBe('out_of_stock');
     expect(result.currency).toBe('BDT');
+  });
+
+  it('should return size_guide=null when no category chart applies (RW6)', async () => {
+    products.findOne.mockResolvedValue(baseProduct());
+    const result = await service.getBySlug('adidas-predator-elite');
+    expect(result.size_guide).toBeNull();
+    expect(sizeGuides.resolveForCategory).toHaveBeenCalledWith('cat-1');
+  });
+
+  it('should resolve the category size_guide onto the product detail (RW6)', async () => {
+    products.findOne.mockResolvedValue(baseProduct());
+    const chart = {
+      measure_note: 'Measure heel-to-toe.',
+      unit: 'cm',
+      rows: [{ uk: '7', foot: '25.4' }],
+    };
+    sizeGuides.resolveForCategory.mockResolvedValue(chart);
+    const result = await service.getBySlug('adidas-predator-elite');
+    expect(result.size_guide).toEqual(chart);
   });
 });

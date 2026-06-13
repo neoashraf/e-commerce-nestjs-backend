@@ -35,6 +35,10 @@ export class ProductOrmEntity {
   @Column({ length: 180 })
   name: string;
 
+  /** Optional Bangla product name (RW6) — rendered under the Latin name on the storefront card. */
+  @Column({ name: 'name_bn', type: 'varchar', length: 180, nullable: true })
+  nameBn: string | null;
+
   @Index({ unique: true })
   @Column({ length: 200 })
   slug: string;

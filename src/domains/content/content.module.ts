@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CategoryOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/category.orm-entity';
 import { ProductImageOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product.orm-entity';
+import { ProductSearchDocumentOrmEntity } from '../search/infrastructure/persistence/typeorm/entities/product-search-document.orm-entity';
 import { RbacModule } from '../rbac/rbac.module';
 import { HomepageService } from './application/services/homepage.service';
 import { MenusService } from './application/services/menus.service';
@@ -42,6 +43,8 @@ import { SlidesController } from './presentation/controllers/slides.controller';
       CategoryOrmEntity,
       ProductOrmEntity,
       ProductImageOrmEntity,
+      // SRCH read-surface: the published mirror carries the precomputed card fields (RW6).
+      ProductSearchDocumentOrmEntity,
     ]),
   ],
   controllers: [

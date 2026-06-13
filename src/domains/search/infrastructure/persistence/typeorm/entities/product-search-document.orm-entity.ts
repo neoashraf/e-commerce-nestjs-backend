@@ -41,6 +41,28 @@ export class ProductSearchDocumentOrmEntity {
   @Column({ name: 'primary_image', type: 'varchar', length: 500, nullable: true })
   primaryImage: string | null;
 
+  // --- RW6 product-card projections (denormalized from CAT; see SearchIndexer.project) -----------
+
+  /** Optional Bangla product name (mirrors Product.name_bn). */
+  @Column({ name: 'name_bn', type: 'varchar', length: 180, nullable: true })
+  nameBn: string | null;
+
+  /** Second listing-rendition image (next after primary by display_order), for the desktop hover cross-fade. */
+  @Column({ name: 'hover_image', type: 'varchar', length: 500, nullable: true })
+  hoverImage: string | null;
+
+  /** Colourways flattened from the product's `color` attribute options + color-tagged images (≤6). */
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  swatches: { image: string; label: string; color_hex: string | null }[];
+
+  /** True for `configurable` products (card shows "Choose size"), false for `simple` ("Add to bag"). */
+  @Column({ name: 'requires_variant', default: false })
+  requiresVariant: boolean;
+
+  /** Light text merch label: `new` (from is_new) | `bestSeller` | `authentic` | null (no source yet). */
+  @Column({ name: 'merch_label', type: 'varchar', length: 16, nullable: true })
+  merchLabel: 'new' | 'bestSeller' | 'authentic' | null;
+
   @Column({ name: 'effective_price', type: 'decimal', precision: 12, scale: 2 })
   effectivePrice: string;
 

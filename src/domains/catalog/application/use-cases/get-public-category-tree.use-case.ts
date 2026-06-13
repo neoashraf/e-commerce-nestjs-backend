@@ -10,6 +10,8 @@ export interface PublicCategoryNode {
   id: string;
   name: string;
   slug: string;
+  /** Tile/thumbnail image for storefront category tiles (RW6); null → colour-tint placeholder. */
+  image_url: string | null;
   children: PublicCategoryNode[];
 }
 
@@ -29,7 +31,13 @@ export class GetPublicCategoryTreeUseCase {
     const nodes = await this.categories.findPublishedMenuNodes();
     const byId = new Map<string, PublicCategoryNode>();
     for (const c of nodes) {
-      byId.set(c.id, { id: c.id, name: c.name, slug: c.slug, children: [] });
+      byId.set(c.id, {
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        image_url: c.imageUrl ?? null,
+        children: [],
+      });
     }
 
     const roots: PublicCategoryNode[] = [];
