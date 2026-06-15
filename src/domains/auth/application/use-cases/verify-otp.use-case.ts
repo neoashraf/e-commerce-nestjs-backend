@@ -23,6 +23,7 @@ import {
   SESSION_REPOSITORY,
 } from '../../domain/repositories/session.repository.interface';
 import { AUTH_CONFIG, AuthConfig } from '../ports/auth-config.port';
+import { GUEST_ORDER_CLAIM_PORT, IGuestOrderClaimPort } from '../ports/guest-order-claim.port';
 import { IOtpService, OTP_SERVICE } from '../ports/otp-service.port';
 import { ITokenService, TOKEN_SERVICE } from '../ports/token-service.port';
 
@@ -47,6 +48,7 @@ export class VerifyOtpUseCase {
     @Inject(OTP_SERVICE) private readonly otp: IOtpService,
     @Inject(TOKEN_SERVICE) private readonly tokens: ITokenService,
     @Inject(AUTH_CONFIG) private readonly config: AuthConfig,
+    @Inject(GUEST_ORDER_CLAIM_PORT) private readonly guestOrderClaim: IGuestOrderClaimPort,
   ) {}
 
   async execute(command: VerifyOtpCommand): Promise<VerifyOtpResult> {
@@ -111,6 +113,11 @@ export class VerifyOtpUseCase {
       customer = await this.customers.save(customer);
       isNewAccount = true;
     }
+
+    // Link any prior guest orders placed under this (now OTP-verified) phone to the account, so a
+    // shopper who checked out as a guest sees those orders once they sign in (FR-AUTH-072 spirit).
+    // Phone ownership is proven by the OTP just consumed; degrades gracefully (never blocks login).
+    await this.guestOrderClaim.claimByPhone(challenge.phone, customer.id);
 
     const access = await this.tokens.signAccessToken(customer.id);
     const refresh = this.tokens.mintRefreshToken(now);

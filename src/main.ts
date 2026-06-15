@@ -1,3 +1,4 @@
+import { mkdirSync } from 'fs';
 import { resolve } from 'path';
 
 import { Logger, ValidationPipe } from '@nestjs/common';
@@ -23,6 +24,17 @@ async function bootstrap(): Promise<void> {
   // <root>/products/{id}/… and LEAD attachments under <root>/lead-attachments/…, so a single mount
   // of the upload root covers both. Stored URLs are `${PUBLIC_BASE_URL}/uploads/…`.
   const uploadDir = resolve(config.get<string>('MEDIA_UPLOAD_DIR') ?? 'uploads');
+  // Create the upload root at boot so the first image upload doesn't fail on a missing dir, and so a
+  // non-writable path surfaces here (loud, at startup) instead of as an opaque 500 mid-request.
+  try {
+    mkdirSync(uploadDir, { recursive: true });
+  } catch (err) {
+    new Logger('Bootstrap').error(
+      `MEDIA_UPLOAD_DIR is not writable: ${uploadDir}. Image uploads will fail until this path ` +
+        `exists and is owned by the API process. Set MEDIA_UPLOAD_DIR to an absolute writable path.`,
+      err instanceof Error ? err.stack : String(err),
+    );
+  }
   app.useStaticAssets(uploadDir, { prefix: '/uploads' });
 
   app.useGlobalPipes(
@@ -30,7 +42,10 @@ async function bootstrap(): Promise<void> {
   );
   // ResponseInterceptor is registered as APP_INTERCEPTOR (DI) in AppModule.
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.enableCors();
+  // Expose X-Cart-Token so the storefront JS can read the guest cart token the cart endpoints mint
+  // (cross-origin browsers hide non-simple response headers unless listed here). Without this the
+  // guest token is invisible to the client, never resent, and the guest cart always reads empty.
+  app.enableCors({ exposedHeaders: ['X-Cart-Token'] });
 
   // Swagger / OpenAPI at http://localhost:<port>/api/v1/docs
   const swaggerConfig = new DocumentBuilder()
@@ -52,6 +67,7 @@ async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
   logger.log(`🚀 API ready at  http://localhost:${port}/api/v1`);
   logger.log(`📚 Swagger docs  http://localhost:${port}/api/v1/docs`);
+  logger.log(`🖼  Media uploads written to  ${uploadDir}  (served at /uploads)`);
 }
 
 void bootstrap();

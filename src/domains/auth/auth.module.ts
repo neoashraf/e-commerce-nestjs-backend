@@ -14,6 +14,7 @@ import { PASSWORD_RESET_TOKEN_REPOSITORY } from './domain/repositories/password-
 import { ADDRESS_REPOSITORY } from './domain/repositories/address.repository.interface';
 // application
 import { AUTH_CONFIG } from './application/ports/auth-config.port';
+import { GUEST_ORDER_CLAIM_PORT } from './application/ports/guest-order-claim.port';
 import { OTP_SERVICE } from './application/ports/otp-service.port';
 import { TOKEN_SERVICE } from './application/ports/token-service.port';
 import { NOTIFICATION_DISPATCHER } from './application/ports/notification-dispatcher.port';
@@ -51,6 +52,8 @@ import { SessionOrmEntity } from './infrastructure/persistence/typeorm/entities/
 import { EmailVerificationTokenOrmEntity } from './infrastructure/persistence/typeorm/entities/email-verification-token.orm-entity';
 import { PasswordResetTokenOrmEntity } from './infrastructure/persistence/typeorm/entities/password-reset-token.orm-entity';
 import { AddressOrmEntity } from './infrastructure/persistence/typeorm/entities/address.orm-entity';
+import { OrderOrmEntity } from '../orders/infrastructure/persistence/typeorm/entities/order.orm-entity';
+import { GuestOrderClaimAdapter } from './infrastructure/adapters/guest-order-claim.adapter';
 import { TypeOrmCustomerRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-customer.repository';
 import { TypeOrmOtpChallengeRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-otp-challenge.repository';
 import { TypeOrmSessionRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-session.repository';
@@ -86,6 +89,9 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
       EmailVerificationTokenOrmEntity,
       PasswordResetTokenOrmEntity,
       AddressOrmEntity,
+      // Read/write access to ORD's orders table so AUTH can claim a phone's guest orders on OTP
+      // verification (guest-order-claim adapter). forFeature only registers the repository here.
+      OrderOrmEntity,
     ]),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -121,6 +127,7 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     { provide: PASSWORD_HASHER, useClass: BcryptPasswordHasher },
     { provide: VERIFICATION_TOKEN_SERVICE, useClass: VerificationTokenService },
     { provide: ZONE_RESOLVER, useClass: CartZoneResolverAdapter },
+    { provide: GUEST_ORDER_CLAIM_PORT, useClass: GuestOrderClaimAdapter },
     RequestOtpUseCase,
     VerifyOtpUseCase,
     RefreshTokenUseCase,
