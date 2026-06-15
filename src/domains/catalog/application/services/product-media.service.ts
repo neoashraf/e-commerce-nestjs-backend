@@ -1,7 +1,13 @@
 import { mkdir, writeFile } from 'fs/promises';
 import { resolve as resolvePath } from 'path';
 
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -46,7 +52,8 @@ export interface AddVideoInput {
  */
 @Injectable()
 export class ProductMediaService {
-  /** Absolute on-disk root for stored originals (served statically at `/media`, see main.ts). */
+  private readonly logger = new Logger(ProductMediaService.name);
+  /** Absolute on-disk root for stored originals (served statically at `/uploads`, see main.ts). */
   private readonly uploadDir: string;
   /** Public origin the stored URLs are prefixed with so `<img src>` resolves from any frontend. */
   private readonly publicBaseUrl: string;
@@ -62,8 +69,12 @@ export class ProductMediaService {
     config: ConfigService,
   ) {
     this.uploadDir = resolvePath(config.get<string>('MEDIA_UPLOAD_DIR') ?? 'uploads');
+    // Documented as MEDIA_PUBLIC_BASE_URL (.env.example); fall back to the shared PUBLIC_BASE_URL
+    // and finally a local-dev default so a missing var never silently breaks <img src>.
     this.publicBaseUrl = (
-      config.get<string>('PUBLIC_BASE_URL') ?? 'http://localhost:8000'
+      config.get<string>('MEDIA_PUBLIC_BASE_URL') ??
+      config.get<string>('PUBLIC_BASE_URL') ??
+      'http://localhost:8000'
     ).replace(/\/+$/, '');
   }
 
@@ -179,8 +190,22 @@ export class ProductMediaService {
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const fileName = `${Date.now()}-${safeName}`;
     const dir = resolvePath(this.uploadDir, 'products', productId);
-    await mkdir(dir, { recursive: true });
-    await writeFile(resolvePath(dir, fileName), file.buffer);
+    try {
+      await mkdir(dir, { recursive: true });
+      await writeFile(resolvePath(dir, fileName), file.buffer);
+    } catch (cause) {
+      // A non-writable MEDIA_UPLOAD_DIR (wrong/foreign-owned path, read-only FS) would otherwise
+      // surface as an opaque 500. Log the real errno/path for ops and return a clear, actionable code.
+      this.logger.error(
+        `Failed to write upload to ${dir} (MEDIA_UPLOAD_DIR=${this.uploadDir}). ` +
+          `Ensure the directory exists and is writable by the API process.`,
+        cause instanceof Error ? cause.stack : String(cause),
+      );
+      throw new InternalServerErrorException({
+        code: 'MEDIA_STORAGE_UNAVAILABLE',
+        message: 'Could not store the uploaded image. Storage is not writable.',
+      });
+    }
     return `${this.publicBaseUrl}/uploads/products/${productId}/${fileName}`;
   }
 

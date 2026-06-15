@@ -157,7 +157,6 @@ export class CheckoutService {
       guest?: GuestInput | null;
       expected_total?: string;
       acknowledge_changes?: boolean;
-      resolveGuestCustomerId?: (guest: GuestInput) => Promise<string>;
     },
   ): Promise<PlaceResult> {
     if (!idempotencyKey) {
@@ -226,11 +225,10 @@ export class CheckoutService {
       });
     }
 
-    // Resolve the buyer: customer token, or a lightweight account for the guest (AUTH seam).
-    let customerId = actor.customerId ?? null;
-    if (!customerId && input.guest && input.resolveGuestCustomerId) {
-      customerId = await input.resolveGuestCustomerId(input.guest);
-    }
+    // Buyer: a signed-in customer, else null — guests place the order WITHOUT an account. The guest
+    // snapshot (name/phone/email) is retained on the order; AUTH links it to an account later when
+    // the same phone is verified via OTP (guest-order claim).
+    const customerId = actor.customerId ?? null;
 
     const addressSnapshot = await this.buildAddressSnapshot(input.address, input.guest);
 
