@@ -116,8 +116,12 @@ export class CartService {
         this.carts.create({ customerId: actor.customerId, status: CartStatus.ACTIVE }),
       );
     }
-    // Guest: mint a new cart + token.
-    const cartToken = actor.cartToken ?? `guesttok_${randomUUID().replace(/-/g, '')}`;
+    // Guest: mint a new cart + token. Always mint a FRESH token here — reaching this
+    // branch means there is no ACTIVE cart for the supplied token, but a non-active
+    // (e.g. CONVERTED after checkout/merge) cart may still hold it. Reusing the token
+    // would collide with the unique `cart_token` index and surface as a 500. The FE
+    // persists the new token from the `X-Cart-Token` response header.
+    const cartToken = `guesttok_${randomUUID().replace(/-/g, '')}`;
     return this.carts.save(this.carts.create({ cartToken, status: CartStatus.ACTIVE }));
   }
 

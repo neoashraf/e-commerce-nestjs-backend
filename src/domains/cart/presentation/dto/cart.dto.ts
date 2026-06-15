@@ -1,13 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, IsUUID, Max, Min } from 'class-validator';
 
 import { MAX_QTY_PER_LINE } from '../../application/cart/cart.constants';
 
 /** POST /cart/items body (FR-CART-001). */
 export class AddItemDto {
-  @ApiProperty({ example: 'v1', description: 'Product variant (SKU) UUID.' })
-  @IsString()
+  @ApiProperty({
+    example: '3f1c2b4a-5d6e-4f70-8a9b-0c1d2e3f4a5b',
+    description: 'Product variant (SKU) UUID.',
+  })
+  @IsUUID()
   @IsNotEmpty()
   variant_id: string;
 

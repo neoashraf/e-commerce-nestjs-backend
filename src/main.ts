@@ -30,7 +30,12 @@ async function bootstrap(): Promise<void> {
   );
   // ResponseInterceptor is registered as APP_INTERCEPTOR (DI) in AppModule.
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.enableCors();
+  // CORS: the storefront/admin run on a different origin (e.g. :3000) than the API (:8000).
+  // `exposedHeaders` is required for the browser to read the guest cart token the cart write
+  // mints — custom response headers are hidden from cross-origin JS unless explicitly exposed.
+  // Without this, `X-Cart-Token` never reaches the FE, the token is never persisted, and every
+  // subsequent GET /cart goes out token-less → the guest cart always reads empty.
+  app.enableCors({ exposedHeaders: ['X-Cart-Token'] });
 
   // Swagger / OpenAPI at http://localhost:<port>/api/v1/docs
   const swaggerConfig = new DocumentBuilder()
