@@ -6,6 +6,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -16,6 +17,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
+import { Paginated } from '../../../../shared/dto/paginated';
 import { JwtAdminGuard } from '../../../rbac/presentation/guards/jwt-admin.guard';
 import { PermissionsGuard } from '../../../rbac/presentation/guards/permissions.guard';
 import { Requires } from '../../../rbac/presentation/decorators/requires.decorator';
@@ -23,13 +25,20 @@ import {
   AuthenticatedAdmin,
   CurrentAdmin,
 } from '../../../rbac/presentation/decorators/current-admin.decorator';
+import { ReportExportOrmEntity } from '../../infrastructure/persistence/typeorm/entities/report-export.orm-entity';
 import { ExportService } from '../../application/services/export.service';
-import { CreateExportDto, ExportAcceptedDto, ExportStatusDto } from '../dto/export.dto';
+import {
+  CreateExportDto,
+  ExportAcceptedDto,
+  ExportListItemDto,
+  ExportStatusDto,
+  ListExportsQueryDto,
+} from '../dto/export.dto';
 
 /**
  * Async report export (RPT — FR-RPT-070/072). `POST` validates + enqueues an export and returns `202`
- * with the export id; `GET …/{exportId}` polls for status + an expiring download link. Gated by
- * `reports.report.export` (the RBAC catalog code; the contract names it `reports.export`).
+ * with the export id; `GET …/exports` lists the requester's exports (newest first, paginated); `GET
+ * …/export/{exportId}` polls for status + an expiring download link. Gated by `reports.report.export`.
  */
 @ApiTags('Reports')
 @ApiBearerAuth()
@@ -56,6 +65,26 @@ export class ExportController {
     return { export_id: row.id, status: row.status };
   }
 
+  @Get('exports')
+  @Requires('reports.report.export')
+  @ApiOperation({ summary: "List the requester's exports (newest first, paginated)" })
+  @ApiOkResponse({ type: ExportListItemDto, isArray: true })
+  async list(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Query() query: ListExportsQueryDto,
+  ): Promise<Paginated<ExportListItemDto>> {
+    const result = await this.exportService.listExports(
+      admin.adminId,
+      query.page ?? 1,
+      query.limit ?? 20,
+    );
+    return new Paginated(result.items.map(ExportController.toListDto), {
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+    });
+  }
+
   @Get('export/:exportId')
   @Requires('reports.report.export')
   @ApiOperation({ summary: 'Export status + download link' })
@@ -68,6 +97,18 @@ export class ExportController {
       status: row.status,
       file_url: row.fileUrl,
       expires_at: row.expiresAt ? row.expiresAt.toISOString() : null,
+    };
+  }
+
+  private static toListDto(row: ReportExportOrmEntity): ExportListItemDto {
+    return {
+      id: row.id,
+      report_key: row.reportKey,
+      format: row.format,
+      status: row.status,
+      file_url: row.fileUrl,
+      expires_at: row.expiresAt ? row.expiresAt.toISOString() : null,
+      created_at: row.createdAt.toISOString(),
     };
   }
 }

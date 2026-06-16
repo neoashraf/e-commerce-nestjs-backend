@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsObject, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsObject, IsOptional, Max, Min } from 'class-validator';
 
 import { ExportFormat, ExportStatus, ReportKey } from '../../domain/export-enums';
 
@@ -46,4 +47,46 @@ export class ExportStatusDto {
 
   @ApiProperty({ nullable: true, description: 'Link expiry (ISO datetime)' })
   expires_at: string | null;
+}
+
+/** `GET /admin/reports/exports` query (paginated list of the requester's exports). */
+export class ListExportsQueryDto {
+  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
+
+/** One row of the export-manager list (FR-RPT-070/072). */
+export class ExportListItemDto {
+  @ApiProperty({ format: 'uuid', description: 'Export id' })
+  id: string;
+
+  @ApiProperty({ enum: ReportKey, description: 'Report family that was exported' })
+  report_key: string;
+
+  @ApiProperty({ enum: ExportFormat })
+  format: ExportFormat;
+
+  @ApiProperty({ enum: ExportStatus })
+  status: ExportStatus;
+
+  @ApiProperty({ nullable: true, description: 'Download URL when ready (expiring link)' })
+  file_url: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Link expiry (ISO datetime)' })
+  expires_at: string | null;
+
+  @ApiProperty({ description: 'When the export was requested (ISO datetime)' })
+  created_at: string;
 }
