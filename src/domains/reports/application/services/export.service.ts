@@ -70,6 +70,24 @@ export class ExportService {
     return row;
   }
 
+  /**
+   * List the requesting admin's exports, newest first, paginated (FR-RPT-070/072, BR-RPT-6). Scoped to
+   * `requestedByAdminId` so an admin only ever sees their own exports (never another admin's downloads).
+   */
+  async listExports(
+    adminId: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: ReportExportOrmEntity[]; page: number; limit: number; total: number }> {
+    const [items, total] = await this.exports.findAndCount({
+      where: { requestedByAdminId: adminId },
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { items, page, limit, total };
+  }
+
   /** Render → serialize → store → mark ready → notify. Failures are isolated and recorded. */
   async processExport(id: string, now: Date = new Date()): Promise<void> {
     const row = await this.exports.findOne({ where: { id } });
