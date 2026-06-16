@@ -99,6 +99,20 @@ describe('Cart — CartService', () => {
     expect(result.cart_token).toMatch(/^guesttok_/);
   });
 
+  it('should mint a FRESH token (not reuse the supplied one) when the guest token has no active cart', async () => {
+    // Regression: a returning guest holds a token whose cart was CONVERTED (post-checkout/merge).
+    // resolveExisting returns null; reusing the supplied token on insert collides with the unique
+    // `cart_token` index and surfaced as a 500. The new cart must get a freshly-minted token.
+    carts.findOne.mockResolvedValue(null);
+    carts.save.mockImplementation((c) => Promise.resolve({ id: 'cart_new', ...c }));
+    const result = await service.addItem(GUEST, 'v1', 1);
+    expect(result.cart_token).toMatch(/^guesttok_/);
+    expect(result.cart_token).not.toBe(GUEST.cartToken);
+    expect(carts.create).toHaveBeenCalledWith(
+      expect.objectContaining({ cartToken: expect.not.stringMatching(/^guesttok_1$/) }),
+    );
+  });
+
   it('should raise INSUFFICIENT_STOCK when the desired quantity exceeds available', async () => {
     stock.availableFor.mockResolvedValue(1);
     await expect(service.addItem(GUEST, 'v1', 3)).rejects.toMatchObject({
