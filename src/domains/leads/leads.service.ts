@@ -1,6 +1,4 @@
 import { randomUUID } from 'crypto';
-import { promises as fs } from 'fs';
-import { extname, join } from 'path';
 import {
   BadRequestException,
   Inject,
@@ -9,10 +7,10 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 
+import { CloudinaryService } from '../../shared/media/cloudinary.service';
 import { LeadAttachmentEntity } from './entities/lead-attachment.entity';
 import { LeadMessageEntity } from './entities/lead-message.entity';
 import { LeadEntity } from './entities/lead.entity';
@@ -61,7 +59,7 @@ export class LeadsService {
     @Inject(LEAD_NOTIFIER) private readonly notifier: ILeadNotifier,
     @Inject(ORDER_REF_RESOLVER) private readonly orderRefs: IOrderRefResolver,
     @Inject(CAPTCHA_VERIFIER) private readonly captcha: ICaptchaVerifier,
-    private readonly config: ConfigService,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   // ── Submission ─────────────────────────────────────────────────────────────
@@ -209,14 +207,14 @@ export class LeadsService {
     }
 
     const id = randomUUID();
-    const dir = this.config.get<string>('LEAD_UPLOAD_DIR', './uploads/lead-attachments');
-    const ext = extname(file.originalname) || `.${file.mimetype.split('/')[1] ?? 'bin'}`;
-    const filename = `${id}${ext}`;
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(join(dir, filename), file.buffer);
-
-    const baseUrl = this.config.get<string>('PUBLIC_BASE_URL', 'http://localhost:8000');
-    const url = `${baseUrl.replace(/\/$/, '')}/uploads/lead-attachments/${filename}`;
+    // Image vs. video → let Cloudinary store under the right resource type.
+    const resourceType = file.mimetype.startsWith('video/') ? 'video' : 'image';
+    const { url } = await this.cloudinary.upload({
+      buffer: file.buffer,
+      folder: 'lead-attachments',
+      resourceType,
+      publicId: id,
+    });
 
     await this.attachments.save(
       this.attachments.create({

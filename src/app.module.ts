@@ -23,10 +23,12 @@ import { ReportsModule } from './domains/reports/reports.module';
 import { SearchModule } from './domains/search/search.module';
 import { WishlistModule } from './domains/wishlist/wishlist.module';
 import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
+import { MediaModule } from './shared/media/media.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    MediaModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],

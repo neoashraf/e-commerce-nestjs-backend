@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 
+import { CloudinaryService } from '../../../../shared/media/cloudinary.service';
 import {
   ExchangeIneligibleReason,
   ExchangeReason,
@@ -89,6 +90,7 @@ export class ExchangeService {
     @Inject(EXCHANGE_CATALOG) private readonly catalog: IExchangeCatalog,
     @Inject(STOCK_COORDINATOR) private readonly stock: IStockCoordinator,
     @Inject(ORDER_NOTIFIER) private readonly notifier: IOrderNotifier,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -105,11 +107,17 @@ export class ExchangeService {
       throw new BadRequestException({ code: 'BAD_REQUEST', message: 'An evidence file is required.' });
     }
     const repo = this.dataSource.getRepository(ExchangeAttachmentOrmEntity);
-    // No binary store is wired in this slice — record the metadata + a synthetic URL (note in PR).
+    // Store the evidence binary on Cloudinary and persist the returned HTTPS delivery URL.
+    const resourceType = file.mimetype.startsWith('video/') ? 'video' : 'image';
+    const { url } = await this.cloudinary.upload({
+      buffer: file.buffer,
+      folder: 'exchange-evidence',
+      resourceType,
+    });
     const saved = await repo.save(
       repo.create({
         exchangeId: null,
-        url: `local://exchange-evidence/${file.originalname}`,
+        url,
         contentType: file.mimetype,
       }),
     );
