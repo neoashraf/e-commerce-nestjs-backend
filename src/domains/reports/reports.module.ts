@@ -80,6 +80,15 @@ import { SchedulesController } from './presentation/controllers/schedules.contro
     GetPromotionsReportUseCase,
     GetSearchReportUseCase,
   ],
-  exports: [GetMetricsUseCase],
+  exports: [
+    GetMetricsUseCase,
+    // Reused by the Dashboard module (DASH) to single-source its KPIs/breakdowns from RPT (BR-DASH-2).
+    GetSalesReportUseCase,
+    GetOrdersReportUseCase,
+    GetProductReportUseCase,
+    GetInventoryReportUseCase,
+    GetCustomersReportUseCase,
+    GetPaymentsReportUseCase,
+  ],
 })
 export class ReportsModule {}
