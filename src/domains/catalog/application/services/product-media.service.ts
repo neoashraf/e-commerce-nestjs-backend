@@ -1,17 +1,8 @@
-import { mkdir, writeFile } from 'fs/promises';
-import { resolve as resolvePath } from 'path';
-
-import {
-  BadRequestException,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
+import { CloudinaryService } from '../../../../shared/media/cloudinary.service';
 import { ProductVideoSource } from '../../domain/enums/product-type.enum';
 import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductVideoOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-video.orm-entity';
@@ -52,12 +43,6 @@ export interface AddVideoInput {
  */
 @Injectable()
 export class ProductMediaService {
-  private readonly logger = new Logger(ProductMediaService.name);
-  /** Absolute on-disk root for stored originals (served statically at `/uploads`, see main.ts). */
-  private readonly uploadDir: string;
-  /** Public origin the stored URLs are prefixed with so `<img src>` resolves from any frontend. */
-  private readonly publicBaseUrl: string;
-
   constructor(
     @InjectRepository(ProductOrmEntity)
     private readonly products: Repository<ProductOrmEntity>,
@@ -66,17 +51,8 @@ export class ProductMediaService {
     @InjectRepository(ProductVideoOrmEntity)
     private readonly videos: Repository<ProductVideoOrmEntity>,
     private readonly dataSource: DataSource,
-    config: ConfigService,
-  ) {
-    this.uploadDir = resolvePath(config.get<string>('MEDIA_UPLOAD_DIR') ?? 'uploads');
-    // Documented as MEDIA_PUBLIC_BASE_URL (.env.example); fall back to the shared PUBLIC_BASE_URL
-    // and finally a local-dev default so a missing var never silently breaks <img src>.
-    this.publicBaseUrl = (
-      config.get<string>('MEDIA_PUBLIC_BASE_URL') ??
-      config.get<string>('PUBLIC_BASE_URL') ??
-      'http://localhost:8000'
-    ).replace(/\/+$/, '');
-  }
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   async addImage(
     file: UploadedImageFile | undefined,
@@ -165,7 +141,7 @@ export class ProductMediaService {
           message: 'A video file is required for source=upload.',
         });
       }
-      url = await this.storeOriginal(input.productId, file);
+      url = await this.storeOriginal(input.productId, file, 'video');
     }
 
     const existingCount = await this.videos.count({ where: { productId: input.productId } });
@@ -181,32 +157,21 @@ export class ProductMediaService {
   }
 
   /**
-   * Persist the uploaded original to the configured storage backend and return its public URL.
-   * Writes the binary to `${MEDIA_UPLOAD_DIR}/products/{id}/{file}` (served at `/uploads`, main.ts)
-   * and returns an absolute URL (`${PUBLIC_BASE_URL}/uploads/...`) so the gallery renders from any
-   * frontend origin. Swap this body for an S3 put without touching callers.
+   * Persist the uploaded original to Cloudinary and return its HTTPS delivery URL. Files land under
+   * `products/{id}/` in the Cloudinary media library, so `<img src>`/`<video src>` resolves from any
+   * frontend origin. {@link CloudinaryService} maps any failure to a `MEDIA_STORAGE_UNAVAILABLE` 500.
    */
-  private async storeOriginal(productId: string, file: UploadedImageFile): Promise<string> {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const fileName = `${Date.now()}-${safeName}`;
-    const dir = resolvePath(this.uploadDir, 'products', productId);
-    try {
-      await mkdir(dir, { recursive: true });
-      await writeFile(resolvePath(dir, fileName), file.buffer);
-    } catch (cause) {
-      // A non-writable MEDIA_UPLOAD_DIR (wrong/foreign-owned path, read-only FS) would otherwise
-      // surface as an opaque 500. Log the real errno/path for ops and return a clear, actionable code.
-      this.logger.error(
-        `Failed to write upload to ${dir} (MEDIA_UPLOAD_DIR=${this.uploadDir}). ` +
-          `Ensure the directory exists and is writable by the API process.`,
-        cause instanceof Error ? cause.stack : String(cause),
-      );
-      throw new InternalServerErrorException({
-        code: 'MEDIA_STORAGE_UNAVAILABLE',
-        message: 'Could not store the uploaded image. Storage is not writable.',
-      });
-    }
-    return `${this.publicBaseUrl}/uploads/products/${productId}/${fileName}`;
+  private async storeOriginal(
+    productId: string,
+    file: UploadedImageFile,
+    resourceType: 'image' | 'video' = 'image',
+  ): Promise<string> {
+    const { url } = await this.cloudinary.upload({
+      buffer: file.buffer,
+      folder: `products/${productId}`,
+      resourceType,
+    });
+    return url;
   }
 
   /**
