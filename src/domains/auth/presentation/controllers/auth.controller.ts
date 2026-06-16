@@ -1,4 +1,12 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -20,6 +28,8 @@ import { LogoutUseCase } from '../../application/use-cases/logout.use-case';
 import { RegisterWithEmailUseCase } from '../../application/use-cases/register-with-email.use-case';
 import { LoginWithEmailUseCase } from '../../application/use-cases/login-with-email.use-case';
 import { VerifyEmailUseCase } from '../../application/use-cases/verify-email.use-case';
+import { IssueEmailVerificationUseCase } from '../../application/use-cases/issue-email-verification.use-case';
+import { GetMeUseCase } from '../../application/use-cases/get-me.use-case';
 import { RequestPasswordResetUseCase } from '../../application/use-cases/request-password-reset.use-case';
 import { ResetPasswordUseCase } from '../../application/use-cases/reset-password.use-case';
 import { ClaimAccountUseCase } from '../../application/use-cases/claim-account.use-case';
@@ -34,6 +44,11 @@ import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { MessageResponseDto } from '../dto/message-response.dto';
 import { ClaimAccountDto } from '../dto/claim.dto';
+import { JwtCustomerGuard } from '../guards/jwt-customer.guard';
+import {
+  AuthenticatedCustomer,
+  CurrentCustomer,
+} from '../../../../shared/decorators/current-customer.decorator';
 import {
   ClaimResponseDto,
   LoginResponseDto,
@@ -55,6 +70,8 @@ export class AuthController {
     private readonly registerWithEmailUseCase: RegisterWithEmailUseCase,
     private readonly loginWithEmailUseCase: LoginWithEmailUseCase,
     private readonly verifyEmailUseCase: VerifyEmailUseCase,
+    private readonly issueEmailVerificationUseCase: IssueEmailVerificationUseCase,
+    private readonly getMeUseCase: GetMeUseCase,
     private readonly requestPasswordResetUseCase: RequestPasswordResetUseCase,
     private readonly resetPasswordUseCase: ResetPasswordUseCase,
     private readonly claimAccountUseCase: ClaimAccountUseCase,
@@ -169,6 +186,37 @@ export class AuthController {
   async verifyEmail(@Body() dto: VerifyEmailDto): Promise<VerifyEmailResponseDto> {
     const result = await this.verifyEmailUseCase.execute({ token: dto.token });
     return { email_verified: result.emailVerified };
+  }
+
+  @Post('email/verify/resend')
+  @UseGuards(JwtCustomerGuard)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Resend the email-verification link to the signed-in customer (FR-AUTH-043)' })
+  @ApiOkResponse({ type: MessageResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Not signed in' })
+  @ApiBadRequestResponse({ description: 'No email on the account' })
+  @ApiTooManyRequestsResponse({ description: 'Resend cooldown active' })
+  async resendEmailVerification(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+  ): Promise<MessageResponseDto> {
+    const me = await this.getMeUseCase.execute({ customerId: customer.customerId });
+    if (!me.email) {
+      throw new BadRequestException({
+        code: 'NO_EMAIL',
+        message: 'Add an email to your profile before requesting verification.',
+      });
+    }
+    if (me.emailVerified) {
+      return { message: 'Your email is already verified.' };
+    }
+    await this.issueEmailVerificationUseCase.execute({
+      customerId: customer.customerId,
+      email: me.email,
+      fullName: me.fullName,
+      enforceCooldown: true,
+    });
+    return { message: `Verification email sent to ${me.email}.` };
   }
 
   @Post('password/forgot')

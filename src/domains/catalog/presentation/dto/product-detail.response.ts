@@ -43,12 +43,31 @@ export class PdpSpecDto {
   value: string | string[];
 }
 
+/** A single colourway on a link/related card's swatch rail (RW6). */
+export class PdpCardSwatchDto {
+  @ApiProperty({ example: 'https://…/black-thumb.webp' }) image: string;
+  @ApiProperty({ example: 'Black' }) label: string;
+  @ApiProperty({ nullable: true, example: '#000000' }) color_hex: string | null;
+}
+
 export class PdpLinkCardDto {
   @ApiProperty() id: string;
   @ApiProperty() slug: string;
   @ApiProperty() name: string;
+  @ApiProperty({ nullable: true, description: 'Optional Bangla product name (RW6).' })
+  name_bn: string | null;
   @ApiProperty({ nullable: true }) primary_image: string | null;
+  @ApiProperty({ nullable: true, description: 'Hover cross-fade image (RW6); null → zoom fallback.' })
+  hover_image: string | null;
+  @ApiProperty({ type: [PdpCardSwatchDto], description: 'Colourways (≤6); [] → no rail (RW6).' })
+  swatches: PdpCardSwatchDto[];
+  @ApiProperty({ description: 'true → "Choose size" (configurable); false → "Add to bag" (RW6).' })
+  requires_variant: boolean;
+  @ApiProperty({ nullable: true, enum: ['new', 'bestSeller', 'authentic'], description: 'Merch label (RW6).' })
+  merch_label: 'new' | 'bestSeller' | 'authentic' | null;
   @ApiProperty({ example: '9800.00' }) effective_price: string;
+  @ApiProperty({ example: '9800.00' }) base_price: string;
+  @ApiProperty() on_sale: boolean;
 }
 
 export class PdpLinksDto {
@@ -57,12 +76,28 @@ export class PdpLinksDto {
   @ApiProperty({ type: [PdpLinkCardDto] }) cross_sell: PdpLinkCardDto[];
 }
 
+/** One row of the PDP size-guide chart — UK size ↔ foot length (RW6). */
+export class PdpSizeGuideRowDto {
+  @ApiProperty({ example: '7' }) uk: string;
+  @ApiProperty({ example: '25.4' }) foot: string;
+}
+
+/** The PDP size guide resolved onto the product detail (RW6); null when no category chart applies. */
+export class PdpSizeGuideDto {
+  @ApiProperty({ example: 'Measure your foot heel-to-toe and match the closest length below.' })
+  measure_note: string;
+  @ApiProperty({ example: 'cm' }) unit: string;
+  @ApiProperty({ type: [PdpSizeGuideRowDto] }) rows: PdpSizeGuideRowDto[];
+}
+
 /** The full storefront PDP payload (contract: Storefront → GET — Product detail, FR-CAT-041). */
 export class ProductDetailResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() type: string;
   @ApiProperty({ nullable: true }) family: string | null;
   @ApiProperty() name: string;
+  @ApiProperty({ nullable: true, description: 'Optional Bangla product name (RW6).' })
+  name_bn: string | null;
   @ApiProperty() slug: string;
   @ApiProperty({ nullable: true }) brand: string | null;
   @ApiProperty({ type: [String] }) breadcrumb: string[];
@@ -80,5 +115,7 @@ export class ProductDetailResponseDto {
   configurable_attributes: PdpConfigurableAttributeDto[];
   @ApiProperty({ type: [PdpVariantDto] }) variants: PdpVariantDto[];
   @ApiProperty({ type: [PdpSpecDto] }) specs: PdpSpecDto[];
+  @ApiProperty({ type: PdpSizeGuideDto, nullable: true, description: 'Resolved category size guide (RW6); null → no chart applies.' })
+  size_guide: PdpSizeGuideDto | null;
   @ApiProperty({ type: PdpLinksDto }) links: PdpLinksDto;
 }

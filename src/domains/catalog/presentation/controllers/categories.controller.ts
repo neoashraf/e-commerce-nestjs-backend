@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -44,6 +45,8 @@ import {
 } from '../dto/category-response.dto';
 import { CreateCategoryDto } from '../dto/create-category.dto';
 import { UpdateCategoryDto } from '../dto/update-category.dto';
+import { SetSizeGuideDto } from '../dto/set-size-guide.dto';
+import { SizeGuideService } from '../../application/services/size-guide.service';
 
 /** Admin CRUD for categories (SRS 02 §5.1; contract: Admin — Categories). */
 @ApiTags('Catalog — Categories')
@@ -57,6 +60,7 @@ export class CategoriesController {
     private readonly createCategory: CreateCategoryUseCase,
     private readonly updateCategory: UpdateCategoryUseCase,
     private readonly deleteCategory: DeleteCategoryUseCase,
+    private readonly sizeGuides: SizeGuideService,
   ) {}
 
   @Get()
@@ -168,5 +172,26 @@ export class CategoriesController {
   @ApiNotFoundResponse({ description: 'Category not found' })
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.deleteCategory.execute(id);
+  }
+
+  @Put(':id/size-guide')
+  @Requires('catalog.category.update')
+  @ApiOperation({ summary: 'Set or clear a category footwear size guide (RW6)' })
+  @ApiOkResponse({ description: 'Set/cleared; { data: { category_id, rows } }' })
+  @ApiNotFoundResponse({ description: 'Category not found' })
+  async setSizeGuide(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetSizeGuideDto,
+  ): Promise<{ category_id: string; rows: number }> {
+    if (dto.size_guide) {
+      const rows = await this.sizeGuides.set(id, {
+        measure_note: dto.size_guide.measure_note,
+        unit: dto.size_guide.unit,
+        rows: dto.size_guide.rows,
+      });
+      return { category_id: id, rows };
+    }
+    await this.sizeGuides.clear(id);
+    return { category_id: id, rows: 0 };
   }
 }

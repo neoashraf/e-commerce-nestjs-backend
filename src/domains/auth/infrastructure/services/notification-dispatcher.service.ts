@@ -77,7 +77,7 @@ export class NotificationDispatcherService implements INotificationDispatcher {
         channels: ['email'],
         variables: {
           name: command.fullName,
-          verify_link: verifyLink,
+          verify_url: verifyLink,
           ttl_minutes: command.ttlMinutes,
         },
         idempotency_key: `auth.email_verify:${command.email}:${command.token.slice(0, 12)}`,
@@ -113,7 +113,7 @@ export class NotificationDispatcherService implements INotificationDispatcher {
         channels: ['email'],
         variables: {
           name: command.fullName,
-          reset_link: resetLink,
+          reset_url: resetLink,
           ttl_minutes: command.ttlMinutes,
         },
         idempotency_key: `auth.password_reset:${command.email}:${command.token.slice(0, 12)}`,

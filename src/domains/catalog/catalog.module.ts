@@ -33,6 +33,7 @@ import { AttributeGroupOrmEntity } from './infrastructure/persistence/typeorm/en
 import { FamilyAttributeOrmEntity } from './infrastructure/persistence/typeorm/entities/family-attribute.orm-entity';
 import { CategoryOrmEntity } from './infrastructure/persistence/typeorm/entities/category.orm-entity';
 import { CategoryFilterableAttributeOrmEntity } from './infrastructure/persistence/typeorm/entities/category-filterable-attribute.orm-entity';
+import { CategorySizeGuideOrmEntity } from './infrastructure/persistence/typeorm/entities/category-size-guide.orm-entity';
 import { ProductOrmEntity } from './infrastructure/persistence/typeorm/entities/product.orm-entity';
 import { ProductAttributeValueOrmEntity } from './infrastructure/persistence/typeorm/entities/product-attribute-value.orm-entity';
 import { ProductCategoryOrmEntity } from './infrastructure/persistence/typeorm/entities/product-category.orm-entity';
@@ -59,6 +60,7 @@ import { ProductMediaService } from './application/services/product-media.servic
 import { ProductPublishValidator } from './application/services/product-publish.validator';
 import { VariantsService } from './application/services/variants.service';
 import { ProductDetailService } from './application/services/product-detail.service';
+import { SizeGuideService } from './application/services/size-guide.service';
 import { INVENTORY_QTY_PORT } from './application/ports/inventory-qty.port';
 import { PRODUCT_VARIANT_PUBLISH_PORT } from './application/ports/product-variant-publish.port';
 import { INVENTORY_STATUS_PORT } from './application/ports/inventory-status.port';
@@ -91,6 +93,7 @@ import { SearchIndexAdapter } from './infrastructure/adapters/search-index.adapt
       FamilyAttributeOrmEntity,
       CategoryOrmEntity,
       CategoryFilterableAttributeOrmEntity,
+      CategorySizeGuideOrmEntity,
       ProductOrmEntity,
       ProductAttributeValueOrmEntity,
       ProductCategoryOrmEntity,
@@ -141,6 +144,7 @@ import { SearchIndexAdapter } from './infrastructure/adapters/search-index.adapt
     ProductPublishValidator,
     VariantsService,
     ProductDetailService,
+    SizeGuideService,
     { provide: INVENTORY_QTY_PORT, useClass: InventoryQtyAdapter },
     { provide: PRODUCT_VARIANT_PUBLISH_PORT, useClass: VariantPublishAdapter },
     { provide: SEARCH_INDEX_PORT, useClass: SearchIndexAdapter },

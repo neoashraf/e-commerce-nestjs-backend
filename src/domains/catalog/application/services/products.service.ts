@@ -225,7 +225,7 @@ export class ProductsService {
 
     const slug = await this.support.generateUniqueSlug(input.name);
 
-    const id = await this.dataSource.transaction(async (manager) => {
+    const { id, implicitVariantId } = await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(ProductOrmEntity);
       const saved = await repo.save(
         repo.create({
@@ -254,8 +254,32 @@ export class ProductsService {
       );
       await this.persistAttributeValues(manager, saved.id, resolvedValues);
       await this.replaceAdditionalCategories(manager, saved.id, input.categoryIds ?? []);
-      return saved.id;
+
+      // FR-CAT-025: a simple product IS a single implicit variant carrying the product SKU. Create
+      // that variant now (no option rows — simple has no axes) so the product is a real, sellable
+      // SKU; configurable products defer variant generation to the variants slice.
+      let implicitVariantId: string | null = null;
+      if (input.type === ProductType.SIMPLE) {
+        const variant = await manager.getRepository(ProductVariantOrmEntity).save(
+          manager.getRepository(ProductVariantOrmEntity).create({
+            productId: saved.id,
+            skuCode: input.sku,
+            priceOverride: null,
+            imageId: null,
+            isEnabled: true,
+          }),
+        );
+        implicitVariantId = variant.id;
+      }
+      return { id: saved.id, implicitVariantId };
     });
+
+    // FR-INV-002: the implicit variant gets a zero-stock inventory record so the product is
+    // immediately stock-manageable + visible on the inventory page. After commit; INV degrades
+    // gracefully (mirrors variants.service for configurable variants).
+    if (implicitVariantId) {
+      await this.inventoryAdmin.ensureRecordForVariant(implicitVariantId, id);
+    }
 
     return { id, slug, type: input.type, status: ProductStatus.DRAFT };
   }

@@ -22,7 +22,7 @@ import {
 import { Request, Response } from 'express';
 
 import { AuthenticatedCustomer } from '../../../../shared/decorators/current-customer.decorator';
-import { CreateLightweightAccountUseCase } from '../../../auth/application/use-cases/create-lightweight-account.use-case';
+import { BdPhone } from '../../../auth/domain/value-objects/bd-phone.vo';
 import { GetAddressUseCase } from '../../../auth/application/use-cases/get-address.use-case';
 import { CartActor } from '../../application/cart/cart.service';
 import {
@@ -39,7 +39,8 @@ import { PlaceCheckoutDto, QuoteCheckoutDto } from '../dto/checkout.dto';
  * surface (customer token or X-Cart-Token). `quote` returns the zone + summary + COD availability;
  * `place` requires an `Idempotency-Key`, re-validates lines/coupon, reserves stock, creates the order,
  * initiates payment, and clears the cart — idempotent per key (a replay returns `200`, a fresh place
- * `201`). Guests get a lightweight account (AUTH) before the order is created.
+ * `201`). Guests place orders **without** an account (customer_id null, guest snapshot retained); the
+ * orders are linked to an account later when the same phone is verified via OTP (AUTH guest-order claim).
  */
 @ApiTags('Checkout')
 @ApiHeader({ name: 'X-Cart-Token', required: false, description: 'Guest cart token (opaque).' })
@@ -48,7 +49,6 @@ import { PlaceCheckoutDto, QuoteCheckoutDto } from '../dto/checkout.dto';
 export class CheckoutController {
   constructor(
     private readonly checkout: CheckoutService,
-    private readonly lightweightAccount: CreateLightweightAccountUseCase,
     private readonly getAddress: GetAddressUseCase,
   ) {}
 
@@ -85,10 +85,9 @@ export class CheckoutController {
     const result = await this.checkout.place(actor, idempotencyKey ?? '', {
       address,
       payment_method: dto.payment_method,
-      guest: dto.guest ?? null,
+      guest: this.normalizeGuest(actor, dto.guest),
       expected_total: dto.expected_total,
       acknowledge_changes: dto.acknowledge_changes,
-      resolveGuestCustomerId: (guest: GuestInput) => this.resolveGuest(guest),
     });
     // Idempotent replay → 200; a fresh placement → 201 (contract).
     res.status(result.replay ? HttpStatus.OK : HttpStatus.CREATED);
@@ -132,12 +131,20 @@ export class CheckoutController {
     };
   }
 
-  private async resolveGuest(guest: GuestInput): Promise<string> {
-    const result = await this.lightweightAccount.execute({
-      fullName: guest.full_name,
-      phone: guest.phone,
-      email: guest.email ?? null,
-    });
-    return result.customerId;
+  /**
+   * Normalize the guest block for a guest checkout: phone → E.164 so the order's `guest_phone`
+   * matches the OTP-verified phone later (enables guest-order claim on sign-in). Signed-in customers
+   * ignore the guest block. No account is created here — the order is placed as a pure guest order.
+   */
+  private normalizeGuest(actor: CartActor, guest: GuestInput | null | undefined): GuestInput | null {
+    if (actor.customerId || !guest) return null;
+    const phone = BdPhone.toE164(guest.phone);
+    if (!phone) {
+      throw new BadRequestException({
+        code: 'INVALID_PHONE',
+        message: 'A valid Bangladesh mobile number is required.',
+      });
+    }
+    return { full_name: guest.full_name, phone, email: guest.email ?? null };
   }
 }

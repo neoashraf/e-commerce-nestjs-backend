@@ -1,12 +1,31 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+/** A single colourway on the card swatch rail (RW6). */
+export class ProductCardSwatchDto {
+  @ApiProperty({ example: 'https://…/black-thumb.webp', description: 'Colourway thumbnail (listing rendition or image swatch).' })
+  image: string;
+  @ApiProperty({ example: 'Black' }) label: string;
+  @ApiProperty({ nullable: true, example: '#000000', description: 'Hex when the option is a colour swatch, else null.' })
+  color_hex: string | null;
+}
+
 /** Storefront product card (Swagger doc of the contract data.products[] shape). */
 export class ProductCardDto {
   @ApiProperty() id: string;
   @ApiProperty() slug: string;
   @ApiProperty() title: string;
+  @ApiProperty({ nullable: true, description: 'Optional Bangla product name (RW6).' })
+  name_bn: string | null;
   @ApiProperty({ nullable: true }) brand: string | null;
   @ApiProperty({ nullable: true }) primary_image: string | null;
+  @ApiProperty({ nullable: true, description: 'Second listing image for the desktop hover cross-fade (RW6); null → zoom fallback.' })
+  hover_image: string | null;
+  @ApiProperty({ type: [ProductCardSwatchDto], description: 'Colourways flattened from the color attribute (≤6); [] → no rail (RW6).' })
+  swatches: ProductCardSwatchDto[];
+  @ApiProperty({ description: 'true → "Choose size" (configurable); false → "Add to bag" (simple) (RW6).' })
+  requires_variant: boolean;
+  @ApiProperty({ nullable: true, enum: ['new', 'bestSeller', 'authentic'], description: 'Light merch label; new from is_new, bestSeller/authentic null until source data exists (RW6).' })
+  merch_label: 'new' | 'bestSeller' | 'authentic' | null;
   @ApiProperty({ example: '12500.00' }) effective_price: string;
   @ApiProperty({ example: '14000.00' }) base_price: string;
   @ApiProperty() on_sale: boolean;
