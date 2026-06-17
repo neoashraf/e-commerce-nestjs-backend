@@ -29,6 +29,7 @@ import { ScheduleTask } from './application/schedule.task';
 import { GetMetricsUseCase } from './application/use-cases/get-metrics.use-case';
 import { GetSalesReportUseCase } from './application/use-cases/get-sales-report.use-case';
 import { GetOrdersReportUseCase } from './application/use-cases/get-orders-report.use-case';
+import { GetOrdersListReportUseCase } from './application/use-cases/get-orders-list-report.use-case';
 import { GetProductReportUseCase } from './application/use-cases/get-product-report.use-case';
 import { GetInventoryReportUseCase } from './application/use-cases/get-inventory-report.use-case';
 import { GetCustomersReportUseCase } from './application/use-cases/get-customers-report.use-case';
@@ -73,6 +74,7 @@ import { SchedulesController } from './presentation/controllers/schedules.contro
     GetMetricsUseCase,
     GetSalesReportUseCase,
     GetOrdersReportUseCase,
+    GetOrdersListReportUseCase,
     GetProductReportUseCase,
     GetInventoryReportUseCase,
     GetCustomersReportUseCase,

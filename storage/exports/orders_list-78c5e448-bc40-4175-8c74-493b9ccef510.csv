@@ -1,0 +1,18 @@
+﻿order_no,customer,phone,status,payment_method,payment_state,grand_total,placed_at
+SO-100010,Md.Koushik Ahmed Shuvo,+8801703375052,confirmed,cod,cod_pending,4665.00,2026-06-16T04:48:08.203Z
+SO-100009,Md.Koushik Ahmed Shuvo,01703375052,confirmed,cod,cod_pending,4590.00,2026-06-15T19:25:27.211Z
+SO-100008,Md.Koushik Ahmed Shuvo,+8801703375052,confirmed,cod,cod_pending,415.00,2026-06-15T09:39:16.656Z
+SO-100007,Guest Shopper,+8801712345699,confirmed,cod,cod_pending,18570.00,2026-06-15T09:04:00.093Z
+SO-100006,Rakib Hasan,+8801711000001,confirmed,cod,cod_pending,18570.00,2026-06-13T11:48:20.539Z
+SO-100005,Sabbir Ahmed,+8801712345678,confirmed,cod,cod_pending,415.00,2026-06-11T11:27:50.847Z
+SO-100004,Rakib Hasan,+8801711000001,confirmed,sslcommerz,paid,3270.00,2026-06-11T03:54:57.247Z
+SO-100003,Rakib Hasan,+8801711000001,cancelled,sslcommerz,unpaid,18570.00,2026-06-09T04:09:41.356Z
+SO-100002,Sabbir Ahmed,+8801712345678,confirmed,cod,cod_pending,18570.00,2026-06-09T03:23:30.474Z
+SO-100001,Sabbir Ahmed,+8801712345678,cancelled,sslcommerz,unpaid,18570.00,2026-06-08T11:11:02.810Z
+SO-100000,Sabbir Ahmed,+8801712345678,cancelled,sslcommerz,unpaid,4570.00,2026-06-08T10:39:39.291Z
+SO-DEMO-004,Rakib Hasan,+8801711000001,cancelled,bkash,unpaid,16560.00,2026-06-06T11:44:01.783Z
+SO-DEMO-005,Rakib Hasan,+8801711000001,shipped,cod,cod_pending,13530.00,2026-06-03T11:44:01.784Z
+SO-DEMO-006,Tania Akter,+8801711000002,delivered,sslcommerz,partially_refunded,16560.00,2026-05-28T11:44:01.787Z
+SO-DEMO-003,Rakib Hasan,+8801711000001,refunded,sslcommerz,refunded,9000.00,2026-05-24T11:44:01.779Z
+SO-DEMO-002,Rakib Hasan,+8801711000001,delivered,bkash,paid,11040.00,2026-05-20T11:44:01.775Z
+SO-DEMO-001,Rakib Hasan,+8801711000001,delivered,cod,cod_collected,16560.00,2026-05-13T11:44:01.764Z

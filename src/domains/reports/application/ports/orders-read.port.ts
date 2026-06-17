@@ -69,6 +69,34 @@ export interface PaymentSplit {
   cod_collected: string;
 }
 
+/** Filters for the row-level order-list export — mirrors the admin Orders list query (FR-ORD). All optional. */
+export interface OrderListFilters {
+  /** Order status (pending_payment/confirmed/…); omit for all. */
+  status?: string;
+  /** Payment state (paid/unpaid/cod_pending/…); omit for all. */
+  paymentState?: string;
+  /** Partial order-no search (ILIKE); omit for all. */
+  q?: string;
+  /** Placed-at lower bound `YYYY-MM-DD` (Asia/Dhaka day, inclusive). */
+  from?: string;
+  /** Placed-at upper bound `YYYY-MM-DD` (Asia/Dhaka day, inclusive). */
+  to?: string;
+  /** Hard cap on rows returned (export safety bound). */
+  limit?: number;
+}
+
+/** One exported order row — flat, display-ready strings, matching the admin Orders list columns. */
+export interface OrderListExportRow {
+  order_no: string;
+  customer: string;
+  phone: string;
+  status: string;
+  payment_method: string;
+  payment_state: string;
+  grand_total: string;
+  placed_at: string;
+}
+
 /**
  * Read-only view RPT takes over ORD (orders/items). Read-side only — no mutation (BR-RPT-5). Revenue
  * is attributed by `placed_at`; an order counts toward revenue when its payment_state is `paid` or
@@ -101,6 +129,9 @@ export interface IOrdersReadModel {
 
   /** Payment method split + online-paid / COD-collected revenue for the period (FR-RPT-050). */
   getPaymentSplit(range: ReportRange): Promise<PaymentSplit>;
+
+  /** Row-level order list (newest first) for the Orders-page export, filtered like the admin list query. */
+  listOrders(filters: OrderListFilters): Promise<OrderListExportRow[]>;
 }
 
 export const ORDERS_READ_MODEL = Symbol('IOrdersReadModel');

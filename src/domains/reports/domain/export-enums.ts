@@ -30,6 +30,9 @@ export enum ScheduleCadence {
 export enum ReportKey {
   SALES = 'sales',
   ORDERS = 'orders',
+  /** Row-level order list (one row per order) for the admin Orders page export — honours the list filters
+   *  (status / payment_state / order-no search), distinct from `orders` which is the by-status summary. */
+  ORDERS_LIST = 'orders_list',
   PRODUCTS = 'products',
   INVENTORY = 'inventory',
   CUSTOMERS = 'customers',
