@@ -119,6 +119,97 @@ export class ProductMediaService {
     return { id: imageId, renditions };
   }
 
+  /**
+   * Promote an already-uploaded image to primary (FR-CAT-032). Enforces exactly-one-primary the same
+   * way an upload does: unset every other image, set this one, and mirror the choice to
+   * `Product.primary_image_id` — so the storefront PDP (primary-first, `is_primary` flagged) reflects
+   * the change immediately. The image must belong to the product (else 404).
+   */
+  async setPrimaryImage(
+    productId: string,
+    imageId: string,
+  ): Promise<{ id: string; is_primary: boolean }> {
+    const image = await this.images.findOne({ where: { id: imageId, productId } });
+    if (!image) {
+      throw new NotFoundException({
+        code: 'IMAGE_NOT_FOUND',
+        message: `Image ${imageId} not found for product ${productId}.`,
+      });
+    }
+    await this.dataSource.transaction(async (manager) => {
+      const imgRepo = manager.getRepository(ProductImageOrmEntity);
+      await imgRepo.update({ productId }, { isPrimary: false });
+      await imgRepo.update({ id: imageId }, { isPrimary: true });
+      await manager
+        .getRepository(ProductOrmEntity)
+        .update({ id: productId }, { primaryImageId: imageId });
+    });
+    return { id: imageId, is_primary: true };
+  }
+
+  /** Edit an existing image's accessibility alt text (FR-CAT-032). The image must belong to the product. */
+  async updateImageAlt(
+    productId: string,
+    imageId: string,
+    altText: string,
+  ): Promise<{ id: string; alt_text: string }> {
+    const trimmed = altText?.trim() ?? '';
+    if (trimmed === '') {
+      throw new BadRequestException({ code: 'ALT_TEXT_REQUIRED', message: 'alt_text is required.' });
+    }
+    const image = await this.images.findOne({ where: { id: imageId, productId } });
+    if (!image) {
+      throw new NotFoundException({
+        code: 'IMAGE_NOT_FOUND',
+        message: `Image ${imageId} not found for product ${productId}.`,
+      });
+    }
+    await this.images.update({ id: imageId }, { altText: trimmed });
+    return { id: imageId, alt_text: trimmed };
+  }
+
+  /**
+   * Delete a product image (FR-CAT-032/033). Hard-deletes the row — images carry no soft-delete. If
+   * the removed image was the primary, primary is reassigned to the remaining image with the lowest
+   * `display_order` (mirrored to `Product.primary_image_id`); when none remain the primary is cleared
+   * (re-raising the no-primary-image publish blocker). The image must belong to the product (else 404).
+   * Returns the deleted id and the product's resulting `primary_image_id` (null when no images remain).
+   */
+  async deleteImage(
+    productId: string,
+    imageId: string,
+  ): Promise<{ id: string; primary_image_id: string | null }> {
+    const image = await this.images.findOne({ where: { id: imageId, productId } });
+    if (!image) {
+      throw new NotFoundException({
+        code: 'IMAGE_NOT_FOUND',
+        message: `Image ${imageId} not found for product ${productId}.`,
+      });
+    }
+    const primaryImageId = await this.dataSource.transaction(async (manager) => {
+      const imgRepo = manager.getRepository(ProductImageOrmEntity);
+      const prodRepo = manager.getRepository(ProductOrmEntity);
+      await imgRepo.delete({ id: imageId });
+
+      if (!image.isPrimary) {
+        const product = await prodRepo.findOne({ where: { id: productId } });
+        return product?.primaryImageId ?? null;
+      }
+      // Deleted the primary — promote the next image (lowest display_order, then oldest) if any remain.
+      const next = await imgRepo.findOne({
+        where: { productId },
+        order: { displayOrder: 'ASC', createdAt: 'ASC' },
+      });
+      const nextId = next?.id ?? null;
+      if (next) {
+        await imgRepo.update({ id: next.id }, { isPrimary: true });
+      }
+      await prodRepo.update({ id: productId }, { primaryImageId: nextId });
+      return nextId;
+    });
+    return { id: imageId, primary_image_id: primaryImageId };
+  }
+
   async addVideo(input: AddVideoInput, file?: UploadedImageFile): Promise<{ id: string }> {
     const product = await this.products.findOne({ where: { id: input.productId } });
     if (!product) {
