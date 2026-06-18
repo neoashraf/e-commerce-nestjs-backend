@@ -136,3 +136,34 @@ export class AddVideoResponseDto {
   @ApiProperty({ example: 'vd1-uuid' })
   id: string;
 }
+
+/** Set-primary response — the now-primary image id (FR-CAT-032). */
+export class SetPrimaryImageResponseDto {
+  @ApiProperty({ example: 'i1-uuid' })
+  id: string;
+
+  @ApiProperty({ example: true })
+  is_primary: boolean;
+}
+
+/** Image-delete response — the deleted id and the product's resulting primary (FR-CAT-032/033). */
+export class DeleteImageResponseDto {
+  @ApiProperty({ example: 'i1-uuid' })
+  id: string;
+
+  @ApiProperty({
+    nullable: true,
+    example: 'i2-uuid',
+    description: 'New primary after deletion; null when no images remain',
+  })
+  primary_image_id: string | null;
+}
+
+/** Alt-text update response (FR-CAT-032). */
+export class UpdateImageResponseDto {
+  @ApiProperty({ example: 'i1-uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Brazil home jersey, front view' })
+  alt_text: string;
+}

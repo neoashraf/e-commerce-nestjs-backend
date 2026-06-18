@@ -4,6 +4,7 @@ import { InventoryView } from '../../domain/report-views';
 import { ReportKey } from '../../domain/export-enums';
 import { GetSalesReportUseCase } from '../use-cases/get-sales-report.use-case';
 import { GetOrdersReportUseCase } from '../use-cases/get-orders-report.use-case';
+import { GetOrdersListReportUseCase } from '../use-cases/get-orders-list-report.use-case';
 import { GetProductReportUseCase } from '../use-cases/get-product-report.use-case';
 import { GetInventoryReportUseCase } from '../use-cases/get-inventory-report.use-case';
 import { GetCustomersReportUseCase } from '../use-cases/get-customers-report.use-case';
@@ -46,6 +47,7 @@ export class ReportContentService {
   constructor(
     private readonly sales: GetSalesReportUseCase,
     private readonly orders: GetOrdersReportUseCase,
+    private readonly ordersList: GetOrdersListReportUseCase,
     private readonly products: GetProductReportUseCase,
     private readonly inventory: GetInventoryReportUseCase,
     private readonly customers: GetCustomersReportUseCase,
@@ -60,6 +62,8 @@ export class ReportContentService {
         return this.renderSales(params, now);
       case ReportKey.ORDERS:
         return this.renderOrders(params, now);
+      case ReportKey.ORDERS_LIST:
+        return this.renderOrdersList(params, now);
       case ReportKey.PRODUCTS:
         return this.renderProducts(params, now);
       case ReportKey.INVENTORY:
@@ -115,6 +119,38 @@ export class ReportContentService {
       columns: ['status', 'count', 'value'],
       rows,
       as_of: report.as_of,
+    };
+  }
+
+  /**
+   * Row-level order list (one row per order) for the Orders-page export. No period default — it honours
+   * the admin list filters (status / payment_state / order-no `q`) passed through the export params, so the
+   * file matches exactly what the list shows. Optional `from`/`to` narrow by placed-at if supplied.
+   */
+  private async renderOrdersList(params: RawReportParams, now: Date): Promise<ReportTable> {
+    const str = (value: unknown): string | undefined =>
+      typeof value === 'string' && value.trim() !== '' ? value : undefined;
+    const rows = await this.ordersList.execute({
+      status: str(params.status),
+      paymentState: str(params.payment_state),
+      q: str(params.q),
+      from: str(params.from),
+      to: str(params.to),
+    });
+    return {
+      title: 'Orders',
+      columns: [
+        'order_no',
+        'customer',
+        'phone',
+        'status',
+        'payment_method',
+        'payment_state',
+        'grand_total',
+        'placed_at',
+      ],
+      rows: rows as unknown as Row[],
+      as_of: new Date(now).toISOString(),
     };
   }
 

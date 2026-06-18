@@ -7,6 +7,8 @@ import { ProductMetric } from '../../domain/report-views';
 import {
   CategorySalesRow,
   IOrdersReadModel,
+  OrderListExportRow,
+  OrderListFilters,
   OrderRateCounts,
   OrdersByStatusRow,
   PaidOrdersBucketRow,
@@ -18,6 +20,9 @@ import {
 
 /** Order states that count toward revenue (BR-RPT-2: online paid + COD collected). */
 const REVENUE_STATES = ['paid', 'cod_collected'];
+
+/** Safety cap on rows returned by an order-list export (caps memory / file size for a runaway filter). */
+const MAX_ORDER_LIST_ROWS = 5000;
 
 /**
  * Read-only ORD adapter for RPT. Runs parameterised aggregation SQL over the `orders` / `order_items`
@@ -249,5 +254,57 @@ export class OrdersReadAdapter implements IOrdersReadModel {
       paid_online: totals?.paid_online ?? '0.00',
       cod_collected: totals?.cod_collected ?? '0.00',
     };
+  }
+
+  async listOrders(filters: OrderListFilters): Promise<OrderListExportRow[]> {
+    // Customer name/phone mirror the admin list (toAdminRow): guest fields first, then the address
+    // snapshot's recipient. Enum/decimal columns are cast to text so node-postgres returns plain strings.
+    // Nullable filters use the `$n IS NULL OR …` guard so an unset filter matches every row.
+    const limit = Math.min(MAX_ORDER_LIST_ROWS, Math.max(1, filters.limit ?? MAX_ORDER_LIST_ROWS));
+    const rows: Array<{
+      order_no: string;
+      customer: string;
+      phone: string;
+      status: string;
+      payment_method: string;
+      payment_state: string;
+      grand_total: string;
+      placed_at: Date | string;
+    }> = await this.dataSource.query(
+      `SELECT o.order_no AS order_no,
+              COALESCE(o.guest_name, o.address_snapshot->>'recipient_name', '') AS customer,
+              COALESCE(o.guest_phone, o.address_snapshot->>'recipient_phone', '') AS phone,
+              o.status::text AS status,
+              o.payment_method::text AS payment_method,
+              o.payment_state::text AS payment_state,
+              o.grand_total::text AS grand_total,
+              o.placed_at AS placed_at
+       FROM orders o
+       WHERE ($1::text IS NULL OR o.status::text = $1)
+         AND ($2::text IS NULL OR o.payment_state::text = $2)
+         AND ($3::text IS NULL OR o.order_no ILIKE $3)
+         AND ($4::date IS NULL OR (o.placed_at AT TIME ZONE '${REPORT_TIMEZONE}')::date >= $4::date)
+         AND ($5::date IS NULL OR (o.placed_at AT TIME ZONE '${REPORT_TIMEZONE}')::date <= $5::date)
+       ORDER BY o.placed_at DESC
+       LIMIT $6`,
+      [
+        filters.status ?? null,
+        filters.paymentState ?? null,
+        filters.q ? `%${filters.q}%` : null,
+        filters.from ?? null,
+        filters.to ?? null,
+        limit,
+      ],
+    );
+    return rows.map((r) => ({
+      order_no: r.order_no,
+      customer: r.customer,
+      phone: r.phone,
+      status: r.status,
+      payment_method: r.payment_method,
+      payment_state: r.payment_state,
+      grand_total: r.grand_total,
+      placed_at: r.placed_at instanceof Date ? r.placed_at.toISOString() : String(r.placed_at),
+    }));
   }
 }
