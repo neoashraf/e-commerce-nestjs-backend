@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RbacModule } from '../rbac/rbac.module';
 import { ReportsModule } from '../reports/reports.module';
+import { OrdersModule } from '../orders/orders.module';
 import { REPORTS_METRICS_PORT } from './application/ports/reports-metrics.port';
 import { ORDERS_DASHBOARD_PORT } from './application/ports/orders-dashboard.port';
 import { PAYMENTS_DASHBOARD_PORT } from './application/ports/payments-dashboard.port';
@@ -39,6 +40,8 @@ import { DashboardController } from './presentation/controllers/dashboard.contro
   imports: [
     forwardRef(() => RbacModule),
     ReportsModule,
+    // ORD read side for the live "Needs attention" order counts + recent orders (FR-DASH-010/020).
+    forwardRef(() => OrdersModule),
     TypeOrmModule.forFeature([DashboardPreferenceOrmEntity]),
   ],
   controllers: [DashboardController],

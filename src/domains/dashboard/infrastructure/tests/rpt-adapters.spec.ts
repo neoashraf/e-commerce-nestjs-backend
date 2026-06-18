@@ -36,12 +36,15 @@ describe('DASH — RPT-backed adapters (FR-DASH-001/011/022, BR-DASH-2/3)', () =
     expect(products.execute).toHaveBeenCalledWith(expect.anything(), 'top_sellers', 'revenue', 5);
   });
 
-  it('Payments: revenue = Sales net_revenue (number), split = Payment report method_split', async () => {
-    const sales = { execute: jest.fn().mockResolvedValue({ totals: { net_revenue: '123456.78', orders: 9 } }) };
+  it('Payments: revenue = Sales net_revenue, AOV = Sales aov, split = Payment report method_split', async () => {
+    const sales = {
+      execute: jest.fn().mockResolvedValue({ totals: { net_revenue: '123456.78', orders: 9, aov: '13717.42' } }),
+    };
     const payments = { execute: jest.fn().mockResolvedValue({ method_split: { cod: 5, bkash: 3, sslcommerz: 1 } }) };
     const adapter = new PaymentsDashboardRptAdapter(sales as never, payments as never);
 
     expect(await adapter.getRevenue(RANGE)).toBe(123456.78);
+    expect(await adapter.getAvgOrderValue(RANGE)).toBe(13717.42);
     expect(await adapter.getPaymentSplit(RANGE)).toEqual({ cod: 5, bkash: 3, sslcommerz: 1 });
   });
 
@@ -57,24 +60,36 @@ describe('DASH — RPT-backed adapters (FR-DASH-001/011/022, BR-DASH-2/3)', () =
     expect(await adapter.getStockAlertCounts()).toEqual({ low_stock_skus: 2, out_of_stock_skus: 1 });
   });
 
-  it('Orders: count = Sales paid/collected orders, by-status = Orders report counts; deferred stays stubbed', async () => {
-    const sales = { execute: jest.fn().mockResolvedValue({ totals: { net_revenue: '0.00', orders: 21 } }) };
+  it('Orders: KPI count = placed orders (sum of by-status); action counts + recent from the ORD read side', async () => {
     const orders = {
       execute: jest.fn().mockResolvedValue({
-        by_status: { delivered: { count: 13, value: '1.00' }, cancelled: { count: 2, value: '1.00' } },
+        by_status: {
+          confirmed: { count: 2, value: '1.00' },
+          delivered: { count: 13, value: '1.00' },
+          cancelled: { count: 2, value: '1.00' },
+        },
       }),
     };
-    const adapter = new OrdersDashboardRptAdapter(sales as never, orders as never);
+    const recent = [
+      { order_no: 'SO-100247', customer: 'Karim', grand_total: '4250.00', status: 'pending_payment', placed_at: '2026-06-18T08:41:00Z' },
+    ];
+    const orderQuery = {
+      getActionCounts: jest.fn().mockResolvedValue({ pendingPayment: 3, toProcess: 8, toShip: 2 }),
+      getRecentOrders: jest.fn().mockResolvedValue(recent),
+    };
+    const adapter = new OrdersDashboardRptAdapter(orders as never, orderQuery as never);
 
-    expect(await adapter.getOrderCount(RANGE)).toBe(21);
-    expect(await adapter.getOrdersByStatus(RANGE)).toEqual({ delivered: 13, cancelled: 2 });
-    // Deferred (no RPT equivalent) — representative data, not RPT-backed.
+    // Orders KPI = placed orders = 2 + 13 + 2; reconciles with the orders-by-status breakdown.
+    expect(await adapter.getOrderCount(RANGE)).toBe(17);
+    expect(await adapter.getOrdersByStatus(RANGE)).toEqual({ confirmed: 2, delivered: 13, cancelled: 2 });
+    // Live operational state from ORD — maps to the contract's snake_case alert keys.
     expect(await adapter.getActionCounts()).toEqual({
-      orders_pending_payment: 6,
-      orders_to_process: 14,
-      orders_to_ship: 5,
+      orders_pending_payment: 3,
+      orders_to_process: 8,
+      orders_to_ship: 2,
     });
-    expect(await adapter.getRecentOrders(2)).toHaveLength(2);
+    expect(await adapter.getRecentOrders(5)).toEqual(recent);
+    expect(orderQuery.getRecentOrders).toHaveBeenCalledWith(5);
   });
 
   it('Customers: new-customer count = Customer report new_vs_returning.new; recent stays stubbed', async () => {

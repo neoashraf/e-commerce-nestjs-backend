@@ -165,6 +165,60 @@ describe('Cart — CartService', () => {
     expect(view.items[0].availability).toBe('out_of_stock');
   });
 
+  // Regression: a persisted coupon must be reflected on EVERY read (GET /cart) + the checkout quote,
+  // not just in the POST /cart/coupon response — else the discount silently vanishes (FR-CART-022).
+  it('should reflect a persisted coupon as a live discount when reading the cart', async () => {
+    carts.findOne.mockResolvedValue({
+      id: 'cart_1',
+      cartToken: 'guesttok_1',
+      customerId: null,
+      status: CartStatus.ACTIVE,
+      appliedCouponCode: 'EID500',
+    });
+    items.find.mockResolvedValue([
+      { id: 'ci_1', cartId: 'cart_1', productId: 'p1', variantId: 'v1', quantity: 1 },
+    ]);
+    coupons.validate.mockResolvedValue({ valid: true, discount_amount: '500.00', free_shipping: false });
+
+    const view = await service.getCart(GUEST);
+
+    expect(coupons.validate).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'EID500', subtotal: '12500.00' }),
+    );
+    expect(view.applied_coupon).toEqual({ code: 'EID500', discount: '500.00' });
+    expect(view.summary.discount).toBe('500.00');
+    expect(view.summary.grand_total).toBe('12000.00');
+  });
+
+  it('should self-heal a persisted coupon that is no longer valid on read (drops it, no phantom discount)', async () => {
+    carts.findOne.mockResolvedValue({
+      id: 'cart_1',
+      cartToken: 'guesttok_1',
+      customerId: null,
+      status: CartStatus.ACTIVE,
+      appliedCouponCode: 'EXPIRED',
+    });
+    items.find.mockResolvedValue([
+      { id: 'ci_1', cartId: 'cart_1', productId: 'p1', variantId: 'v1', quantity: 1 },
+    ]);
+    coupons.validate.mockResolvedValue({ valid: false, reason: 'expired', message: 'expired' });
+
+    const view = await service.getCart(GUEST);
+
+    expect(view.applied_coupon).toBeNull();
+    expect(view.summary.discount).toBe('0.00');
+    expect(carts.save).toHaveBeenCalledWith(expect.objectContaining({ appliedCouponCode: null }));
+  });
+
+  it('should not call the coupon validator on read when no coupon is applied', async () => {
+    items.find.mockResolvedValue([
+      { id: 'ci_1', cartId: 'cart_1', productId: 'p1', variantId: 'v1', quantity: 1 },
+    ]);
+    const view = await service.getCart(GUEST);
+    expect(coupons.validate).not.toHaveBeenCalled();
+    expect(view.applied_coupon).toBeNull();
+  });
+
   // --- merge ---
 
   it('should merge a guest cart into the customer cart, summing and capping', async () => {

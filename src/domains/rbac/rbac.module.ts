@@ -80,6 +80,9 @@ import { AuditController } from './presentation/controllers/audit.controller';
 import { AdminJwtStrategy } from './presentation/strategies/admin-jwt.strategy';
 import { JwtAdminGuard } from './presentation/guards/jwt-admin.guard';
 import { PermissionsGuard } from './presentation/guards/permissions.guard';
+import { AdminSseAuthGuard } from './presentation/guards/admin-sse-auth.guard';
+import { AdminDirectoryService } from './application/services/admin-directory.service';
+import { AdminTokenVerifierService } from './application/services/admin-token-verifier.service';
 
 @Module({
   imports: [
@@ -153,8 +156,23 @@ import { PermissionsGuard } from './presentation/guards/permissions.guard';
     AdminJwtStrategy,
     JwtAdminGuard,
     PermissionsGuard,
+    AdminSseAuthGuard,
+    AdminDirectoryService,
+    AdminTokenVerifierService,
   ],
   // Exported so every other admin module reuses the same admin auth + permission gate.
-  exports: [JwtAdminGuard, PermissionsGuard, PermissionService, AuditService, PassportModule],
+  // AdminDirectoryService + AdminTokenVerifierService back NOTIF's in-app feed (recipient resolution +
+  // SSE token auth). The verifier MUST be exported: AdminSseAuthGuard is instantiated in NOTIF's module
+  // context (it's applied there via @UseGuards), so its only dependency has to resolve from RBAC's exports.
+  exports: [
+    JwtAdminGuard,
+    PermissionsGuard,
+    AdminSseAuthGuard,
+    AdminDirectoryService,
+    AdminTokenVerifierService,
+    PermissionService,
+    AuditService,
+    PassportModule,
+  ],
 })
 export class RbacModule {}

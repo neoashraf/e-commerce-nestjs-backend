@@ -3,10 +3,16 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RbacModule } from '../rbac/rbac.module';
+import { AdminNotificationEntity } from './entities/admin-notification.entity';
 import { ChannelProviderConfigEntity } from './entities/channel-provider-config.entity';
 import { NotificationEntity } from './entities/notification.entity';
 import { NotificationTemplateEntity } from './entities/notification-template.entity';
 import { NotificationTemplateVersionEntity } from './entities/notification-template-version.entity';
+import { AdminNotificationBus } from './admin-notification-bus';
+import { AdminNotificationService } from './admin-notification.service';
+import { AdminNotificationFeedController } from './admin-notification-feed.controller';
+import { RbacAdminRecipientResolver } from './rbac-admin-recipient.resolver';
+import { ADMIN_RECIPIENT_RESOLVER } from './ports/admin-recipient-resolver.port';
 import { NotificationDispatchService } from './notification-dispatch.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsAdminController } from './notifications-admin.controller';
@@ -39,11 +45,13 @@ import { StubSmsAdapter } from './providers/stub-sms.adapter';
       NotificationTemplateEntity,
       NotificationTemplateVersionEntity,
       ChannelProviderConfigEntity,
+      AdminNotificationEntity,
     ]),
   ],
   controllers: [
     NotificationsController,
     NotificationsAdminController,
+    AdminNotificationFeedController,
     TemplatesController,
     CampaignController,
     SettingsController,
@@ -59,10 +67,19 @@ import { StubSmsAdapter } from './providers/stub-sms.adapter';
     WebhookVerificationService,
     PromotionalDeferralTask,
     DlrStaleTask,
+    // In-app admin feed (real-time new-order alerts): durable feed + SSE bus + RBAC-backed recipients.
+    AdminNotificationService,
+    AdminNotificationBus,
+    { provide: ADMIN_RECIPIENT_RESOLVER, useClass: RbacAdminRecipientResolver },
     { provide: SMS_PROVIDER, useClass: StubSmsAdapter },
     { provide: EMAIL_PROVIDER, useClass: SmtpEmailAdapter },
     { provide: OPT_IN_READER, useClass: StubOptInReader },
   ],
-  exports: [NotificationDispatchService, TemplatesService, PromotionalService],
+  exports: [
+    NotificationDispatchService,
+    TemplatesService,
+    PromotionalService,
+    AdminNotificationService,
+  ],
 })
 export class NotificationsModule {}

@@ -159,8 +159,10 @@ export class OrderCreationService {
       };
     }
 
-    // Side effects after the order commits (idempotent; safe to run post-transaction).
-    await this.notifier.notify('order.placed', this.ctx(created.order));
+    // Side effects after the order commits (idempotent; safe to run post-transaction). The in-app
+    // admin alert (FR-ORD-050a) needs the item count, which lives on the placement snapshot.
+    const itemCount = snapshot.items.reduce((sum, line) => sum + line.quantity, 0);
+    await this.notifier.notify('order.placed', { ...this.ctx(created.order), itemCount });
     if (isCod) {
       // COD confirms immediately → decrement stock + confirmation notice (FR-ORD-030/050).
       await this.stock.decrement(created.order.id);
@@ -316,11 +318,15 @@ export class OrderCreationService {
 
   private ctx(order: OrderOrmEntity) {
     return {
+      orderId: order.id,
       orderNo: order.orderNo,
       customerId: order.customerId,
       guestPhone: order.guestPhone,
       guestEmail: order.guestEmail,
       grandTotal: order.grandTotal,
+      paymentMethod: order.paymentMethod,
+      // Display name for the in-app admin alert: guest name, else the delivery recipient (FR-ORD-050a).
+      customerName: order.guestName ?? order.addressSnapshot?.recipient_name ?? 'Customer',
     };
   }
 
