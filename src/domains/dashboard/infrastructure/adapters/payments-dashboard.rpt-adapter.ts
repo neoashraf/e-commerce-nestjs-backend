@@ -26,6 +26,13 @@ export class PaymentsDashboardRptAdapter implements PaymentsDashboardPort {
     return Number(report.totals.net_revenue);
   }
 
+  /** Average order value = the Sales report's `aov` (net revenue ÷ paid/collected orders), in BDT. */
+  async getAvgOrderValue(range: DateRange): Promise<number> {
+    const period = ReportPeriod.create(range.from, range.to, ReportBucket.DAY);
+    const report = await this.sales.execute(period);
+    return Number(report.totals.aov);
+  }
+
   /** Paid/collected order counts by payment method (cod / bkash / sslcommerz) in the range. */
   async getPaymentSplit(range: DateRange): Promise<Record<string, number>> {
     const period = ReportPeriod.create(range.from, range.to, ReportBucket.DAY);

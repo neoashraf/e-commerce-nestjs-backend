@@ -4,7 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../auth/auth.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ServiceTokenGuard } from '../../shared/guards/service-token.guard';
+import { NotifOrderNotifier } from './infrastructure/adapters/notif-order-notifier.adapter';
 import { AutoCancelTask } from './application/services/auto-cancel.task';
 import { ExchangeService } from './application/services/exchange.service';
 import { FulfilmentService } from './application/services/fulfilment.service';
@@ -21,10 +23,7 @@ import {
   EXCHANGE_PAYMENT,
   StubExchangePayment,
 } from './application/ports/exchange-payment.port';
-import {
-  ORDER_NOTIFIER,
-  StubOrderNotifier,
-} from './application/ports/order-notifier.port';
+import { ORDER_NOTIFIER } from './application/ports/order-notifier.port';
 import {
   REFUND_REQUESTER,
   StubRefundRequester,
@@ -69,6 +68,8 @@ import { PaymentStateController } from './presentation/controllers/payment-state
     ConfigModule,
     forwardRef(() => RbacModule),
     forwardRef(() => AuthModule),
+    // NOTIF supplies the in-app admin alert service the real order notifier calls (FR-ORD-050a).
+    NotificationsModule,
     TypeOrmModule.forFeature([
       OrderOrmEntity,
       OrderItemOrmEntity,
@@ -104,7 +105,9 @@ import { PaymentStateController } from './presentation/controllers/payment-state
     // INV/NOTIF/PAY seams: stubbed until inv-reservations-be / notif-dispatch-be / pay-refunds-be are
     // wired in-process. CAT replacement-value + exchange-difference top-up are likewise stubbed seams.
     { provide: STOCK_COORDINATOR, useClass: StubStockCoordinator },
-    { provide: ORDER_NOTIFIER, useClass: StubOrderNotifier },
+    // Real NOTIF wiring: order.placed → in-app admin alert (FR-ORD-050a). Other events log (no in-app
+    // alert in v1); customer SMS/email order dispatch remains a separate seam.
+    { provide: ORDER_NOTIFIER, useClass: NotifOrderNotifier },
     { provide: REFUND_REQUESTER, useClass: StubRefundRequester },
     { provide: EXCHANGE_PAYMENT, useClass: StubExchangePayment },
     { provide: EXCHANGE_CATALOG, useClass: StubExchangeCatalog },

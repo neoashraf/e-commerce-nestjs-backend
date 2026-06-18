@@ -132,16 +132,19 @@ export class DashboardService {
 
   private async computeKpis(period: DashboardPeriod): Promise<DashboardKpis | null> {
     return this.safe('kpis', async () => {
-      const [sales, salesPrev, orders, ordersPrev, newCust, newCustPrev] = await Promise.all([
-        this.payments.getRevenue(period.range),
-        this.payments.getRevenue(period.compare),
-        this.orders.getOrderCount(period.range),
-        this.orders.getOrderCount(period.compare),
-        this.customers.getNewCustomerCount(period.range),
-        this.customers.getNewCustomerCount(period.compare),
-      ]);
-      const aov = orders > 0 ? sales / orders : 0;
-      const aovPrev = ordersPrev > 0 ? salesPrev / ordersPrev : 0;
+      // Orders = placed orders (headline activity); Net Revenue + AOV = collected money, sourced from
+      // the Sales report so AOV stays net_revenue ÷ paid orders — independent of the placed-orders count.
+      const [sales, salesPrev, orders, ordersPrev, aov, aovPrev, newCust, newCustPrev] =
+        await Promise.all([
+          this.payments.getRevenue(period.range),
+          this.payments.getRevenue(period.compare),
+          this.orders.getOrderCount(period.range),
+          this.orders.getOrderCount(period.compare),
+          this.payments.getAvgOrderValue(period.range),
+          this.payments.getAvgOrderValue(period.compare),
+          this.customers.getNewCustomerCount(period.range),
+          this.customers.getNewCustomerCount(period.compare),
+        ]);
       return {
         sales: this.money(sales, salesPrev),
         orders: this.count(orders, ordersPrev),

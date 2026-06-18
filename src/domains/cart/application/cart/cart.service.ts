@@ -417,22 +417,53 @@ export class CartService {
     }
 
     const subtotal = (subtotalPaisa / 100).toFixed(2);
+
+    // Checkout-only fields (delivery/cod/vat) finalize at the quote; the cart view carries
+    // subtotal − coupon discount only.
+    let summary: CartView['summary'] = {
+      subtotal,
+      discount: '0.00',
+      delivery_charge: '0.00',
+      cod_surcharge: '0.00',
+      vat: '0.00',
+      grand_total: subtotal,
+      delivery_zone: null,
+    };
+    let appliedCoupon: CartView['applied_coupon'] = null;
+
+    // Reflect a persisted coupon on every read (FR-CART-022). The discount is never stored as an
+    // amount — it is recomputed live against the current lines/subtotal, so GET /cart and the checkout
+    // quote (which reads `summary.discount`) both show it. Re-validating also self-heals a coupon that
+    // is no longer eligible (e.g. an item was removed and the cart fell below the minimum): we drop it
+    // rather than show a phantom discount that would later fail at placement.
+    if (cart.appliedCouponCode) {
+      const verdict = await this.coupons.validate({
+        code: cart.appliedCouponCode,
+        identity: { customer_id: cart.customerId, guest_phone: null },
+        lines: items.map((i) => ({
+          product_id: i.product_id,
+          category_id: null,
+          quantity: i.quantity,
+          effective_unit_price: i.unit_price,
+        })),
+        subtotal,
+      });
+      if (verdict.valid) {
+        summary = this.applyDiscountToSummary(summary, verdict.discount_amount, cart.appliedCouponCode);
+        appliedCoupon = { code: cart.appliedCouponCode, discount: summary.discount };
+      } else {
+        cart.appliedCouponCode = null;
+        await this.carts.save(cart);
+      }
+    }
+
     return {
       cart_id: cart.id,
       cart_token: cart.cartToken,
       currency: 'BDT',
       items,
-      // Coupon + checkout-only summary fields finalize at checkout; placeholders here (BR-CART note).
-      applied_coupon: null,
-      summary: {
-        subtotal,
-        discount: '0.00',
-        delivery_charge: '0.00',
-        cod_surcharge: '0.00',
-        vat: '0.00',
-        grand_total: subtotal,
-        delivery_zone: null,
-      },
+      applied_coupon: appliedCoupon,
+      summary,
     };
   }
 
