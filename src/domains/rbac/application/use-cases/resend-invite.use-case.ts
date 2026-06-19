@@ -60,10 +60,10 @@ export class ResendInviteUseCase {
         now,
       ),
     );
-    const resetUrl = `${this.config.adminPanelUrl}/reset-password?token=${raw}`;
+    const inviteUrl = `${this.config.adminPanelUrl}/accept-invite?token=${raw}`;
     let inviteSent = true;
     try {
-      await this.notifier.dispatchPasswordReset({ email: target.email, fullName: target.fullName, resetUrl });
+      await this.notifier.dispatchAdminInvite({ email: target.email, fullName: target.fullName, inviteUrl });
     } catch {
       inviteSent = false;
     }

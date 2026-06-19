@@ -56,8 +56,10 @@ export class ResetPasswordUseCase {
       throw new AdminTokenExpiredException();
     }
 
-    admin.passwordHash = await this.hasher.hash(command.newPassword);
-    admin.updatedAt = now;
+    admin.setPassword(await this.hasher.hash(command.newPassword), now);
+    // Accept-invitation case (SRS §7.1): a pending invitee setting their first password
+    // becomes active so they can log in. Reset-password case leaves an active admin active.
+    admin.activate(now);
     await this.admins.save(admin);
 
     token.use(now);

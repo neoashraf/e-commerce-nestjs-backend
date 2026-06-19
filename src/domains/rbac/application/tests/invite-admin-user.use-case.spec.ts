@@ -17,7 +17,7 @@ describe('RBAC — InviteAdminUserUseCase', () => {
   let admins: { findByEmail: jest.Mock; save: jest.Mock };
   let roles: { findById: jest.Mock };
   let resets: { save: jest.Mock };
-  let notifier: { dispatchPasswordReset: jest.Mock };
+  let notifier: { dispatchAdminInvite: jest.Mock };
   let audit: { record: jest.Mock };
 
   const config = { resetTokenTtlSeconds: 3600, adminPanelUrl: 'https://admin.test' };
@@ -29,7 +29,7 @@ describe('RBAC — InviteAdminUserUseCase', () => {
     };
     roles = { findById: jest.fn() };
     resets = { save: jest.fn().mockResolvedValue(undefined) };
-    notifier = { dispatchPasswordReset: jest.fn().mockResolvedValue(undefined) };
+    notifier = { dispatchAdminInvite: jest.fn().mockResolvedValue(undefined) };
     audit = { record: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -62,8 +62,12 @@ describe('RBAC — InviteAdminUserUseCase', () => {
     expect(result.status).toBe(AdminUserStatus.PENDING);
     expect(result.inviteSent).toBe(true);
     expect(resets.save).toHaveBeenCalled();
-    expect(notifier.dispatchPasswordReset).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'newops@store.com' }),
+    // Uses the invite template (not the password-reset one) with an accept-invite link.
+    expect(notifier.dispatchAdminInvite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'newops@store.com',
+        inviteUrl: expect.stringContaining('/accept-invite?token='),
+      }),
     );
   });
 

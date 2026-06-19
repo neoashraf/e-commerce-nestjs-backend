@@ -20,6 +20,7 @@ export interface AdminUserRow {
   id: string;
   fullName: string;
   email: string;
+  roleId: string;
   role: string;
   status: AdminUserStatus;
   lastLoginAt: Date | null;
@@ -56,6 +57,7 @@ export class ListAdminUsersUseCase {
         id: a.id,
         fullName: a.fullName,
         email: a.email,
+        roleId: a.roleId,
         role: roleNames.get(a.roleId) ?? 'Unknown',
         status: a.status,
         lastLoginAt: a.lastLoginAt,
