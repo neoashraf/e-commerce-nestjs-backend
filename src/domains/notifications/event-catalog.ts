@@ -57,8 +57,9 @@ export const EVENT_CATALOG: Record<string, EventDefinition> = {
   'exchange.difference_due': { category: TX, channels: [SMS, EMAIL], requiredPlaceholders: ['name', 'order_no'], optionalPlaceholders: ['amount', 'pay_url'] },
   'exchange.replacement_dispatched': { category: TX, channels: [SMS, EMAIL], requiredPlaceholders: ['name', 'order_no'], optionalPlaceholders: ['replacement_order_no', 'courier', 'tracking_no'] },
 
-  // LEAD / INV
-  'lead.received_ack': { category: TX, channels: [EMAIL, SMS], requiredPlaceholders: ['name', 'ticket_no'] },
+  // LEAD / INV — lead events are email-only (client decision; SMS stays off for leads)
+  'lead.received_ack': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'ticket_no'] },
+  'lead.reply': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'ticket_no', 'reply_body'] },
   'inventory.low_stock_alert': { category: TX, channels: [EMAIL], requiredPlaceholders: ['sku_code', 'product_title', 'qty'] },
 
   // Marketing — promotional campaign (campaign-specific placeholders allowed)
