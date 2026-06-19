@@ -12,6 +12,9 @@ export class AdminUserListItemDto {
   @ApiProperty({ example: 'ops@store.com' })
   email: string;
 
+  @ApiProperty({ example: 'role_order_mgr' })
+  role_id: string;
+
   @ApiProperty({ example: 'Order Manager' })
   role: string;
 

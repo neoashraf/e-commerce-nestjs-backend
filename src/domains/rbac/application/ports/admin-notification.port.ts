@@ -14,6 +14,14 @@ export interface IAdminNotificationDispatcher {
     ttlMinutes: number;
   }): Promise<void>;
 
+  /** Accept-invitation email (FR-RBAC-010) — sends the `admin.invite` template (set-password link). */
+  dispatchAdminInvite(input: {
+    email: string;
+    fullName: string;
+    inviteUrl: string;
+  }): Promise<void>;
+
+  /** Forgot/reset-password email (FR-RBAC-007) — sends the `admin.password_reset` template. */
   dispatchPasswordReset(input: {
     email: string;
     fullName: string;

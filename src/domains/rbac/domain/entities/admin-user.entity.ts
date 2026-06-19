@@ -61,6 +61,17 @@ export class AdminUser {
     this.updatedAt = now;
   }
 
+  /**
+   * Accept an invitation (FR-RBAC-010, SRS §7.1): a `pending` invitee who has just set
+   * a password becomes `active` and can log in. No-op for any non-pending status.
+   */
+  activate(now: Date): void {
+    if (this.status === AdminUserStatus.PENDING) {
+      this.status = AdminUserStatus.ACTIVE;
+      this.updatedAt = now;
+    }
+  }
+
   /** Enable 2FA on a chosen channel (FR-RBAC-008). `sms` requires a stored phone (checked by caller). */
   enableTwofa(channel: TwofaChannel, now: Date): void {
     this.twofaEnabled = true;

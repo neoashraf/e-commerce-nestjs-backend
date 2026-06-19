@@ -111,9 +111,9 @@ export class InviteAdminUserUseCase {
         now,
       ),
     );
-    const resetUrl = `${this.config.adminPanelUrl}/reset-password?token=${raw}`;
+    const inviteUrl = `${this.config.adminPanelUrl}/accept-invite?token=${raw}`;
     try {
-      await this.notifier.dispatchPasswordReset({ email: admin.email, fullName: admin.fullName, resetUrl });
+      await this.notifier.dispatchAdminInvite({ email: admin.email, fullName: admin.fullName, inviteUrl });
       return true;
     } catch {
       return false;

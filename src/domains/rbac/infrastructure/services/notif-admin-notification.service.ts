@@ -35,6 +35,22 @@ export class NotifAdminNotificationService implements IAdminNotificationDispatch
     }
   }
 
+  async dispatchAdminInvite(input: {
+    email: string;
+    fullName: string;
+    inviteUrl: string;
+  }): Promise<void> {
+    try {
+      await this.dispatch.sendTransactionalEmail({
+        email: input.email,
+        eventType: 'admin.invite',
+        variables: { name: input.fullName, invite_url: input.inviteUrl },
+      });
+    } catch (err) {
+      this.logger.error('Admin invite dispatch failed', (err as Error)?.stack);
+    }
+  }
+
   async dispatchPasswordReset(input: {
     email: string;
     fullName: string;

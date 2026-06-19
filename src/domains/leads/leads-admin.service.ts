@@ -216,6 +216,7 @@ export class LeadsAdminService {
         reference: lead.reference,
         channel,
         body,
+        recipientName: lead.submitterName,
         recipientEmail: lead.submitterEmail,
         recipientPhone: lead.submitterPhone,
       });

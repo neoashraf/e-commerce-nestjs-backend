@@ -78,6 +78,7 @@ export class AdminUsersController {
       id: a.id,
       full_name: a.fullName,
       email: a.email,
+      role_id: a.roleId,
       role: a.role,
       status: a.status,
       last_login_at: a.lastLoginAt ? a.lastLoginAt.toISOString() : null,
