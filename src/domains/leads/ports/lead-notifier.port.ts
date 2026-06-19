@@ -25,6 +25,8 @@ export interface LeadReplyInput {
   reference: string;
   channel: 'email' | 'sms';
   body: string;
+  /** Submitter name, for the reply email greeting (`{{name}}`). */
+  recipientName: string;
   recipientEmail: string | null;
   recipientPhone: string;
 }
