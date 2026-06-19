@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../auth/auth.module';
@@ -12,7 +13,12 @@ import { LeadsAdminController } from './leads-admin.controller';
 import { LeadReferenceService } from './lead-reference.service';
 import { LeadsService } from './leads.service';
 import { LeadsAdminService } from './leads-admin.service';
-import { CAPTCHA_VERIFIER, ConfigCaptchaVerifier } from './ports/captcha-verifier.port';
+import { TurnstileCaptchaVerifier } from './infrastructure/turnstile-captcha.verifier';
+import {
+  CAPTCHA_VERIFIER,
+  ConfigCaptchaVerifier,
+  ICaptchaVerifier,
+} from './ports/captcha-verifier.port';
 import { EXCHANGE_HANDOFF, StubExchangeHandoff } from './ports/exchange-handoff.port';
 import { LEAD_NOTIFIER, StubLeadNotifier } from './ports/lead-notifier.port';
 import { ORDER_REF_RESOLVER, StubOrderRefResolver } from './ports/order-ref-resolver.port';
@@ -39,7 +45,16 @@ import { ORDER_REF_RESOLVER, StubOrderRefResolver } from './ports/order-ref-reso
     { provide: LEAD_NOTIFIER, useClass: StubLeadNotifier },
     { provide: ORDER_REF_RESOLVER, useClass: StubOrderRefResolver },
     { provide: EXCHANGE_HANDOFF, useClass: StubExchangeHandoff },
-    { provide: CAPTCHA_VERIFIER, useClass: ConfigCaptchaVerifier },
+    // CAPTCHA provider chosen by config (FR-LEAD-006): `turnstile` → real siteverify, else the
+    // config stub. Both bypass when LEAD_CAPTCHA_ENABLED ≠ true (dev).
+    {
+      provide: CAPTCHA_VERIFIER,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): ICaptchaVerifier =>
+        config.get<string>('LEAD_CAPTCHA_PROVIDER', 'stub') === 'turnstile'
+          ? new TurnstileCaptchaVerifier(config)
+          : new ConfigCaptchaVerifier(config),
+    },
   ],
   exports: [LeadsService],
 })
