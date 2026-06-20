@@ -103,6 +103,26 @@ const TEMPLATES: TemplateSeed[] = [
     ),
   },
   { event: 'admin.2fa', channel: 'sms', locale: 'en', subject: null, body: 'Your SportShop admin code is {{code}}.' },
+  {
+    event: 'lead.received_ack',
+    channel: 'email',
+    locale: 'en',
+    subject: "We've received your enquiry ({{ticket_no}})",
+    body: emailHtml(
+      "We've received your enquiry",
+      '  <p>Hi {{name}},</p>\n  <p>Thanks for contacting SportShop. We have received your enquiry — your reference is <strong>{{ticket_no}}</strong>. Our team will get back to you shortly.</p>',
+    ),
+  },
+  {
+    event: 'lead.reply',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Re: your enquiry {{ticket_no}}',
+    body: emailHtml(
+      'Reply to your enquiry {{ticket_no}}',
+      '  <p>Hi {{name}},</p>\n  <p>Regarding your enquiry <strong>{{ticket_no}}</strong>:</p>\n  <div style="background:#f3f4f6;border-radius:6px;padding:14px 16px;margin:14px 0;white-space:pre-line">{{reply_body}}</div>\n  <p>— SportShop Support</p>',
+    ),
+  },
 ];
 
 async function seed(): Promise<void> {
