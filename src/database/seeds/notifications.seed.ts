@@ -9,6 +9,30 @@ import { AppDataSource } from '../data-source';
 const OTP_BODY_EN = 'Your SportShop verification code is {{code}}. It expires in {{ttl_minutes}} minutes.';
 const OTP_BODY_BN = 'আপনার SportShop ভেরিফিকেশন কোড {{code}}। এটি {{ttl_minutes}} মিনিটে মেয়াদ শেষ হবে।';
 
+/**
+ * Branded, email-safe HTML shell for transactional emails. `{{placeholders}}` inside `inner`
+ * are left intact for the dispatch renderer to substitute. Inline styles only (email clients
+ * strip <style>/external CSS).
+ */
+function emailHtml(heading: string, inner: string): string {
+  return [
+    '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1f2937">',
+    `  <h2 style="margin:0 0 12px;color:#111827">${heading}</h2>`,
+    inner,
+    '  <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">',
+    '  <p style="font-size:12px;color:#9ca3af">SportShop · automated message, please do not reply.</p>',
+    '</div>',
+  ].join('\n');
+}
+
+/** A primary call-to-action button + a plain-link fallback (some clients block buttons). */
+function emailButton(url: string, label: string): string {
+  return [
+    `  <p style="text-align:center;margin:28px 0"><a href="${url}" style="background:#4f46e5;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;display:inline-block">${label}</a></p>`,
+    `  <p style="font-size:13px;color:#6b7280">Or paste this link into your browser:<br><a href="${url}">${url}</a></p>`,
+  ].join('\n');
+}
+
 interface TemplateSeed {
   event: string;
   channel: 'sms' | 'email';
@@ -24,12 +48,81 @@ const TEMPLATES: TemplateSeed[] = [
   { event: 'otp.login', channel: 'sms', locale: 'bn', subject: null, body: OTP_BODY_BN },
   { event: 'otp.phone_change', channel: 'sms', locale: 'en', subject: null, body: OTP_BODY_EN },
   { event: 'otp.password_reset', channel: 'sms', locale: 'en', subject: null, body: OTP_BODY_EN },
-  { event: 'auth.email_verify', channel: 'email', locale: 'en', subject: 'Verify your email', body: 'Hi {{name}}, please verify your email: {{verify_url}}' },
-  { event: 'auth.password_reset', channel: 'email', locale: 'en', subject: 'Reset your password', body: 'Hi {{name}}, reset your password: {{reset_url}}' },
-  { event: 'admin.invite', channel: 'email', locale: 'en', subject: "You're invited to SportShop Admin", body: 'Hi {{name}}, set your password to activate your admin account: {{invite_url}}' },
-  { event: 'admin.password_reset', channel: 'email', locale: 'en', subject: 'Admin password reset', body: 'Hi {{name}}, reset your admin password: {{reset_url}}' },
-  { event: 'admin.2fa', channel: 'email', locale: 'en', subject: 'Your admin 2FA code', body: 'Your admin login code is {{code}}.' },
+  {
+    event: 'auth.email_verify',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Verify your email',
+    body: emailHtml(
+      'Verify your email',
+      '  <p>Hi {{name}},</p>\n  <p>Please confirm your email address to finish setting up your SportShop account.</p>\n' +
+        emailButton('{{verify_url}}', 'Verify email'),
+    ),
+  },
+  {
+    event: 'auth.password_reset',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Reset your password',
+    body: emailHtml(
+      'Reset your password',
+      "  <p>Hi {{name}},</p>\n  <p>We received a request to reset your password. Choose a new one below. If you did not request this, you can safely ignore this email.</p>\n" +
+        emailButton('{{reset_url}}', 'Reset password'),
+    ),
+  },
+  {
+    event: 'admin.invite',
+    channel: 'email',
+    locale: 'en',
+    subject: "You're invited to SportShop Admin",
+    body: emailHtml(
+      "You're invited to SportShop Admin",
+      "  <p>Hi {{name}},</p>\n  <p>You've been invited to the SportShop admin panel. Set your password to activate your account.</p>\n" +
+        emailButton('{{invite_url}}', 'Activate your account'),
+    ),
+  },
+  {
+    event: 'admin.password_reset',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Admin password reset',
+    body: emailHtml(
+      'Reset your admin password',
+      "  <p>Hi {{name}},</p>\n  <p>We received a request to reset your admin password. Choose a new one below. If you did not request this, you can ignore this email.</p>\n" +
+        emailButton('{{reset_url}}', 'Reset password'),
+    ),
+  },
+  {
+    event: 'admin.2fa',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Your admin 2FA code',
+    body: emailHtml(
+      'Your admin login code',
+      '  <p>Use this verification code to finish signing in:</p>\n  <p style="text-align:center;font-size:28px;font-weight:700;letter-spacing:6px;margin:24px 0;color:#111827">{{code}}</p>\n  <p style="font-size:13px;color:#6b7280">If you did not try to sign in, please secure your account.</p>',
+    ),
+  },
   { event: 'admin.2fa', channel: 'sms', locale: 'en', subject: null, body: 'Your SportShop admin code is {{code}}.' },
+  {
+    event: 'lead.received_ack',
+    channel: 'email',
+    locale: 'en',
+    subject: "We've received your enquiry ({{ticket_no}})",
+    body: emailHtml(
+      "We've received your enquiry",
+      '  <p>Hi {{name}},</p>\n  <p>Thanks for contacting SportShop. We have received your enquiry — your reference is <strong>{{ticket_no}}</strong>. Our team will get back to you shortly.</p>',
+    ),
+  },
+  {
+    event: 'lead.reply',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Re: your enquiry {{ticket_no}}',
+    body: emailHtml(
+      'Reply to your enquiry {{ticket_no}}',
+      '  <p>Hi {{name}},</p>\n  <p>Regarding your enquiry <strong>{{ticket_no}}</strong>:</p>\n  <div style="background:#f3f4f6;border-radius:6px;padding:14px 16px;margin:14px 0;white-space:pre-line">{{reply_body}}</div>\n  <p>— SportShop Support</p>',
+    ),
+  },
 ];
 
 async function seed(): Promise<void> {
