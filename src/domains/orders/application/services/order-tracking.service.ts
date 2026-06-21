@@ -7,6 +7,8 @@ import {
   IProductSnapshotReader,
   PRODUCT_SNAPSHOT_READER,
 } from '../ports/product-snapshot.port';
+import { PaymentPurpose } from '../../../payments/domain/payment-enums';
+import { PaymentOrmEntity } from '../../../payments/infrastructure/persistence/typeorm/entities/payment.orm-entity';
 import { OrderPaymentState, OrderStatus } from '../../domain/order-enums';
 import { OrderItemOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-item.orm-entity';
 import { OrderStatusHistoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-status-history.orm-entity';
@@ -53,9 +55,23 @@ export class OrderTrackingService {
     @InjectRepository(OrderItemOrmEntity) private readonly items: Repository<OrderItemOrmEntity>,
     @InjectRepository(OrderStatusHistoryOrmEntity)
     private readonly history: Repository<OrderStatusHistoryOrmEntity>,
+    // PAY read-surface for the admin order-detail payment panel: resolve the order's payment id
+    // (read-only; decoupled from PAY's services — same pattern as the CAT product-snapshot read).
+    @InjectRepository(PaymentOrmEntity)
+    private readonly payments: Repository<PaymentOrmEntity>,
     @Inject(PRODUCT_SNAPSHOT_READER)
     private readonly productSnapshots: IProductSnapshotReader,
   ) {}
+
+  /** The order-purpose payment id for an order (latest attempt), or null — for the admin payment panel. */
+  private async findOrderPaymentId(orderId: string): Promise<string | null> {
+    const payment = await this.payments.findOne({
+      where: { orderId, purpose: PaymentPurpose.ORDER },
+      order: { createdAt: 'DESC' },
+      select: { id: true },
+    });
+    return payment?.id ?? null;
+  }
 
   // ---------------------------------------------------------------------------
   // Customer — history (FR-ORD-060)
@@ -187,13 +203,17 @@ export class OrderTrackingService {
    * current product's listing thumbnail + Bangla title (RW6, read-time CAT lookup — null when gone).
    */
   async toDetail({ order, items, history }: OrderReadAggregate): Promise<OrderDetailDto> {
-    const snapshots = await this.productSnapshots.getByProductIds(items.map((it) => it.productId));
+    const [snapshots, paymentId] = await Promise.all([
+      this.productSnapshots.getByProductIds(items.map((it) => it.productId)),
+      this.findOrderPaymentId(order.id),
+    ]);
     return {
       order_no: order.orderNo,
       status: order.status,
       placed_at: order.placedAt.toISOString(),
       payment_method: order.paymentMethod,
       payment_state: order.paymentState,
+      payment_id: paymentId,
       delivery_zone: order.deliveryZone,
       address: {
         recipient_name: order.addressSnapshot.recipient_name,

@@ -5,10 +5,18 @@ import {
   OrderPaymentState,
   OrderStatus,
 } from '../../domain/order-enums';
+import { PaymentOrmEntity } from '../../../payments/infrastructure/persistence/typeorm/entities/payment.orm-entity';
 import { OrderItemOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-item.orm-entity';
 import { OrderStatusHistoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-status-history.orm-entity';
 import { OrderOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order.orm-entity';
 import { OrderTrackingService } from '../services/order-tracking.service';
+
+/** A payments-repo stub whose findOne resolves to the given payment id (or null when none). */
+function paymentsRepo(id: string | null = null) {
+  return {
+    findOne: jest.fn().mockResolvedValue(id ? { id } : null),
+  } as unknown as Repository<PaymentOrmEntity>;
+}
 
 /** A chainable query-builder stub whose getManyAndCount resolves to the given rows + total. */
 function buildQb(rows: Partial<OrderOrmEntity>[], total: number) {
@@ -32,6 +40,7 @@ function makeService(qb: ReturnType<typeof buildQb>) {
     orders,
     {} as Repository<OrderItemOrmEntity>,
     {} as Repository<OrderStatusHistoryOrmEntity>,
+    paymentsRepo(),
     { getByProductIds: jest.fn().mockResolvedValue(new Map()) },
   );
 }
@@ -104,11 +113,15 @@ describe('Orders — OrderTrackingService.listAdminOrders', () => {
 });
 
 describe('Orders — OrderTrackingService.toDetail (RW6)', () => {
-  function detailService(snapshotMap: Map<string, { product_image: string | null; product_title_bn: string | null }>) {
+  function detailService(
+    snapshotMap: Map<string, { product_image: string | null; product_title_bn: string | null }>,
+    paymentId: string | null = null,
+  ) {
     return new OrderTrackingService(
       {} as Repository<OrderOrmEntity>,
       {} as Repository<OrderItemOrmEntity>,
       {} as Repository<OrderStatusHistoryOrmEntity>,
+      paymentsRepo(paymentId),
       { getByProductIds: jest.fn().mockResolvedValue(snapshotMap) },
     );
   }
@@ -152,5 +165,13 @@ describe('Orders — OrderTrackingService.toDetail (RW6)', () => {
 
     expect(detail.items[0].product_image).toBeNull();
     expect(detail.items[0].product_title_bn).toBeNull();
+  });
+
+  it("surfaces the order's payment id for the admin payment panel (null when none)", async () => {
+    const withPayment = await detailService(new Map(), 'pay-123').toDetail(aggregate([item()]));
+    expect(withPayment.payment_id).toBe('pay-123');
+
+    const noPayment = await detailService(new Map()).toDetail(aggregate([item()]));
+    expect(noPayment.payment_id).toBeNull();
   });
 });

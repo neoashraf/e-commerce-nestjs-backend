@@ -25,3 +25,6 @@ Thumbs.db
 
 # Lead claim-evidence uploads (runtime; LEAD_UPLOAD_DIR)
 uploads/
+
+# Runtime report/customer export artifacts (now uploaded to Cloudinary, not disk)
+/storage/
