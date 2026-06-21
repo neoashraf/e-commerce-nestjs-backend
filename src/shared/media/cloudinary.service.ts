@@ -2,8 +2,11 @@ import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary, type UploadApiResponse } from 'cloudinary';
 
-/** Cloudinary resource kinds we upload. `auto` lets Cloudinary detect image vs. video. */
-export type CloudinaryResourceType = 'image' | 'video' | 'auto';
+/**
+ * Cloudinary resource kinds we upload. `auto` lets Cloudinary detect image vs. video;
+ * `raw` stores arbitrary, non-media files verbatim (e.g. CSV/PDF report & customer exports).
+ */
+export type CloudinaryResourceType = 'image' | 'video' | 'raw' | 'auto';
 
 export interface CloudinaryUploadInput {
   /** Raw bytes of the uploaded file (from the multipart buffer). */

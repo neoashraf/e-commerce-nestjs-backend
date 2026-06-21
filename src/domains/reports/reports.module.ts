@@ -33,6 +33,7 @@ import { GetOrdersListReportUseCase } from './application/use-cases/get-orders-l
 import { GetProductReportUseCase } from './application/use-cases/get-product-report.use-case';
 import { GetInventoryReportUseCase } from './application/use-cases/get-inventory-report.use-case';
 import { GetCustomersReportUseCase } from './application/use-cases/get-customers-report.use-case';
+import { GetCustomersListReportUseCase } from './application/use-cases/get-customers-list-report.use-case';
 import { GetPaymentsReportUseCase } from './application/use-cases/get-payments-report.use-case';
 import { GetPromotionsReportUseCase } from './application/use-cases/get-promotions-report.use-case';
 import { GetSearchReportUseCase } from './application/use-cases/get-search-report.use-case';
@@ -78,6 +79,7 @@ import { SchedulesController } from './presentation/controllers/schedules.contro
     GetProductReportUseCase,
     GetInventoryReportUseCase,
     GetCustomersReportUseCase,
+    GetCustomersListReportUseCase,
     GetPaymentsReportUseCase,
     GetPromotionsReportUseCase,
     GetSearchReportUseCase,

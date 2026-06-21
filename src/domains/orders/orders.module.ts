@@ -34,6 +34,7 @@ import {
 } from './application/ports/stock-coordinator.port';
 import { ProductOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product.orm-entity';
 import { ProductImageOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product-image.orm-entity';
+import { PaymentOrmEntity } from '../payments/infrastructure/persistence/typeorm/entities/payment.orm-entity';
 import { PRODUCT_SNAPSHOT_READER } from './application/ports/product-snapshot.port';
 import { ProductSnapshotAdapter } from './infrastructure/adapters/product-snapshot.adapter';
 import { ExchangeAttachmentOrmEntity } from './infrastructure/persistence/typeorm/entities/exchange-attachment.orm-entity';
@@ -80,6 +81,8 @@ import { PaymentStateController } from './presentation/controllers/payment-state
       // CAT read-surface for order-line presentation (RW6 product image + Bangla title).
       ProductOrmEntity,
       ProductImageOrmEntity,
+      // PAY read-surface: resolve an order's payment id for the admin order-detail payment panel.
+      PaymentOrmEntity,
     ]),
   ],
   controllers: [

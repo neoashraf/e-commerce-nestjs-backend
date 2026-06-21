@@ -189,6 +189,13 @@ export class OrderDetailDto {
   @ApiProperty({ enum: OrderPaymentState, example: OrderPaymentState.PAID })
   payment_state!: OrderPaymentState;
 
+  @ApiPropertyOptional({
+    example: 'a1b2c3d4-…',
+    nullable: true,
+    description: "The order's payment id (PAY), for the admin payment panel; null if none.",
+  })
+  payment_id?: string | null;
+
   @ApiProperty({ enum: OrderDeliveryZone, example: OrderDeliveryZone.OUTSIDE_DHAKA })
   delivery_zone!: OrderDeliveryZone;
 

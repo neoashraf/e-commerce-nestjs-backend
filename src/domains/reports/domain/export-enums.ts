@@ -36,6 +36,9 @@ export enum ReportKey {
   PRODUCTS = 'products',
   INVENTORY = 'inventory',
   CUSTOMERS = 'customers',
+  /** Row-level customer directory (one row per customer) for the admin Customers page export — honours the
+   *  list filters (q / status / tag / last-order range), distinct from `customers` which is the summary. */
+  CUSTOMERS_LIST = 'customers_list',
   PAYMENTS = 'payments',
   PROMOTIONS = 'promotions',
   SEARCH = 'search',
