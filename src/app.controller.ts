@@ -17,8 +17,8 @@ export class AppController {
 
   @Get('test')
   @ApiOperation({ summary: 'Test endpoint' })
-  @ApiOkResponse({ description: 'Returns a test value' })
+  @ApiOkResponse({ description: "Returns today's date (ISO)" })
   test(): { data: string } {
-    return { data: 'test 1' };
+    return { data: new Date().toISOString() };
   }
 }
