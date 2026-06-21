@@ -47,6 +47,12 @@ export class ExportStatusDto {
 
   @ApiProperty({ nullable: true, description: 'Link expiry (ISO datetime)' })
   expires_at: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Why the export failed (operator diagnostics; null unless status = failed)',
+  })
+  error_reason: string | null;
 }
 
 /** `GET /admin/reports/exports` query (paginated list of the requester's exports). */
@@ -86,6 +92,12 @@ export class ExportListItemDto {
 
   @ApiProperty({ nullable: true, description: 'Link expiry (ISO datetime)' })
   expires_at: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    description: 'Why the export failed (operator diagnostics; null unless status = failed)',
+  })
+  error_reason: string | null;
 
   @ApiProperty({ description: 'When the export was requested (ISO datetime)' })
   created_at: string;

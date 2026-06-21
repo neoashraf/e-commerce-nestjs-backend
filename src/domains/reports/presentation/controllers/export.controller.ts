@@ -97,6 +97,7 @@ export class ExportController {
       status: row.status,
       file_url: row.fileUrl,
       expires_at: row.expiresAt ? row.expiresAt.toISOString() : null,
+      error_reason: row.errorReason ?? null,
     };
   }
 
@@ -108,6 +109,7 @@ export class ExportController {
       status: row.status,
       file_url: row.fileUrl,
       expires_at: row.expiresAt ? row.expiresAt.toISOString() : null,
+      error_reason: row.errorReason ?? null,
       created_at: row.createdAt.toISOString(),
     };
   }
