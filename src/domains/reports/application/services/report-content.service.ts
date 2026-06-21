@@ -8,6 +8,7 @@ import { GetOrdersListReportUseCase } from '../use-cases/get-orders-list-report.
 import { GetProductReportUseCase } from '../use-cases/get-product-report.use-case';
 import { GetInventoryReportUseCase } from '../use-cases/get-inventory-report.use-case';
 import { GetCustomersReportUseCase } from '../use-cases/get-customers-report.use-case';
+import { GetCustomersListReportUseCase } from '../use-cases/get-customers-list-report.use-case';
 import { GetPaymentsReportUseCase } from '../use-cases/get-payments-report.use-case';
 import { GetPromotionsReportUseCase } from '../use-cases/get-promotions-report.use-case';
 import { GetSearchReportUseCase } from '../use-cases/get-search-report.use-case';
@@ -51,6 +52,7 @@ export class ReportContentService {
     private readonly products: GetProductReportUseCase,
     private readonly inventory: GetInventoryReportUseCase,
     private readonly customers: GetCustomersReportUseCase,
+    private readonly customersList: GetCustomersListReportUseCase,
     private readonly payments: GetPaymentsReportUseCase,
     private readonly promotions: GetPromotionsReportUseCase,
     private readonly search: GetSearchReportUseCase,
@@ -70,6 +72,8 @@ export class ReportContentService {
         return this.renderInventory(params, now);
       case ReportKey.CUSTOMERS:
         return this.renderCustomers(params, now);
+      case ReportKey.CUSTOMERS_LIST:
+        return this.renderCustomersList(params, now);
       case ReportKey.PAYMENTS:
         return this.renderPayments(params, now);
       case ReportKey.PROMOTIONS:
@@ -208,6 +212,46 @@ export class ReportContentService {
       columns: ['metric', 'value'],
       rows,
       as_of: report.as_of,
+    };
+  }
+
+  /**
+   * Row-level customer directory (one row per registered customer) for the Customers-page export. No period
+   * default — it honours the admin list filters (q / status / tag / last-order range) passed through the
+   * export params, so the file matches what the list shows. An optional `fields` param (canonical column
+   * keys) narrows the exported columns to the admin's selection; otherwise all columns are exported.
+   */
+  private async renderCustomersList(params: RawReportParams, now: Date): Promise<ReportTable> {
+    const str = (value: unknown): string | undefined =>
+      typeof value === 'string' && value.trim() !== '' ? value : undefined;
+    const rows = await this.customersList.execute({
+      q: str(params.q),
+      status: str(params.status),
+      tag: str(params.tag),
+      lastOrderFrom: str(params.last_order_from) ?? str(params.from),
+      lastOrderTo: str(params.last_order_to) ?? str(params.to),
+    });
+    const allColumns = [
+      'customer_id',
+      'full_name',
+      'phone',
+      'email',
+      'status',
+      'order_count',
+      'total_spent',
+      'last_order_at',
+    ];
+    const requested = Array.isArray(params.fields)
+      ? (params.fields as unknown[]).filter((f): f is string => typeof f === 'string')
+      : [];
+    const columns = requested.length
+      ? allColumns.filter((c) => requested.includes(c))
+      : allColumns;
+    return {
+      title: 'Customers',
+      columns: columns.length ? columns : allColumns,
+      rows: rows as unknown as Row[],
+      as_of: new Date(now).toISOString(),
     };
   }
 

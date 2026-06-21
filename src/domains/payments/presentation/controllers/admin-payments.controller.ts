@@ -12,6 +12,7 @@ import {
 import {
   ApiBearerAuth,
   ApiConflictResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -21,8 +22,9 @@ import { JwtAdminGuard } from '../../../rbac/presentation/guards/jwt-admin.guard
 import { PermissionsGuard } from '../../../rbac/presentation/guards/permissions.guard';
 import { Requires } from '../../../rbac/presentation/decorators/requires.decorator';
 import { CodService } from '../../application/services/cod.service';
+import { PaymentsService, PaymentStatusView } from '../../application/services/payments.service';
 import { ReconService } from '../../application/services/recon.service';
-import { CodCollectedDto, CodFailedDto } from '../dto/payment.dto';
+import { CodCollectedDto, CodFailedDto, PaymentStatusDto } from '../dto/payment.dto';
 
 /**
  * Admin payment operations (FR-PAY-010–012, 043; contract: Admin — COD, Reconciliation). COD
@@ -37,7 +39,19 @@ export class AdminPaymentsController {
   constructor(
     private readonly cod: CodService,
     private readonly recon: ReconService,
+    private readonly payments: PaymentsService,
   ) {}
+
+  @Get(':paymentId')
+  @Requires('orders.order.read')
+  @ApiOperation({
+    summary: "Payment status for an order's payment panel (method, status, amount, refunded)",
+  })
+  @ApiOkResponse({ type: PaymentStatusDto })
+  @ApiNotFoundResponse({ description: 'PAYMENT_NOT_FOUND' })
+  getStatus(@Param('paymentId', ParseUUIDPipe) paymentId: string): Promise<PaymentStatusView> {
+    return this.payments.getStatus(paymentId);
+  }
 
   @Post(':paymentId/cod-collected')
   @Requires('payments.cod.collect')
