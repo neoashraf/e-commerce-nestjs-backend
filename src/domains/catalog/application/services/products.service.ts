@@ -25,6 +25,7 @@ import { ProductAttributeValueOrmEntity } from '../../infrastructure/persistence
 import { ProductCategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-category.orm-entity';
 import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductLinkOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-link.orm-entity';
+import { ProductVideoOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-video.orm-entity';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
 import { ProductVariantOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant.orm-entity';
 import { ProductVariantOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant-option.orm-entity';
@@ -110,6 +111,7 @@ export interface AdminProductVariant {
   sku_code: string;
   options: Record<string, string>;
   price: string | null;
+  image_id: string | null;
   is_enabled: boolean;
   on_hand: number;
   low_stock_threshold: number;
@@ -121,7 +123,16 @@ export interface AdminProductImage {
   url: string;
   renditions: Record<string, string>;
   alt_text: string;
+  color_option_id: string | null;
   is_primary: boolean;
+  display_order: number;
+}
+
+/** One video in the admin editor (FR-CAT-034), ordered after images. */
+export interface AdminProductVideo {
+  id: string;
+  source: string;
+  url: string;
   display_order: number;
 }
 
@@ -148,6 +159,7 @@ export interface AdminProductDetail {
   category_ids: string[];
   primary_image_id: string | null;
   images: AdminProductImage[];
+  videos: AdminProductVideo[];
   variants: AdminProductVariant[];
   meta_title: string | null;
   meta_keywords: string | null;
@@ -175,6 +187,8 @@ export class ProductsService {
     private readonly categories: Repository<CategoryOrmEntity>,
     @InjectRepository(ProductImageOrmEntity)
     private readonly images: Repository<ProductImageOrmEntity>,
+    @InjectRepository(ProductVideoOrmEntity)
+    private readonly videos: Repository<ProductVideoOrmEntity>,
     @InjectRepository(ProductLinkOrmEntity)
     private readonly links: Repository<ProductLinkOrmEntity>,
     private readonly dataSource: DataSource,
@@ -313,9 +327,22 @@ export class ProductsService {
         url: img.url,
         renditions: img.renditions ?? { detail: img.url, listing: img.url, thumb: img.url },
         alt_text: img.altText,
+        color_option_id: img.colorOptionId,
         is_primary: img.isPrimary,
         display_order: img.displayOrder,
       }));
+
+    // Videos for the editor, ordered after the gallery (FR-CAT-034).
+    const videoRows = await this.videos.find({
+      where: { productId: id },
+      order: { displayOrder: 'ASC', createdAt: 'ASC' },
+    });
+    const videos: AdminProductVideo[] = videoRows.map((v) => ({
+      id: v.id,
+      source: v.source,
+      url: v.url,
+      display_order: v.displayOrder,
+    }));
 
     const variants = await this.loadProductVariants(id);
 
@@ -342,6 +369,7 @@ export class ProductsService {
       category_ids: categoryLinks.map((c) => c.categoryId),
       primary_image_id: p.primaryImageId,
       images,
+      videos,
       variants,
       meta_title: p.metaTitle,
       meta_keywords: p.metaKeywords,
@@ -402,6 +430,7 @@ export class ProductsService {
       sku_code: v.skuCode,
       options: optionsByVariant.get(v.id) ?? {},
       price: v.priceOverride,
+      image_id: v.imageId,
       is_enabled: v.isEnabled,
       on_hand: levels.get(v.id)?.on_hand ?? 0,
       low_stock_threshold: levels.get(v.id)?.low_stock_threshold ?? 0,

@@ -10,6 +10,7 @@ import { ProductType } from '../../domain/enums/product-type.enum';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
 import { ProductVariantOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant.orm-entity';
 import { ProductVariantOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant-option.orm-entity';
+import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductConfigurableAttributeOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-configurable-attribute.orm-entity';
 import { INVENTORY_ADMIN_PORT } from '../ports/inventory-admin.port';
 
@@ -45,6 +46,7 @@ describe('Catalog — VariantsService', () => {
     createQueryBuilder: jest.Mock;
   };
   let variantOptions: { find: jest.Mock };
+  let images: { findOne: jest.Mock };
   let attributes: { findByCode: jest.Mock };
   let savedVariants: { id: string; skuCode: string }[];
 
@@ -97,6 +99,7 @@ describe('Catalog — VariantsService', () => {
       })),
     };
     variantOptions = { find: jest.fn().mockResolvedValue([]) };
+    images = { findOne: jest.fn() };
     attributes = {
       findByCode: jest.fn().mockImplementation((code: string) =>
         code === 'color' ? colorAttr : code === 'size' ? sizeAttr : null,
@@ -110,6 +113,7 @@ describe('Catalog — VariantsService', () => {
         { provide: getRepositoryToken(ProductOrmEntity), useValue: products },
         { provide: getRepositoryToken(ProductVariantOrmEntity), useValue: variants },
         { provide: getRepositoryToken(ProductVariantOptionOrmEntity), useValue: variantOptions },
+        { provide: getRepositoryToken(ProductImageOrmEntity), useValue: images },
         { provide: getRepositoryToken(ProductConfigurableAttributeOrmEntity), useValue: { find: jest.fn() } },
         { provide: ATTRIBUTE_REPOSITORY, useValue: attributes },
         { provide: DataSource, useValue: dataSource },
@@ -186,6 +190,30 @@ describe('Catalog — VariantsService', () => {
     await expect(service.update({ id: 'v1', skuCode: 'TAKEN' })).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+
+  it('should reject an image_id that does not belong to the variant’s product (FR-CAT-023)', async () => {
+    variants.findOne.mockResolvedValue({ id: 'v1', skuCode: 'SKU', productId: 'p1' });
+    images.findOne.mockResolvedValue(null);
+    await expect(service.update({ id: 'v1', imageId: 'i-foreign' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(variants.update).not.toHaveBeenCalled();
+  });
+
+  it('should set a valid image_id belonging to the product (FR-CAT-023)', async () => {
+    variants.findOne.mockResolvedValue({ id: 'v1', skuCode: 'SKU', productId: 'p1' });
+    images.findOne.mockResolvedValue({ id: 'i1', productId: 'p1' });
+    await service.update({ id: 'v1', imageId: 'i1' });
+    expect(images.findOne).toHaveBeenCalledWith({ where: { id: 'i1', productId: 'p1' } });
+    expect(variants.update).toHaveBeenCalledWith({ id: 'v1' }, { imageId: 'i1' });
+  });
+
+  it('should allow clearing image_id (null) without validation', async () => {
+    variants.findOne.mockResolvedValue({ id: 'v1', skuCode: 'SKU', productId: 'p1' });
+    await service.update({ id: 'v1', imageId: null });
+    expect(images.findOne).not.toHaveBeenCalled();
+    expect(variants.update).toHaveBeenCalledWith({ id: 'v1' }, { imageId: null });
   });
 
   it('should count enabled variants for the publish gate (FR-CAT-025)', async () => {

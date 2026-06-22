@@ -19,6 +19,7 @@ import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entit
 import { AttributeFamilyOrmEntity } from '../../infrastructure/persistence/typeorm/entities/attribute-family.orm-entity';
 import { CategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/category.orm-entity';
 import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
+import { ProductVideoOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-video.orm-entity';
 import { ProductLinkOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-link.orm-entity';
 import { ProductStatus, ProductType } from '../../domain/enums/product-type.enum';
 
@@ -85,6 +86,7 @@ describe('Catalog — ProductsService', () => {
         { provide: getRepositoryToken(AttributeFamilyOrmEntity), useValue: families },
         { provide: getRepositoryToken(CategoryOrmEntity), useValue: categories },
         { provide: getRepositoryToken(ProductImageOrmEntity), useValue: images },
+        { provide: getRepositoryToken(ProductVideoOrmEntity), useValue: { find: jest.fn().mockResolvedValue([]) } },
         { provide: getRepositoryToken(ProductLinkOrmEntity), useValue: {} },
         { provide: DataSource, useValue: dataSource },
         { provide: ProductSupportService, useValue: support },
