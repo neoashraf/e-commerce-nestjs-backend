@@ -11,6 +11,7 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -22,24 +23,30 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 
 import { Paginated } from '../../../../shared/dto/paginated';
+import { SkipEnvelope } from '../../../../shared/decorators/skip-envelope.decorator';
 import { JwtAdminGuard } from '../../../rbac/presentation/guards/jwt-admin.guard';
 import { PermissionsGuard } from '../../../rbac/presentation/guards/permissions.guard';
 import { Requires } from '../../../rbac/presentation/decorators/requires.decorator';
 import {
   AdminProductDetail,
   AdminProductRow,
+  BulkStatusResultItem,
   ProductsService,
 } from '../../application/services/products.service';
+import { BulkStatusDto } from '../dto/bulk-status.dto';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { ListProductsQueryDto } from '../dto/list-products-query.dto';
 import {
   AdminProductDetailDto,
   AdminProductRowDto,
+  BulkStatusResponseDto,
   CreateProductResponseDto,
   SetProductLinksResponseDto,
   UpdateProductResponseDto,
@@ -71,6 +78,24 @@ export class ProductsController {
       category: query.category,
       q: query.q,
     });
+  }
+
+  @Get('export')
+  @Requires('catalog.product.read')
+  @SkipEnvelope()
+  @ApiProduces('text/csv')
+  @ApiOperation({ summary: 'Export the current filtered product set as CSV (ignores pagination)' })
+  async export(@Query() query: ListProductsQueryDto, @Res() res: Response): Promise<void> {
+    const rows = await this.products.exportRows({
+      status: query.status,
+      type: query.type,
+      family: query.family,
+      category: query.category,
+      q: query.q,
+    });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${ProductsController.exportFilename()}"`);
+    res.send(ProductsController.toCsv(rows));
   }
 
   @Get(':id')
@@ -115,6 +140,19 @@ export class ProductsController {
       metaKeywords: dto.meta_keywords,
       metaDescription: dto.meta_description,
     });
+  }
+
+  @Patch('bulk-status')
+  @Requires('catalog.product.update')
+  @ApiOperation({ summary: 'Bulk publish / archive products (per-item results; batch never aborts)' })
+  @ApiOkResponse({ type: BulkStatusResponseDto })
+  async bulkStatus(@Body() dto: BulkStatusDto): Promise<{
+    processed: number;
+    succeeded: number;
+    failed: number;
+    results: BulkStatusResultItem[];
+  }> {
+    return this.products.bulkStatus(dto.ids, dto.status);
   }
 
   @Patch(':id')
@@ -186,5 +224,52 @@ export class ProductsController {
   @ApiNotFoundResponse({ description: 'Product not found' })
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.products.softDelete(id);
+  }
+
+  /** `products-YYYYMMDD.csv` for the export's Content-Disposition. */
+  private static exportFilename(): string {
+    const d = new Date();
+    const stamp = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(
+      d.getUTCDate(),
+    ).padStart(2, '0')}`;
+    return `products-${stamp}.csv`;
+  }
+
+  /** Serialise the export rows to CSV (contract columns); RFC-4180 quoting. */
+  private static toCsv(rows: AdminProductRow[]): string {
+    const header = [
+      'sku',
+      'name',
+      'type',
+      'family',
+      'primary_category',
+      'base_price',
+      'sale_price',
+      'status',
+      'qty',
+    ];
+    const escape = (v: unknown): string => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [header.join(',')];
+    for (const r of rows) {
+      lines.push(
+        [
+          r.sku,
+          r.name,
+          r.type,
+          r.family ?? '',
+          r.primary_category ?? '',
+          r.base_price,
+          r.sale_price ?? '',
+          r.status,
+          r.qty ?? '',
+        ]
+          .map(escape)
+          .join(','),
+      );
+    }
+    return lines.join('\n');
   }
 }

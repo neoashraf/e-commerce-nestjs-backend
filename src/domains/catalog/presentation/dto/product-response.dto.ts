@@ -51,10 +51,40 @@ export class AdminProductRowDto {
   @ApiProperty({ nullable: true }) family: string | null;
   @ApiProperty({ nullable: true }) primary_image: string | null;
   @ApiProperty({ example: '14000.00' }) base_price: string;
+  @ApiProperty({ nullable: true, example: '12500.00', description: 'Effective sale price (struck base shown alongside)' })
+  sale_price: string | null;
+  @ApiProperty({ description: 'true only when now ∈ [sale_starts_at, sale_ends_at] (BR-CAT-4)' })
+  sale_active: boolean;
   @ApiProperty() status: string;
   @ApiProperty({ nullable: true }) primary_category: string | null;
   @ApiProperty({ nullable: true, description: 'Live on-hand from INV; null when unavailable' })
   qty: number | null;
+  @ApiProperty({
+    nullable: true,
+    enum: ['in_stock', 'low_stock', 'out_of_stock'],
+    description: 'Derived live from INV (FR-CAT-042); null when unavailable',
+  })
+  qty_status: 'in_stock' | 'low_stock' | 'out_of_stock' | null;
+}
+
+/** One per-item outcome of a bulk publish/archive (FR-CAT-015/016). */
+export class BulkStatusItemDto {
+  @ApiProperty({ example: 'c7-uuid' }) id: string;
+  @ApiProperty({ example: true }) ok: boolean;
+  @ApiProperty({ required: false, example: 'published', description: 'New status when ok' })
+  status?: string;
+  @ApiProperty({ required: false, example: 'NOT_PUBLISHABLE', description: 'Failure code when !ok' })
+  code?: string;
+  @ApiProperty({ required: false, type: [String], example: ['no_primary_image'] })
+  details?: string[];
+}
+
+/** Bulk publish/archive response — per-item results (FR-CAT-015/016). */
+export class BulkStatusResponseDto {
+  @ApiProperty({ example: 2 }) processed: number;
+  @ApiProperty({ example: 1 }) succeeded: number;
+  @ApiProperty({ example: 1 }) failed: number;
+  @ApiProperty({ type: [BulkStatusItemDto] }) results: BulkStatusItemDto[];
 }
 
 /** Full product detail for the admin editor — `GET /admin/products/{id}` (includes `updated_at`). */

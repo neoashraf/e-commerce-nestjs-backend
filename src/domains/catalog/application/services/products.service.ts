@@ -7,7 +7,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { Paginated } from '../../../../shared/dto/paginated';
 import { Attribute } from '../../domain/entities/attribute.entity';
@@ -99,9 +99,46 @@ export interface AdminProductRow {
   family: string | null;
   primary_image: string | null;
   base_price: string;
+  sale_price: string | null;
+  sale_active: boolean;
   status: string;
   primary_category: string | null;
   qty: number | null;
+  qty_status: string | null;
+}
+
+/** Raw row shape returned by the admin-list query before the INV/sale enrichment. */
+interface AdminProductRawRow {
+  id: string;
+  name: string;
+  sku: string;
+  type: string;
+  family: string | null;
+  primary_image: string | null;
+  base_price: string;
+  sale_price: string | null;
+  sale_starts_at: string | Date | null;
+  sale_ends_at: string | Date | null;
+  status: string;
+  primary_category: string | null;
+}
+
+/** Filters shared by the admin product list + CSV export. */
+export interface AdminProductListFilter {
+  status?: ProductStatus;
+  type?: ProductType;
+  family?: string;
+  category?: string;
+  q?: string;
+}
+
+/** Outcome of a single product in a bulk status transition (FR-CAT-015/016). */
+export interface BulkStatusResultItem {
+  id: string;
+  ok: boolean;
+  status?: string;
+  code?: string;
+  details?: string[];
 }
 
 /** Full product detail for the admin editor (all editable fields + `updated_at` for optimistic writes). */
@@ -673,15 +710,29 @@ export class ProductsService {
   // Admin list
   // ---------------------------------------------------------------------------
 
-  async list(filter: {
-    page: number;
-    limit: number;
-    status?: ProductStatus;
-    type?: ProductType;
-    family?: string;
-    category?: string;
-    q?: string;
-  }): Promise<Paginated<AdminProductRow>> {
+  async list(
+    filter: AdminProductListFilter & { page: number; limit: number },
+    now: Date = new Date(),
+  ): Promise<Paginated<AdminProductRow>> {
+    const qb = this.buildListQuery(filter);
+    const total = await qb.getCount();
+    const rawRows = await qb
+      .offset((filter.page - 1) * filter.limit)
+      .limit(filter.limit)
+      .getRawMany<AdminProductRawRow>();
+
+    const items = await this.mapListRows(rawRows, now);
+    return new Paginated(items, { page: filter.page, limit: filter.limit, total });
+  }
+
+  /** The full filtered set (no pagination) for the CSV export (SRS §10). */
+  async exportRows(filter: AdminProductListFilter, now: Date = new Date()): Promise<AdminProductRow[]> {
+    const rawRows = await this.buildListQuery(filter).getRawMany<AdminProductRawRow>();
+    return this.mapListRows(rawRows, now);
+  }
+
+  /** Shared admin-list query (filters + selected columns), reused by `list` + `exportRows`. */
+  private buildListQuery(filter: AdminProductListFilter): SelectQueryBuilder<ProductOrmEntity> {
     const qb = this.products
       .createQueryBuilder('p')
       .leftJoin(AttributeFamilyOrmEntity, 'f', 'f.id = p.family_id')
@@ -694,6 +745,9 @@ export class ProductsService {
       .addSelect('f.code', 'family')
       .addSelect('img.url', 'primary_image')
       .addSelect('p.base_price', 'base_price')
+      .addSelect('p.sale_price', 'sale_price')
+      .addSelect('p.sale_starts_at', 'sale_starts_at')
+      .addSelect('p.sale_ends_at', 'sale_ends_at')
       .addSelect('p.status', 'status')
       .addSelect('pc.name', 'primary_category')
       .orderBy('p.created_at', 'DESC');
@@ -714,20 +768,74 @@ export class ProductsService {
     if (filter.q) {
       qb.andWhere('(p.name ILIKE :q OR p.sku ILIKE :q)', { q: `%${filter.q}%` });
     }
+    return qb;
+  }
 
-    const total = await qb.getCount();
-    const rawRows = await qb
-      .offset((filter.page - 1) * filter.limit)
-      .limit(filter.limit)
-      .getRawMany<Omit<AdminProductRow, 'qty'>>();
+  /** Join live INV stock (BR-CAT-5) + derive sale_active (BR-CAT-4) onto the raw rows. */
+  private async mapListRows(rawRows: AdminProductRawRow[], now: Date): Promise<AdminProductRow[]> {
+    const stockMap = await this.inventoryQty.getStockByProductIds(rawRows.map((r) => r.id));
+    return rawRows.map((r) => {
+      const stock = stockMap.get(r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        sku: r.sku,
+        type: r.type,
+        family: r.family,
+        primary_image: r.primary_image,
+        base_price: r.base_price,
+        sale_price: r.sale_price,
+        sale_active: this.isSaleActiveRow(r, now),
+        status: r.status,
+        primary_category: r.primary_category,
+        qty: stock ? stock.qty : null,
+        qty_status: stock ? stock.qty_status : null,
+      };
+    });
+  }
 
-    const qtyMap = await this.inventoryQty.getQtyByProductIds(rawRows.map((r) => r.id));
-    const items: AdminProductRow[] = rawRows.map((r) => ({
-      ...r,
-      qty: qtyMap.has(r.id) ? (qtyMap.get(r.id) as number) : null,
-    }));
+  /** A row's sale is active only when a sale price is set and now ∈ [sale_starts_at, sale_ends_at] (BR-CAT-4). */
+  private isSaleActiveRow(r: AdminProductRawRow, now: Date): boolean {
+    if (r.sale_price === null || !r.sale_starts_at || !r.sale_ends_at) return false;
+    const starts = new Date(r.sale_starts_at);
+    const ends = new Date(r.sale_ends_at);
+    return now >= starts && now <= ends;
+  }
 
-    return new Paginated(items, { page: filter.page, limit: filter.limit, total });
+  /**
+   * Bulk publish/archive (SRS §10; FR-CAT-015/016). Runs the **same** per-product validation as the
+   * single-product transition (publish-trinity for `published`), returning **per-item** results and
+   * never aborting the batch on an individual failure.
+   */
+  async bulkStatus(ids: string[], status: ProductStatus): Promise<{
+    processed: number;
+    succeeded: number;
+    failed: number;
+    results: BulkStatusResultItem[];
+  }> {
+    const results: BulkStatusResultItem[] = [];
+    for (const id of ids) {
+      results.push(await this.applyBulkStatus(id, status));
+    }
+    const succeeded = results.filter((r) => r.ok).length;
+    return { processed: results.length, succeeded, failed: results.length - succeeded, results };
+  }
+
+  private async applyBulkStatus(id: string, status: ProductStatus): Promise<BulkStatusResultItem> {
+    const product = await this.products.findOne({ where: { id } });
+    if (!product) {
+      return { id, ok: false, code: 'PRODUCT_NOT_FOUND' };
+    }
+    if (status === ProductStatus.PUBLISHED) {
+      const details = await this.gatherPublishDetails(product);
+      if (details.length > 0) {
+        return { id, ok: false, code: 'NOT_PUBLISHABLE', details };
+      }
+    }
+    await this.products.update({ id }, { status });
+    // Mirror to the storefront index (idempotent + graceful), same as the single transition.
+    await this.searchIndex.upsert(id);
+    return { id, ok: true, status };
   }
 
   // ---------------------------------------------------------------------------
