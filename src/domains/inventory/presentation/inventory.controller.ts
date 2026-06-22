@@ -33,6 +33,7 @@ import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { InventoryRowDto, StockMutationResponseDto } from './dto/inventory-response.dto';
 import { ListInventoryQueryDto } from './dto/list-inventory-query.dto';
 import { ReceiveStockDto } from './dto/receive-stock.dto';
+import { SetOnHandDto } from './dto/set-on-hand.dto';
 import { SetThresholdDto } from './dto/set-threshold.dto';
 
 /**
@@ -91,6 +92,24 @@ export class InventoryController {
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ): Promise<StockMutationResult> {
     return this.inventory.adjust(variantId, dto.quantity_delta, dto.reason, {
+      type: StockMovementActorType.ADMIN,
+      id: admin.adminId,
+    });
+  }
+
+  @Post(':variantId/set')
+  @Requires('inventory.stock.update')
+  @ApiOperation({ summary: 'Set on-hand to an absolute value (audited correction; e.g. editor inline stock)' })
+  @ApiOkResponse({ type: StockMutationResponseDto })
+  @ApiBadRequestResponse({ description: 'on_hand missing or not an integer' })
+  @ApiConflictResponse({ description: 'NEGATIVE_ON_HAND (target < 0)' })
+  @ApiNotFoundResponse({ description: 'No inventory record for the variant' })
+  async set(
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+    @Body() dto: SetOnHandDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ): Promise<StockMutationResult> {
+    return this.inventory.setOnHand(variantId, dto.on_hand, dto.reason, dto.source, {
       type: StockMovementActorType.ADMIN,
       id: admin.adminId,
     });

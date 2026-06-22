@@ -134,4 +134,63 @@ describe('Inventory — InventoryService', () => {
   it('should reject a negative threshold', async () => {
     await expect(service.setThreshold('v1', -1)).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  // --- setOnHand (FR-INV-015) -----------------------------------------------
+
+  it('should set on_hand to the target, write a correction movement, and recompute available (FR-INV-015/050)', async () => {
+    lockedRow = { variantId: 'v1', onHand: 0, reserved: 0, available: 0, lowStockThreshold: 3 };
+    const result = await service.setOnHand('v1', 12, undefined, 'product-editor', ADMIN_ACTOR);
+    expect(result).toEqual({ variant_id: 'v1', on_hand: 12, available: 12, movement_id: 'mv-1' });
+    expect(movements.recordMovement).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: 'correction',
+        quantityDelta: 12,
+        resultingOnHand: 12,
+        reason: 'inline set · product-editor', // system default folds in the source tag (BR-INV-10)
+        actor: ADMIN_ACTOR,
+      }),
+    );
+  });
+
+  it('should use the provided reason verbatim when supplied', async () => {
+    lockedRow = { variantId: 'v1', onHand: 5, reserved: 0, available: 5, lowStockThreshold: 3 };
+    await service.setOnHand('v1', 8, 'stock take 2026Q2', 'product-editor', ADMIN_ACTOR);
+    expect(movements.recordMovement).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ quantityDelta: 3, reason: 'stock take 2026Q2' }),
+    );
+  });
+
+  it('should be an idempotent no-op when setting to the current value (no movement, no error)', async () => {
+    lockedRow = { variantId: 'v1', onHand: 12, reserved: 0, available: 12, lowStockThreshold: 3 };
+    const result = await service.setOnHand('v1', 12, undefined, undefined, ADMIN_ACTOR);
+    expect(result).toEqual({ variant_id: 'v1', on_hand: 12, available: 12, movement_id: null });
+    expect(movements.recordMovement).not.toHaveBeenCalled();
+    expect(savedRow).toBeNull(); // row not re-saved
+  });
+
+  it('should reject a target < 0 with 409 NEGATIVE_ON_HAND and write no movement (FR-INV-012)', async () => {
+    await expect(service.setOnHand('v1', -1, undefined, undefined, ADMIN_ACTOR)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(movements.recordMovement).not.toHaveBeenCalled();
+  });
+
+  it('should allow a target below reserved → available goes negative, surfaced (§12.12)', async () => {
+    lockedRow = { variantId: 'v1', onHand: 10, reserved: 5, available: 5, lowStockThreshold: 3 };
+    const result = await service.setOnHand('v1', 2, undefined, undefined, ADMIN_ACTOR);
+    expect(result).toEqual({ variant_id: 'v1', on_hand: 2, available: -3, movement_id: 'mv-1' });
+    expect(movements.recordMovement).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ type: 'correction', quantityDelta: -8, resultingOnHand: 2 }),
+    );
+  });
+
+  it('should 404 when setting on a non-existent record', async () => {
+    lockedRow = null;
+    await expect(service.setOnHand('missing', 5, undefined, undefined, ADMIN_ACTOR)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
 });
