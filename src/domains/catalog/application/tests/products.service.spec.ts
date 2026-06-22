@@ -38,10 +38,11 @@ describe('Catalog — ProductsService', () => {
   let support: { skuExists: jest.Mock; generateUniqueSlug: jest.Mock; getFamilyAttributes: jest.Mock };
   let families: { findOne: jest.Mock };
   let categories: { findOne: jest.Mock; find: jest.Mock };
-  let products: { findOne: jest.Mock; find: jest.Mock; update: jest.Mock };
+  let products: { findOne: jest.Mock; find: jest.Mock; update: jest.Mock; createQueryBuilder: jest.Mock };
   let images: { count: jest.Mock };
   let variantPublish: { countEnabledVariants: jest.Mock };
   let searchIndex: { upsert: jest.Mock; remove: jest.Mock };
+  let inventoryStock: { getStockByProductIds: jest.Mock };
   let presentAttributeValues: Array<{ attributeId: string }>;
   let dataSource: { transaction: jest.Mock; getRepository: jest.Mock };
 
@@ -56,8 +57,14 @@ describe('Catalog — ProductsService', () => {
       findOne: jest.fn().mockResolvedValue({ id: 'cat-1' }),
       find: jest.fn().mockResolvedValue([]),
     };
-    products = { findOne: jest.fn(), find: jest.fn(), update: jest.fn().mockResolvedValue(undefined) };
+    products = {
+      findOne: jest.fn(),
+      find: jest.fn(),
+      update: jest.fn().mockResolvedValue(undefined),
+      createQueryBuilder: jest.fn(),
+    };
     images = { count: jest.fn().mockResolvedValue(1) };
+    inventoryStock = { getStockByProductIds: jest.fn().mockResolvedValue(new Map()) };
     variantPublish = { countEnabledVariants: jest.fn().mockResolvedValue(1) };
     searchIndex = { upsert: jest.fn().mockResolvedValue(undefined), remove: jest.fn().mockResolvedValue(undefined) };
     presentAttributeValues = [];
@@ -92,7 +99,7 @@ describe('Catalog — ProductsService', () => {
         { provide: ProductSupportService, useValue: support },
         { provide: AttributeAssignmentValidator, useValue: { assertValid: jest.fn() } },
         { provide: ProductPublishValidator, useValue: new ProductPublishValidator() },
-        { provide: INVENTORY_QTY_PORT, useValue: { getQtyByProductIds: jest.fn() } },
+        { provide: INVENTORY_QTY_PORT, useValue: inventoryStock },
         { provide: PRODUCT_VARIANT_PUBLISH_PORT, useValue: variantPublish },
         { provide: SEARCH_INDEX_PORT, useValue: searchIndex },
         {
@@ -177,5 +184,86 @@ describe('Catalog — ProductsService', () => {
     products.findOne.mockResolvedValue({ id: 'p1' });
     products.find.mockResolvedValue([]); // none of the targets exist
     await expect(service.setLinks('p1', ['p9'], [], [])).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // --- list: sale_active (BR-CAT-4) + live qty_status (BR-CAT-5) -------------
+
+  /** Chainable query-builder stub returning the given raw rows + total. */
+  const makeQb = (rawRows: unknown[], total: number) => {
+    const qb: Record<string, jest.Mock> = {};
+    for (const m of ['leftJoin', 'select', 'addSelect', 'orderBy', 'andWhere', 'offset', 'limit']) {
+      qb[m] = jest.fn().mockReturnValue(qb);
+    }
+    qb.getCount = jest.fn().mockResolvedValue(total);
+    qb.getRawMany = jest.fn().mockResolvedValue(rawRows);
+    return qb;
+  };
+
+  const baseRow = {
+    id: 'p1', name: 'Boot', sku: 'SKU1', type: 'simple', family: 'f', primary_image: null,
+    base_price: '14000.00', status: 'published', primary_category: 'Boots',
+  };
+  const NOW = new Date('2026-06-10T00:00:00.000Z');
+
+  it('computes sale_active only inside the sale window + joins live qty_status (BR-CAT-4/5)', async () => {
+    const rows = [
+      { ...baseRow, id: 'p1', sale_price: '12500.00', sale_starts_at: '2026-06-05T00:00:00Z', sale_ends_at: '2026-06-20T00:00:00Z' },
+      { ...baseRow, id: 'p2', sale_price: '9000.00', sale_starts_at: '2026-06-01T00:00:00Z', sale_ends_at: '2026-06-05T00:00:00Z' }, // expired
+      { ...baseRow, id: 'p3', sale_price: null, sale_starts_at: null, sale_ends_at: null },
+    ];
+    products.createQueryBuilder.mockReturnValue(makeQb(rows, 3));
+    inventoryStock.getStockByProductIds.mockResolvedValue(
+      new Map([['p1', { qty: 12, qty_status: 'in_stock' }]]), // p2/p3 absent → null
+    );
+
+    const page = await service.list({ page: 1, limit: 20 }, NOW);
+
+    expect(page.items[0]).toMatchObject({ id: 'p1', sale_active: true, qty: 12, qty_status: 'in_stock' });
+    expect(page.items[1]).toMatchObject({ id: 'p2', sale_active: false, qty: null, qty_status: null });
+    expect(page.items[2]).toMatchObject({ id: 'p3', sale_price: null, sale_active: false });
+    expect(page.meta.total).toBe(3);
+  });
+
+  it('exportRows returns the full filtered set (no pagination) with the same enrichment', async () => {
+    const qb = makeQb([{ ...baseRow, sale_price: null, sale_starts_at: null, sale_ends_at: null }], 1);
+    products.createQueryBuilder.mockReturnValue(qb);
+    inventoryStock.getStockByProductIds.mockResolvedValue(new Map());
+
+    const rows = await service.exportRows({ status: undefined }, NOW);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ sku: 'SKU1', qty: null, qty_status: null });
+    expect(qb.offset).not.toHaveBeenCalled(); // export ignores pagination
+    expect(qb.limit).not.toHaveBeenCalled();
+  });
+
+  // --- bulk-status (FR-CAT-015/016) -----------------------------------------
+
+  it('bulk-publishes valid ids and reports NOT_PUBLISHABLE per-item without aborting the batch', async () => {
+    // p-ok publishes cleanly; p-bad has no primary image → NOT_PUBLISHABLE; p-missing doesn't exist.
+    products.findOne.mockImplementation((opts: { where: { id: string } }) => {
+      const id = opts.where.id;
+      if (id === 'p-ok') return Promise.resolve({ id, type: ProductType.SIMPLE, primaryImageId: 'img1', familyId: 'fam' });
+      if (id === 'p-bad') return Promise.resolve({ id, type: ProductType.SIMPLE, primaryImageId: null, familyId: 'fam' });
+      return Promise.resolve(null);
+    });
+    support.getFamilyAttributes.mockResolvedValue(new Map());
+
+    const res = await service.bulkStatus(['p-ok', 'p-bad', 'p-missing'], ProductStatus.PUBLISHED);
+
+    expect(res).toMatchObject({ processed: 3, succeeded: 1, failed: 2 });
+    expect(res.results.find((r) => r.id === 'p-ok')).toMatchObject({ ok: true, status: 'published' });
+    expect(res.results.find((r) => r.id === 'p-bad')).toMatchObject({ ok: false, code: 'NOT_PUBLISHABLE' });
+    expect(res.results.find((r) => r.id === 'p-missing')).toMatchObject({ ok: false, code: 'PRODUCT_NOT_FOUND' });
+    expect(products.update).toHaveBeenCalledWith({ id: 'p-ok' }, { status: ProductStatus.PUBLISHED });
+    expect(products.update).not.toHaveBeenCalledWith({ id: 'p-bad' }, expect.anything());
+  });
+
+  it('bulk-archives without running the publish trinity', async () => {
+    products.findOne.mockResolvedValue({ id: 'p1', type: ProductType.SIMPLE, primaryImageId: null, familyId: 'fam' });
+    const res = await service.bulkStatus(['p1'], ProductStatus.ARCHIVED);
+    expect(res).toMatchObject({ processed: 1, succeeded: 1, failed: 0 });
+    expect(products.update).toHaveBeenCalledWith({ id: 'p1' }, { status: ProductStatus.ARCHIVED });
+    expect(searchIndex.upsert).toHaveBeenCalledWith('p1');
   });
 });
