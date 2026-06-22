@@ -49,6 +49,7 @@ import { TypeOrmCategoryRepository } from './infrastructure/persistence/typeorm/
 import { AttributesController } from './presentation/controllers/attributes.controller';
 import { AttributeFamiliesController } from './presentation/controllers/attribute-families.controller';
 import { CategoriesController } from './presentation/controllers/categories.controller';
+import { CategoryMediaController } from './presentation/controllers/category-media.controller';
 import { CategoriesPublicController } from './presentation/controllers/categories-public.controller';
 import { ProductsController } from './presentation/controllers/products.controller';
 import { ProductMediaController } from './presentation/controllers/product-media.controller';
@@ -57,6 +58,7 @@ import { ProductDetailController } from './presentation/controllers/product-deta
 import { ProductsService } from './application/services/products.service';
 import { ProductSupportService } from './application/services/product-support.service';
 import { ProductMediaService } from './application/services/product-media.service';
+import { CategoryMediaService } from './application/services/category-media.service';
 import { ProductPublishValidator } from './application/services/product-publish.validator';
 import { VariantsService } from './application/services/variants.service';
 import { ProductDetailService } from './application/services/product-detail.service';
@@ -109,6 +111,7 @@ import { SearchIndexAdapter } from './infrastructure/adapters/search-index.adapt
     AttributesController,
     AttributeFamiliesController,
     CategoriesController,
+    CategoryMediaController,
     CategoriesPublicController,
     ProductsController,
     ProductMediaController,
@@ -141,6 +144,7 @@ import { SearchIndexAdapter } from './infrastructure/adapters/search-index.adapt
     ProductsService,
     ProductSupportService,
     ProductMediaService,
+    CategoryMediaService,
     ProductPublishValidator,
     VariantsService,
     ProductDetailService,
