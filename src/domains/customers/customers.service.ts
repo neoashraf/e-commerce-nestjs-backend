@@ -20,7 +20,7 @@ import {
 import { AUTH_CUSTOMER_GATEWAY, IAuthCustomerGateway } from './ports/auth-customer.port';
 import { ILeadSource, LEAD_SOURCE } from './ports/lead-source.port';
 import { IOrderStats, ORDER_STATS } from './ports/order-stats.port';
-import { IWishlistSource, WISHLIST_SOURCE } from './ports/wishlist-source.port';
+import { AdminWishlistItem, IWishlistSource, WISHLIST_SOURCE } from './ports/wishlist-source.port';
 
 const RECENT_ORDERS_LIMIT = 10;
 const LINKED_LEADS_LIMIT = 10;
@@ -147,6 +147,16 @@ export class CustomersService {
       leads: leads.map((l) => ({ reference: l.reference, type: l.type, status: l.status })),
       wishlist_count: wishlistCount,
     };
+  }
+
+  /**
+   * A customer's wishlist items for the 360 Wishlist panel (FR-CUST-013), read live over WISH
+   * (price/availability per BR-WISH-2). 404s an unknown customer; a customer with no/empty wishlist
+   * returns `[]`. Read-only — the admin never mutates another customer's wishlist (BR-CUST-1).
+   */
+  async getWishlist(customerId: string): Promise<AdminWishlistItem[]> {
+    await this.requireCustomer(customerId);
+    return this.wishlist.getItems(customerId);
   }
 
   // ── Account actions (FR-CUST-020–023, BR-CUST-2/4/5/6) ────────────────────
