@@ -40,6 +40,7 @@ import { CreateNoteDto } from './dto/note.dto';
 import { AssignTagDto } from './dto/tag.dto';
 import { CreateExportDto } from './dto/export.dto';
 import {
+  AdminWishlistItemDto,
   CreateNoteResultDto,
   CustomerListItemDto,
   CustomerProfileDto,
@@ -109,6 +110,16 @@ export class CustomersController {
   @ApiNotFoundResponse({ description: 'CUSTOMER_NOT_FOUND' })
   getProfile(@Param('customerId') customerId: string): Promise<CustomerProfileDto> {
     return this.customers.getProfile(customerId);
+  }
+
+  @Get(':customerId/wishlist')
+  @Requires('customers.customer.read')
+  @ApiParam({ name: 'customerId', example: 'c_77…' })
+  @ApiOperation({ summary: "A customer's wishlist items (live price + availability; FR-CUST-013)" })
+  @ApiOkResponse({ type: AdminWishlistItemDto, isArray: true })
+  @ApiNotFoundResponse({ description: 'CUSTOMER_NOT_FOUND' })
+  getWishlist(@Param('customerId') customerId: string): Promise<AdminWishlistItemDto[]> {
+    return this.customers.getWishlist(customerId);
   }
 
   @Post(':customerId/suspend')

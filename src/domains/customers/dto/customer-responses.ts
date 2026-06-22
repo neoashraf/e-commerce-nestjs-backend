@@ -47,6 +47,23 @@ export class CustomerLeadDto {
   @ApiProperty({ example: 'awaiting_customer' }) status!: string;
 }
 
+/** One wishlist item on the 360 (contract: GET /admin/customers/{id}/wishlist). */
+export class AdminWishlistItemDto {
+  @ApiProperty({ example: 'c7…' }) product_id!: string;
+  @ApiProperty({ example: 'Adidas Predator Elite' }) product_title!: string;
+  @ApiProperty({ nullable: true, example: 'https://…/listing.webp' }) product_image!: string | null;
+  @ApiProperty({
+    nullable: true,
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    example: { color: 'Black', size: '42' },
+  })
+  variant_options!: Record<string, string> | null;
+  @ApiProperty({ example: '12500.00', description: 'Effective price (BDT)' }) price!: string;
+  @ApiProperty({ example: true }) in_stock!: boolean;
+  @ApiProperty({ example: '2026-06-02T14:20:00Z' }) added_at!: string;
+}
+
 /** Customer 360 profile (contract: GET /admin/customers/{id}). */
 export class CustomerProfileDto {
   @ApiProperty({ example: 'c_77…' }) customer_id!: string;

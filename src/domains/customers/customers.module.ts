@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RbacModule } from '../rbac/rbac.module';
+import { WishlistModule } from '../wishlist/wishlist.module';
 import { CustomerAccountActionEntity } from './entities/customer-account-action.entity';
 import { CustomerExportEntity } from './entities/customer-export.entity';
 import { CustomerNoteEntity } from './entities/customer-note.entity';
@@ -29,6 +30,7 @@ import { WISHLIST_SOURCE, WishlistSourceAdapter } from './ports/wishlist-source.
 @Module({
   imports: [
     forwardRef(() => RbacModule),
+    WishlistModule,
     TypeOrmModule.forFeature([
       CustomerNoteEntity,
       CustomerTagEntity,
