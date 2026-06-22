@@ -66,6 +66,8 @@ export class AdminProductVariantDto {
   options: Record<string, string>;
   @ApiProperty({ nullable: true, example: '9500.00', description: 'Per-variant price override' })
   price: string | null;
+  @ApiProperty({ nullable: true, description: 'Variant-specific image id (FR-CAT-023)' })
+  image_id: string | null;
   @ApiProperty() is_enabled: boolean;
   @ApiProperty({ example: 50, description: 'Live on-hand stock from INV' }) on_hand: number;
   @ApiProperty({ example: 5 }) low_stock_threshold: number;
@@ -78,7 +80,17 @@ export class AdminProductImageDto {
   @ApiProperty({ example: { thumb: '…', listing: '…', detail: '…' } })
   renditions: Record<string, string>;
   @ApiProperty() alt_text: string;
+  @ApiProperty({ nullable: true, description: 'Tagged `color` attribute option (FR-CAT-032)' })
+  color_option_id: string | null;
   @ApiProperty() is_primary: boolean;
+  @ApiProperty() display_order: number;
+}
+
+/** One video in the admin editor (ordered after images). */
+export class AdminProductVideoDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ example: 'url', description: 'url (external) | upload (stored file)' }) source: string;
+  @ApiProperty({ example: 'https://…' }) url: string;
   @ApiProperty() display_order: number;
 }
 
@@ -105,6 +117,7 @@ export class AdminProductDetailDto {
   @ApiProperty({ type: [String] }) category_ids: string[];
   @ApiProperty({ nullable: true }) primary_image_id: string | null;
   @ApiProperty({ type: [AdminProductImageDto] }) images: AdminProductImageDto[];
+  @ApiProperty({ type: [AdminProductVideoDto] }) videos: AdminProductVideoDto[];
   @ApiProperty({ type: [AdminProductVariantDto] }) variants: AdminProductVariantDto[];
   @ApiProperty({ nullable: true }) meta_title: string | null;
   @ApiProperty({ nullable: true }) meta_keywords: string | null;
@@ -137,6 +150,18 @@ export class AddVideoResponseDto {
   id: string;
 }
 
+/** Delete-video response (FR-CAT-034). */
+export class DeleteVideoResponseDto {
+  @ApiProperty({ example: 'vd1-uuid' })
+  id: string;
+}
+
+/** Image-reorder response — the persisted order (FR-CAT-031). */
+export class ReorderImagesResponseDto {
+  @ApiProperty({ type: [String], example: ['i3-uuid', 'i1-uuid', 'i2-uuid'] })
+  ordered: string[];
+}
+
 /** Set-primary response — the now-primary image id (FR-CAT-032). */
 export class SetPrimaryImageResponseDto {
   @ApiProperty({ example: 'i1-uuid' })
@@ -159,11 +184,14 @@ export class DeleteImageResponseDto {
   primary_image_id: string | null;
 }
 
-/** Alt-text update response (FR-CAT-032). */
+/** Image metadata update response — alt text + colour-tag (FR-CAT-032). */
 export class UpdateImageResponseDto {
   @ApiProperty({ example: 'i1-uuid' })
   id: string;
 
   @ApiProperty({ example: 'Brazil home jersey, front view' })
   alt_text: string;
+
+  @ApiProperty({ nullable: true, example: 'o-yellow', description: 'Tagged colour option; null when untagged' })
+  color_option_id: string | null;
 }

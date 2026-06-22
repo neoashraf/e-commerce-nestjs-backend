@@ -1,14 +1,25 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsUUID, MaxLength, ValidateIf } from 'class-validator';
 
 /**
  * Body for `PATCH /admin/products/{id}/images/{imageId}` (FR-CAT-032) — edit an existing image's
- * accessibility alt text. JSON (not multipart): the binary is never re-sent on a metadata edit.
+ * accessibility alt text and/or its colour-tag. JSON (not multipart): the binary is never re-sent on
+ * a metadata edit. At least one field must be present (enforced in the service); `color_option_id:null`
+ * clears the tag.
  */
 export class UpdateImageDto {
-  @ApiProperty({ description: 'Required accessibility alt text', maxLength: 160 })
+  @ApiPropertyOptional({ description: 'Accessibility alt text (non-empty when sent)', maxLength: 160 })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(160)
-  alt_text: string;
+  alt_text?: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: "A `color` attribute option this image represents; null clears the tag",
+  })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsUUID()
+  color_option_id?: string | null;
 }

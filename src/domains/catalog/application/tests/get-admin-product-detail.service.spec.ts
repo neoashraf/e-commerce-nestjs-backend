@@ -34,6 +34,8 @@ const product = {
 function makeService(
   found: ProductOrmEntity | null,
   categoryLinks: Array<{ categoryId: string }> = [],
+  imageRows: Array<Record<string, unknown>> = [],
+  videoRows: Array<Record<string, unknown>> = [],
 ): ProductsService {
   const products = { findOne: jest.fn().mockResolvedValue(found) };
   const families = { findOne: jest.fn().mockResolvedValue({ code: 'boots-family' }) };
@@ -41,14 +43,16 @@ function makeService(
     getRepository: (entity: unknown) =>
       entity === ProductCategoryOrmEntity
         ? { find: jest.fn().mockResolvedValue(categoryLinks) }
-        : { find: jest.fn().mockResolvedValue([]) }, // attribute-value / attribute / option repos
+        : { find: jest.fn().mockResolvedValue([]) }, // attribute-value / attribute / option / variant repos
   };
-  const images = { find: jest.fn().mockResolvedValue([]) }; // product_images repo (gallery)
+  const images = { find: jest.fn().mockResolvedValue(imageRows) }; // product_images repo (gallery)
+  const videos = { find: jest.fn().mockResolvedValue(videoRows) }; // product_videos repo
   return Reflect.construct(ProductsService, [
     products,
     families,
     {}, // categories
     images, // images
+    videos, // videos
     {}, // links
     dataSource,
     {},
@@ -77,6 +81,22 @@ describe('Catalog — ProductsService.getAdminDetail', () => {
       updated_at: '2026-06-02T00:00:00.000Z',
       attributes: {},
     });
+  });
+
+  it('returns color_option_id on each image and the ordered videos block (FR-CAT-032/034)', async () => {
+    const svc = makeService(
+      product,
+      [],
+      [
+        { id: 'i1', url: 'u1', renditions: null, altText: 'a1', colorOptionId: 'o-black', isPrimary: true, displayOrder: 0 },
+        { id: 'i2', url: 'u2', renditions: null, altText: 'a2', colorOptionId: null, isPrimary: false, displayOrder: 1 },
+      ],
+      [{ id: 'vd1', source: 'url', url: 'https://v', displayOrder: 0 }],
+    );
+    const d = await svc.getAdminDetail('p1');
+    expect(d.images[0]).toMatchObject({ id: 'i1', color_option_id: 'o-black', is_primary: true });
+    expect(d.images[1]).toMatchObject({ id: 'i2', color_option_id: null });
+    expect(d.videos).toEqual([{ id: 'vd1', source: 'url', url: 'https://v', display_order: 0 }]);
   });
 
   it('throws 404 PRODUCT_NOT_FOUND when the product is missing', async () => {
