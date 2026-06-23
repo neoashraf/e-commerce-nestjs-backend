@@ -98,6 +98,7 @@ export class NoteDto {
   @ApiProperty({ example: 'cn_3' }) id!: string;
   @ApiProperty({ example: 'Called about exchange; resolved.' }) body!: string;
   @ApiProperty({ example: 'a_12' }) admin_id!: string;
+  @ApiProperty({ nullable: true, example: 'Rahim (Order Manager)' }) admin_name!: string | null;
   @ApiProperty({ example: '2026-06-04T11:00:00Z' }) created_at!: string;
 }
 
