@@ -42,6 +42,7 @@ function makeService(qb: ReturnType<typeof buildQb>) {
     {} as Repository<OrderStatusHistoryOrmEntity>,
     paymentsRepo(),
     { getByProductIds: jest.fn().mockResolvedValue(new Map()) },
+    { buildThread: jest.fn().mockResolvedValue([]) } as any,
   );
 }
 
@@ -123,6 +124,7 @@ describe('Orders — OrderTrackingService.toDetail (RW6)', () => {
       {} as Repository<OrderStatusHistoryOrmEntity>,
       paymentsRepo(paymentId),
       { getByProductIds: jest.fn().mockResolvedValue(snapshotMap) },
+      { buildThread: jest.fn().mockResolvedValue([]) } as any,
     );
   }
 

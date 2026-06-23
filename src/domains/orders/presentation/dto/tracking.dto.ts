@@ -9,6 +9,8 @@ import {
   Min,
 } from 'class-validator';
 
+import { OrderNoteEntryDto } from './order-note.dto';
+
 import {
   OrderDeliveryZone,
   OrderPaymentMethod,
@@ -216,6 +218,18 @@ export class OrderDetailDto {
 
   @ApiProperty({ type: [OrderHistoryEntryDto] })
   history!: OrderHistoryEntryDto[];
+
+  /** Customer's order note submitted at checkout (FR-ORD-072a). Null when not provided. */
+  @ApiPropertyOptional({ example: 'Please gift wrap.', nullable: true })
+  customer_note?: string | null;
+
+  /** Attributed notes thread — admin-only: customer note + all admin notes (FR-ORD-072b). */
+  @ApiPropertyOptional({ type: [OrderNoteEntryDto], description: 'Included in admin detail only.' })
+  notes?: OrderNoteEntryDto[];
+
+  /** Admin-only internal notes (legacy field — use `notes` for the attributed thread). */
+  @ApiPropertyOptional({ type: [Object], description: 'Legacy field — superseded by `notes`.' })
+  internal_notes?: Array<{ body: string; created_at?: string }>;
 }
 
 /** A minimal history entry exposed to the unauthenticated guest tracking view (FR-ORD-061). */

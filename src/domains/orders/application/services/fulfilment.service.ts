@@ -13,7 +13,8 @@ import {
   OrderPaymentState,
   OrderStatus,
 } from '../../domain/order-enums';
-import { OrderNoteOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-note.orm-entity';
+import { OrderNoteEntryDto } from '../../presentation/dto/order-note.dto';
+import { OrderNotesService } from './order-notes.service';
 import { OrderStatusHistoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order-status-history.orm-entity';
 import { OrderOrmEntity } from '../../infrastructure/persistence/typeorm/entities/order.orm-entity';
 import { IOrderNotifier, ORDER_NOTIFIER } from '../ports/order-notifier.port';
@@ -75,6 +76,7 @@ export interface CustomerCancelResult {
 export class FulfilmentService {
   constructor(
     private readonly dataSource: DataSource,
+    private readonly orderNotes: OrderNotesService,
     @Inject(STOCK_COORDINATOR) private readonly stock: IStockCoordinator,
     @Inject(ORDER_NOTIFIER) private readonly notifier: IOrderNotifier,
     @Inject(REFUND_REQUESTER) private readonly refunds: IRefundRequester,
@@ -221,13 +223,9 @@ export class FulfilmentService {
     orderNo: string,
     body: string,
     adminId: string,
-  ): Promise<{ id: string; created_at: string }> {
-    const order = await this.dataSource.getRepository(OrderOrmEntity).findOne({ where: { orderNo } });
-    if (!order) throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: `Order ${orderNo} not found.` });
-
-    const repo = this.dataSource.getRepository(OrderNoteOrmEntity);
-    const saved = await repo.save(repo.create({ orderId: order.id, body, authorAdminId: adminId }));
-    return { id: saved.id, created_at: saved.createdAt.toISOString() };
+  ): Promise<{ id: string; created_at: string; entry: OrderNoteEntryDto }> {
+    const { id, entry } = await this.orderNotes.addAdminNote(orderNo, body, adminId);
+    return { id, created_at: entry.created_at, entry };
   }
 
   // ---------------------------------------------------------------------------
