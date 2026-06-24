@@ -124,6 +124,21 @@ export class AdminProductVideoDto {
   @ApiProperty() display_order: number;
 }
 
+/** One option of a configurable axis — the editor's image colour-tag dropdown + swatch source (FR-CAT-032). */
+export class AdminConfigurableOptionDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ example: 'Black' }) value: string;
+  @ApiProperty({ nullable: true, example: 'color' }) swatch_type: string | null;
+  @ApiProperty({ nullable: true, example: '#000000' }) swatch_value: string | null;
+}
+
+/** A product configurable axis (e.g. `color`) with all its options (FR-CAT-032). */
+export class AdminConfigurableAttributeDto {
+  @ApiProperty({ example: 'color' }) code: string;
+  @ApiProperty({ example: 'Color' }) label: string;
+  @ApiProperty({ type: [AdminConfigurableOptionDto] }) options: AdminConfigurableOptionDto[];
+}
+
 export class AdminProductDetailDto {
   @ApiProperty() id: string;
   @ApiProperty({ example: 'configurable' }) type: string;
@@ -148,6 +163,11 @@ export class AdminProductDetailDto {
   @ApiProperty({ nullable: true }) primary_image_id: string | null;
   @ApiProperty({ type: [AdminProductImageDto] }) images: AdminProductImageDto[];
   @ApiProperty({ type: [AdminProductVideoDto] }) videos: AdminProductVideoDto[];
+  @ApiProperty({
+    type: [AdminConfigurableAttributeDto],
+    description: 'Configurable axes (e.g. color) with all options — image colour-tag source (FR-CAT-032)',
+  })
+  configurable_attributes: AdminConfigurableAttributeDto[];
   @ApiProperty({ type: [AdminProductVariantDto] }) variants: AdminProductVariantDto[];
   @ApiProperty({ nullable: true }) meta_title: string | null;
   @ApiProperty({ nullable: true }) meta_keywords: string | null;

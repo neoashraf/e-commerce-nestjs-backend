@@ -23,6 +23,7 @@ import { AttributeFamilyOrmEntity } from '../../infrastructure/persistence/typeo
 import { CategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/category.orm-entity';
 import { ProductAttributeValueOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-attribute-value.orm-entity';
 import { ProductCategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-category.orm-entity';
+import { ProductConfigurableAttributeOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-configurable-attribute.orm-entity';
 import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductLinkOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-link.orm-entity';
 import { ProductVideoOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-video.orm-entity';
@@ -173,6 +174,21 @@ export interface AdminProductVideo {
   display_order: number;
 }
 
+/** One option of a configurable axis, for the editor's image colour-tag dropdown + swatch (FR-CAT-032). */
+export interface AdminConfigurableOption {
+  id: string;
+  value: string;
+  swatch_type: string | null;
+  swatch_value: string | null;
+}
+
+/** A product configurable axis (e.g. `color`) with all its options — the colour-tag source (FR-CAT-032). */
+export interface AdminConfigurableAttribute {
+  code: string;
+  label: string;
+  options: AdminConfigurableOption[];
+}
+
 export interface AdminProductDetail {
   id: string;
   type: string;
@@ -197,6 +213,7 @@ export interface AdminProductDetail {
   primary_image_id: string | null;
   images: AdminProductImage[];
   videos: AdminProductVideo[];
+  configurable_attributes: AdminConfigurableAttribute[];
   variants: AdminProductVariant[];
   meta_title: string | null;
   meta_keywords: string | null;
@@ -382,6 +399,7 @@ export class ProductsService {
     }));
 
     const variants = await this.loadProductVariants(id);
+    const configurableAttributes = await this.buildAdminConfigurableAttributes(id);
 
     return {
       id: p.id,
@@ -407,6 +425,7 @@ export class ProductsService {
       primary_image_id: p.primaryImageId,
       images,
       videos,
+      configurable_attributes: configurableAttributes,
       variants,
       meta_title: p.metaTitle,
       meta_keywords: p.metaKeywords,
@@ -472,6 +491,44 @@ export class ProductsService {
       on_hand: levels.get(v.id)?.on_hand ?? 0,
       low_stock_threshold: levels.get(v.id)?.low_stock_threshold ?? 0,
     }));
+  }
+
+  /**
+   * Build the product's configurable attribute groups (e.g. `color`, `size`) with **all** their options
+   * for the editor — the source for the per-image colour-tag dropdown + swatch (FR-CAT-032). Mirrors the
+   * storefront PDP `configurable_attributes` shape, but returns every option of each axis (not just the
+   * variant-used ones) so an image can be tagged with any colour the product's family offers — exactly
+   * the set `ProductMediaService.updateImage` validates a `color_option_id` against. Empty for a simple
+   * product (no configurable axes). Ordered by axis position, options by their own position.
+   */
+  private async buildAdminConfigurableAttributes(
+    productId: string,
+  ): Promise<AdminConfigurableAttribute[]> {
+    const axes = await this.dataSource
+      .getRepository(ProductConfigurableAttributeOrmEntity)
+      .find({ where: { productId }, order: { position: 'ASC' } });
+    if (axes.length === 0) return [];
+
+    const attrIds = Array.from(new Set(axes.map((a) => a.attributeId)));
+    const [attrs, optionRows] = await Promise.all([
+      this.dataSource.getRepository(AttributeOrmEntity).find({ where: { id: In(attrIds) } }),
+      this.dataSource.getRepository(AttributeOptionOrmEntity).find({ where: { attributeId: In(attrIds) } }),
+    ]);
+    const attrById = new Map(attrs.map((a) => [a.id, a]));
+
+    return axes.map((axis) => {
+      const attr = attrById.get(axis.attributeId);
+      const options = optionRows
+        .filter((o) => o.attributeId === axis.attributeId)
+        .sort((a, b) => a.position - b.position)
+        .map((o) => ({
+          id: o.id,
+          value: o.label,
+          swatch_type: o.swatchType,
+          swatch_value: o.swatchValue,
+        }));
+      return { code: attr?.code ?? '', label: attr?.adminLabel ?? '', options };
+    });
   }
 
   /** Resolve a product's stored EAV rows to an editor-friendly `{ code: value | value[] }` map. */
