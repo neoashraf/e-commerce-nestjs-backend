@@ -24,6 +24,13 @@ export class MovementRowDto {
   @ApiProperty({ nullable: true, description: 'Related order id (reserve/release/sale/restock)' })
   order_id: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    example: 'SO-100245',
+    description: 'Human-readable order number resolved from order_id; the Movements view links to it.',
+  })
+  order_no: string | null;
+
   @ApiProperty({ enum: StockMovementActorType })
   actor_type: StockMovementActorType;
 
