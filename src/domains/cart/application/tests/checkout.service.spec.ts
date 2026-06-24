@@ -154,6 +154,22 @@ describe('Cart — CheckoutService', () => {
     expect(result.payment.action).toBe('none');
   });
 
+  it('should forward the customer note into the order snapshot when provided (FR-ORD-072a)', async () => {
+    await service.place(ACTOR, 'key-note', {
+      address: ADDRESS,
+      payment_method: 'cod',
+      customer_note: 'Please call before delivery.',
+    });
+    expect(orders.place).toHaveBeenCalledWith(
+      expect.objectContaining({ customer_note: 'Please call before delivery.' }),
+    );
+  });
+
+  it('should pass a null customer note when none is provided (note is optional)', async () => {
+    await service.place(ACTOR, 'key-no-note', { address: ADDRESS, payment_method: 'cod' });
+    expect(orders.place).toHaveBeenCalledWith(expect.objectContaining({ customer_note: null }));
+  });
+
   it('should be idempotent: a replay with a known key returns the same order untouched', async () => {
     sessions.findOne.mockResolvedValue({
       placedOrderId: 'ord_1',

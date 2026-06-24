@@ -88,6 +88,7 @@ export class CheckoutController {
       guest: this.normalizeGuest(actor, dto.guest),
       expected_total: dto.expected_total,
       acknowledge_changes: dto.acknowledge_changes,
+      customer_note: dto.customer_note,
     });
     // Idempotent replay → 200; a fresh placement → 201 (contract).
     res.status(result.replay ? HttpStatus.OK : HttpStatus.CREATED);
