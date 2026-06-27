@@ -34,5 +34,11 @@ export const authConfigProvider: Provider = {
       config.get<string>('EMAIL_VERIFY_RESEND_COOLDOWN') ?? 60,
     ),
     passwordResetTtlSeconds: parseDurationToSeconds(config.get<string>('PASSWORD_RESET_TTL'), 1_800),
+    // DEV-ONLY OTP echo (no SMS gateway yet). Enabled ONLY when OTP_DEV_RETURN=true AND not in
+    // production — the NODE_ENV check is a hard fail-safe so an accidental prod env var can never
+    // expose the code (which would let anyone "verify" any phone → account takeover).
+    otpDevReturn:
+      process.env.NODE_ENV !== 'production' &&
+      (config.get<string>('OTP_DEV_RETURN') ?? '').toLowerCase() === 'true',
   }),
 };
