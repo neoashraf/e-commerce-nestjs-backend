@@ -205,7 +205,7 @@ jobs:
               bash -s << 'ENDSSH'
             set -e
 
-            APP_DIR="/root/E-Commerce/e-commerce-nestjs-backend"
+            APP_DIR="/root/E-commerce/e-commerce-nestjs-backend"
             CONTAINER_NAME="ecommerce-nestjs-backend"
             IMAGE_NAME="ecommerce-nestjs-backend:latest"
             NETWORK="postgress-network"
