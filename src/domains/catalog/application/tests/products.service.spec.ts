@@ -224,6 +224,22 @@ describe('Catalog — ProductsService', () => {
     expect(page.meta.total).toBe(3);
   });
 
+  it('filters category by slug OR id (the admin dropdown sends the slug, e.g. `football`)', async () => {
+    const qb = makeQb([], 0);
+    products.createQueryBuilder.mockReturnValue(qb);
+    inventoryStock.getStockByProductIds.mockResolvedValue(new Map());
+
+    await service.list({ page: 1, limit: 20, category: 'football' }, NOW);
+
+    // The category predicate must accept the slug, not only a UUID id — else any selection returns 0.
+    const categoryCall = qb.andWhere.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && (sql as string).includes(':category'),
+    );
+    expect(categoryCall).toBeDefined();
+    expect(categoryCall?.[0]).toMatch(/pc\.slug = :category/);
+    expect(categoryCall?.[1]).toEqual({ category: 'football' });
+  });
+
   it('exportRows returns the full filtered set (no pagination) with the same enrichment', async () => {
     const qb = makeQb([{ ...baseRow, sale_price: null, sale_starts_at: null, sale_ends_at: null }], 1);
     products.createQueryBuilder.mockReturnValue(qb);

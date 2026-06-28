@@ -189,6 +189,21 @@ export interface AdminConfigurableAttribute {
   options: AdminConfigurableOption[];
 }
 
+/** A linked product summary shown as a chip in the editor's Links section (FR-CAT-019). */
+export interface AdminProductLink {
+  id: string;
+  name: string;
+  sku: string;
+  primary_image: string | null;
+}
+
+/** The product's typed links for the editor — each group preserves its saved order (FR-CAT-019). */
+export interface AdminProductLinks {
+  related: AdminProductLink[];
+  up_sell: AdminProductLink[];
+  cross_sell: AdminProductLink[];
+}
+
 export interface AdminProductDetail {
   id: string;
   type: string;
@@ -214,6 +229,7 @@ export interface AdminProductDetail {
   images: AdminProductImage[];
   videos: AdminProductVideo[];
   configurable_attributes: AdminConfigurableAttribute[];
+  links: AdminProductLinks;
   variants: AdminProductVariant[];
   meta_title: string | null;
   meta_keywords: string | null;
@@ -400,6 +416,7 @@ export class ProductsService {
 
     const variants = await this.loadProductVariants(id);
     const configurableAttributes = await this.buildAdminConfigurableAttributes(id);
+    const links = await this.buildAdminLinks(id);
 
     return {
       id: p.id,
@@ -426,6 +443,7 @@ export class ProductsService {
       images,
       videos,
       configurable_attributes: configurableAttributes,
+      links,
       variants,
       meta_title: p.metaTitle,
       meta_keywords: p.metaKeywords,
@@ -529,6 +547,48 @@ export class ProductsService {
         }));
       return { code: attr?.code ?? '', label: attr?.adminLabel ?? '', options };
     });
+  }
+
+  /**
+   * Build the product's typed links (related / up-sell / cross-sell) with linked-product summaries for
+   * the editor's Links section (FR-CAT-019) — so reopening the editor shows the saved links instead of
+   * blank groups. Each group preserves the saved order; soft-deleted linked products are skipped.
+   */
+  private async buildAdminLinks(productId: string): Promise<AdminProductLinks> {
+    const empty: AdminProductLinks = { related: [], up_sell: [], cross_sell: [] };
+    const linkRows = await this.links.find({ where: { productId }, order: { position: 'ASC' } });
+    if (linkRows.length === 0) return empty;
+
+    const linkedIds = Array.from(new Set(linkRows.map((l) => l.linkedProductId)));
+    const linked = await this.products.find({ where: { id: In(linkedIds) } });
+    const imageIds = linked.map((p) => p.primaryImageId).filter((id): id is string => !!id);
+    const imageById = new Map(
+      (imageIds.length ? await this.images.find({ where: { id: In(imageIds) } }) : []).map((img) => [
+        img.id,
+        img,
+      ]),
+    );
+    const summaryById = new Map<string, AdminProductLink>(
+      linked.map((p) => {
+        const img = p.primaryImageId ? imageById.get(p.primaryImageId) : undefined;
+        return [
+          p.id,
+          { id: p.id, name: p.name, sku: p.sku, primary_image: img ? img.renditions?.thumb ?? img.url : null },
+        ];
+      }),
+    );
+
+    const group = (type: ProductLinkType): AdminProductLink[] =>
+      linkRows
+        .filter((l) => l.type === type)
+        .map((l) => summaryById.get(l.linkedProductId))
+        .filter((x): x is AdminProductLink => !!x);
+
+    return {
+      related: group(ProductLinkType.RELATED),
+      up_sell: group(ProductLinkType.UP_SELL),
+      cross_sell: group(ProductLinkType.CROSS_SELL),
+    };
   }
 
   /** Resolve a product's stored EAV rows to an editor-friendly `{ code: value | value[] }` map. */
@@ -815,10 +875,17 @@ export class ProductsService {
       qb.andWhere('(f.code = :family OR p.family_id::text = :family)', { family: filter.family });
     }
     if (filter.category) {
+      // Accept a category id (UUID) OR its slug — mirrors the family filter (code-or-id). The admin
+      // filter sends the slug (e.g. `football`); matching only by id previously returned zero rows
+      // for any selection. Matches the product's primary category OR any linked category.
       qb.andWhere(
-        `(p.primary_category_id::text = :category OR EXISTS (
-            SELECT 1 FROM "product_categories" pcj
-             WHERE pcj."product_id" = p.id AND pcj."category_id"::text = :category))`,
+        `(p.primary_category_id::text = :category
+            OR pc.slug = :category
+            OR EXISTS (
+              SELECT 1 FROM "product_categories" pcj
+                JOIN "categories" cc ON cc.id = pcj."category_id"
+               WHERE pcj."product_id" = p.id
+                 AND (pcj."category_id"::text = :category OR cc.slug = :category)))`,
         { category: filter.category },
       );
     }
