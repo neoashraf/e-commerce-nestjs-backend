@@ -104,9 +104,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run migrations
-        run: npm run migration:run
-
       - name: E2E tests
         run: npm run test:e2e
 
@@ -232,16 +229,6 @@ jobs:
             echo "🛑 Stopping old container..."
             docker stop "$CONTAINER_NAME" || true
             docker rm -f "$CONTAINER_NAME" || true
-
-            # ── Run migrations ────────────────────────────────
-            echo "🗄️  Running database migrations..."
-            docker run --rm \
-              --network "$NETWORK" \
-              --env-file .env \
-              "$IMAGE_NAME" \
-              npx typeorm migration:run -d dist/database/data-source.js
-
-            echo "✅ Migrations completed"
 
             # ── Start application ─────────────────────────────
             echo "🚀 Starting application container..."
