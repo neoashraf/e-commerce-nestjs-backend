@@ -10,6 +10,13 @@ import {
 
 /** Query filters for `GET /admin/orders` (FR-ORD-070; contract: Admin — List/search orders). */
 export class ListAdminOrdersQueryDto {
+  @ApiPropertyOptional({
+    description: "A registered buyer's id — restricts to their linked orders (Customer 360); with `phone` also includes guest orders under that phone.",
+  })
+  @IsOptional()
+  @IsString()
+  customer_id?: string;
+
   @ApiPropertyOptional({ enum: OrderStatus })
   @IsOptional()
   @IsEnum(OrderStatus)

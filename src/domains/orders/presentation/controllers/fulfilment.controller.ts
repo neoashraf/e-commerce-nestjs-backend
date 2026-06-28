@@ -70,6 +70,7 @@ export class FulfilmentController {
   @ApiOkResponse({ type: AdminOrderRowDto, isArray: true })
   list(@Query() query: ListAdminOrdersQueryDto): Promise<Paginated<AdminOrderRowDto>> {
     return this.tracking.listAdminOrders({
+      customerId: query.customer_id,
       status: query.status,
       paymentState: query.payment_state,
       q: query.q,

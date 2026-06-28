@@ -26,6 +26,9 @@ import {
 
 /** Filters for the admin order list/search (FR-ORD-070). All optional; combined with AND. */
 export interface AdminOrderFilters {
+  /** Restrict to a registered buyer's linked orders (Customer 360); combined with `phone` it ORs in
+   *  guest orders placed under that phone (BR-CUST-4). */
+  customerId?: string;
   status?: OrderStatus;
   paymentState?: OrderPaymentState;
   q?: string;
@@ -121,7 +124,18 @@ export class OrderTrackingService {
     if (filters.paymentState)
       qb.andWhere('o.paymentState = :paymentState', { paymentState: filters.paymentState });
     if (filters.q) qb.andWhere('o.orderNo ILIKE :q', { q: `%${filters.q}%` });
-    if (filters.phone) {
+    // Customer 360 passes customer_id (+ the account phone): match LINKED orders OR guest orders placed
+    // under that phone (BR-CUST-4) — so a registered buyer's history is complete even when an order
+    // shipped to a different recipient phone, or pre-dates the guest-order claim. Phone-only = the
+    // list's phone search; customer_id-only = strictly that buyer's linked orders.
+    if (filters.customerId && filters.phone) {
+      qb.andWhere(
+        "(o.customerId = :customerId OR o.guestPhone ILIKE :phone OR o.address_snapshot->>'recipient_phone' ILIKE :phone)",
+        { customerId: filters.customerId, phone: `%${filters.phone}%` },
+      );
+    } else if (filters.customerId) {
+      qb.andWhere('o.customerId = :customerId', { customerId: filters.customerId });
+    } else if (filters.phone) {
       qb.andWhere(
         "(o.guestPhone ILIKE :phone OR o.address_snapshot->>'recipient_phone' ILIKE :phone)",
         { phone: `%${filters.phone}%` },
