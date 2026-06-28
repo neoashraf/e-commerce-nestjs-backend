@@ -150,6 +150,7 @@ jobs:
             echo "VPS_USER=${{ secrets.VPS_USER }}"   >> "$GITHUB_OUTPUT"
             echo "BRANCH=main"                         >> "$GITHUB_OUTPUT"
             echo "ENVIRONMENT=production"              >> "$GITHUB_OUTPUT"
+            echo "USE_NETWORK=false"                   >> "$GITHUB_OUTPUT"
             {
               echo "VPS_SSH_KEY<<__SSHEOF__"
               printf '%s' "${{ secrets.VPS_SSH_KEY }}"
@@ -161,6 +162,7 @@ jobs:
             echo "VPS_USER=${{ secrets.DEV_VPS_USER }}"   >> "$GITHUB_OUTPUT"
             echo "BRANCH=dev"                              >> "$GITHUB_OUTPUT"
             echo "ENVIRONMENT=development"                 >> "$GITHUB_OUTPUT"
+            echo "USE_NETWORK=true"                        >> "$GITHUB_OUTPUT"
             {
               echo "VPS_SSH_KEY<<__SSHEOF__"
               printf '%s' "${{ secrets.DEV_VPS_SSH_KEY }}"
@@ -185,6 +187,7 @@ jobs:
           VPS_SSH_KEY: ${{ steps.cfg.outputs.VPS_SSH_KEY }}
           BRANCH:      ${{ steps.cfg.outputs.BRANCH }}
           ENVIRONMENT: ${{ steps.cfg.outputs.ENVIRONMENT }}
+          USE_NETWORK: ${{ steps.cfg.outputs.USE_NETWORK }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_rsa
@@ -199,18 +202,19 @@ jobs:
               "$VPS_USER@$VPS_HOST" \
               BRANCH="$BRANCH" \
               ENVIRONMENT="$ENVIRONMENT" \
+              USE_NETWORK="$USE_NETWORK" \
               bash -s << 'ENDSSH'
             set -e
 
             APP_DIR="/root/E-commerce/e-commerce-nestjs-backend"
             CONTAINER_NAME="ecommerce-nestjs-backend"
             IMAGE_NAME="ecommerce-nestjs-backend:latest"
-            NETWORK="postgress-network"
 
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "  Environment : $ENVIRONMENT"
             echo "  Branch      : $BRANCH"
             echo "  Directory   : $APP_DIR"
+            echo "  Use Network : $USE_NETWORK"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
             cd "$APP_DIR"
@@ -230,15 +234,49 @@ jobs:
             docker stop "$CONTAINER_NAME" || true
             docker rm -f "$CONTAINER_NAME" || true
 
+            # ── Run migrations ────────────────────────────────
+            echo "🗄️  Running database migrations..."
+            
+            if [ "$USE_NETWORK" = "true" ]; then
+              # Development server - uses network
+              docker run --rm \
+                --network postgress-network \
+                --env-file .env \
+                "$IMAGE_NAME" \
+                npx typeorm migration:run -d dist/database/data-source.js
+            else
+              # Production server - uses host.docker.internal
+              docker run --rm \
+                --add-host=host.docker.internal:host-gateway \
+                --env-file .env \
+                "$IMAGE_NAME" \
+                npx typeorm migration:run -d dist/database/data-source.js
+            fi
+
+            echo "✅ Migrations completed"
+
             # ── Start application ─────────────────────────────
             echo "🚀 Starting application container..."
-            docker run -d \
-              --name "$CONTAINER_NAME" \
-              --network "$NETWORK" \
-              -p 6001:8000 \
-              --env-file .env \
-              --restart unless-stopped \
-              "$IMAGE_NAME"
+            
+            if [ "$USE_NETWORK" = "true" ]; then
+              # Development server - uses network
+              docker run -d \
+                --name "$CONTAINER_NAME" \
+                --network postgress-network \
+                -p 6001:8000 \
+                --env-file .env \
+                --restart unless-stopped \
+                "$IMAGE_NAME"
+            else
+              # Production server - uses host.docker.internal
+              docker run -d \
+                --name "$CONTAINER_NAME" \
+                --add-host=host.docker.internal:host-gateway \
+                -p 6001:8000 \
+                --env-file .env \
+                --restart unless-stopped \
+                "$IMAGE_NAME"
+            fi
 
             # ── Health check ──────────────────────────────────
             echo "⏳ Waiting for startup..."
