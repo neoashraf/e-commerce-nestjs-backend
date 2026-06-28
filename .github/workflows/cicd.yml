@@ -1,8 +1,7 @@
-
 # ---------------------------------------------------------------------------
 # CI/CD — Build, test, and deploy backend
 # main -> Production Server
-# dev  -> StartSmartz Dev Server
+# dev  -> Dev Server
 # ---------------------------------------------------------------------------
 
 name: CI/CD
@@ -43,9 +42,15 @@ jobs:
       - name: Verify handlebars production dependency
         run: |
           echo "Checking package.json..."
-
-          node -e "const p=require('./package.json'); const prod=p.dependencies?.handlebars; const dev=p.devDependencies?.handlebars; console.log('dependencies.handlebars:', prod); console.log('devDependencies.handlebars:', dev); if(!prod){console.error('ERROR: handlebars is missing from dependencies.'); process.exit(1);} if(dev){console.error('ERROR: handlebars must not be in devDependencies because Docker production build uses npm ci --omit=dev.'); process.exit(1);}"
-
+          node -e "
+            const p=require('./package.json');
+            const prod=p.dependencies?.handlebars;
+            const dev=p.devDependencies?.handlebars;
+            console.log('dependencies.handlebars:', prod);
+            console.log('devDependencies.handlebars:', dev);
+            if(!prod){ console.error('ERROR: handlebars is missing from dependencies.'); process.exit(1); }
+            if(dev){ console.error('ERROR: handlebars must not be in devDependencies.'); process.exit(1); }
+          "
           echo "Checking package-lock.json..."
           grep -n '"handlebars"' package-lock.json | head -20 || true
 
@@ -140,107 +145,137 @@ jobs:
     if: success()
 
     steps:
-
-      - name: Select deployment target
+      - name: Resolve deployment vars
+        id: cfg
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "HOST=${{ secrets.VPS_HOST }}" >> $GITHUB_ENV
-            echo "USER=${{ secrets.VPS_USER }}" >> $GITHUB_ENV
-
-            echo "SSH_KEY<<EOF" >> $GITHUB_ENV
-            echo "${{ secrets.VPS_SSH_KEY }}" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-
-            echo "BRANCH=main" >> $GITHUB_ENV
-
-          elif [ "${{ github.ref_name }}" = "dev" ]; then
-            echo "HOST=${{ secrets.DEV_VPS_HOST }}" >> $GITHUB_ENV
-            echo "USER=${{ secrets.DEV_VPS_USER }}" >> $GITHUB_ENV
-
-            echo "SSH_KEY<<EOF" >> $GITHUB_ENV
-            echo "${{ secrets.DEV_VPS_SSH_KEY }}" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-
-            echo "BRANCH=dev" >> $GITHUB_ENV
+            echo "VPS_HOST=${{ secrets.VPS_HOST }}"   >> "$GITHUB_OUTPUT"
+            echo "VPS_USER=${{ secrets.VPS_USER }}"   >> "$GITHUB_OUTPUT"
+            echo "BRANCH=main"                         >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT=production"              >> "$GITHUB_OUTPUT"
+            {
+              echo "VPS_SSH_KEY<<__SSHEOF__"
+              printf '%s' "${{ secrets.VPS_SSH_KEY }}"
+              echo ""
+              echo "__SSHEOF__"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "VPS_HOST=${{ secrets.DEV_VPS_HOST }}"   >> "$GITHUB_OUTPUT"
+            echo "VPS_USER=${{ secrets.DEV_VPS_USER }}"   >> "$GITHUB_OUTPUT"
+            echo "BRANCH=dev"                              >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT=development"                 >> "$GITHUB_OUTPUT"
+            {
+              echo "VPS_SSH_KEY<<__SSHEOF__"
+              printf '%s' "${{ secrets.DEV_VPS_SSH_KEY }}"
+              echo ""
+              echo "__SSHEOF__"
+            } >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Validate VPS secrets
+      - name: Validate secrets
         run: |
-          [ -z "$HOST" ] && echo "HOST missing" && exit 1
-          [ -z "$USER" ] && echo "USER missing" && exit 1
-          [ -z "$SSH_KEY" ] && echo "SSH KEY missing" && exit 1
-
-          echo "Secrets validated"
-
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-
-          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          FAILED=0
+          [ -z "${{ steps.cfg.outputs.VPS_HOST }}" ]    && echo "❌ VPS_HOST missing"    && FAILED=1
+          [ -z "${{ steps.cfg.outputs.VPS_USER }}" ]    && echo "❌ VPS_USER missing"    && FAILED=1
+          [ -z "${{ steps.cfg.outputs.VPS_SSH_KEY }}" ] && echo "❌ VPS_SSH_KEY missing" && FAILED=1
+          [ $FAILED -eq 1 ] && exit 1
+          echo "✅ All secrets present — deploying to ${{ steps.cfg.outputs.ENVIRONMENT }}"
 
       - name: Deploy backend
+        env:
+          VPS_HOST:    ${{ steps.cfg.outputs.VPS_HOST }}
+          VPS_USER:    ${{ steps.cfg.outputs.VPS_USER }}
+          VPS_SSH_KEY: ${{ steps.cfg.outputs.VPS_SSH_KEY }}
+          BRANCH:      ${{ steps.cfg.outputs.BRANCH }}
+          ENVIRONMENT: ${{ steps.cfg.outputs.ENVIRONMENT }}
         run: |
-          echo "Deploying branch: $BRANCH"
-          echo "Server: $HOST"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          ssh -T -i ~/.ssh/id_rsa "$USER@$HOST" << EOF
+          echo "🚀 Deploying branch '$BRANCH' to $ENVIRONMENT ($VPS_USER@$VPS_HOST)"
+
+          ssh -i ~/.ssh/id_rsa \
+              -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes \
+              "$VPS_USER@$VPS_HOST" \
+              BRANCH="$BRANCH" \
+              ENVIRONMENT="$ENVIRONMENT" \
+              bash -s << 'ENDSSH'
             set -e
 
             APP_DIR="/root/E-Commerce/e-commerce-nestjs-backend"
             CONTAINER_NAME="ecommerce-nestjs-backend"
             IMAGE_NAME="ecommerce-nestjs-backend:latest"
+            NETWORK="postgress-network"
 
-            echo "Going to project directory..."
-            cd "\$APP_DIR"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "  Environment : $ENVIRONMENT"
+            echo "  Branch      : $BRANCH"
+            echo "  Directory   : $APP_DIR"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            echo "Pulling latest code from \$BRANCH..."
+            cd "$APP_DIR"
 
-            git fetch origin \$BRANCH
-            git reset --hard origin/\$BRANCH
+            # ── Pull latest code ──────────────────────────────
+            echo "📥 Pulling latest code from $BRANCH..."
+            git fetch origin "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+            echo "📌 Current commit: $(git log -1 --oneline)"
 
-            echo "Current commit:"
-            git log -1 --oneline
+            # ── Build fresh image ─────────────────────────────
+            echo "🔨 Building Docker image..."
+            docker build --no-cache --pull -t "$IMAGE_NAME" .
 
-            echo "Removing old container..."
-            docker rm -f \$CONTAINER_NAME || true
+            # ── Stop & remove old container ───────────────────
+            echo "🛑 Stopping old container..."
+            docker stop "$CONTAINER_NAME" || true
+            docker rm -f "$CONTAINER_NAME" || true
 
-            echo "Building Docker image..."
-            docker build --no-cache --pull -t \$IMAGE_NAME .
+            # ── Run migrations ────────────────────────────────
+            echo "🗄️  Running database migrations..."
+            docker run --rm \
+              --network "$NETWORK" \
+              --env-file .env \
+              "$IMAGE_NAME" \
+              npx typeorm migration:run -d dist/database/data-source.js
 
-            echo "Starting container..."
+            echo "✅ Migrations completed"
+
+            # ── Start application ─────────────────────────────
+            echo "🚀 Starting application container..."
             docker run -d \
-              --name \$CONTAINER_NAME \
+              --name "$CONTAINER_NAME" \
+              --network "$NETWORK" \
               -p 6001:8000 \
-              --add-host=host.docker.internal:host-gateway \
               --env-file .env \
               --restart unless-stopped \
-              \$IMAGE_NAME
+              "$IMAGE_NAME"
 
-            echo "Checking container..."
-            docker ps --filter "name=\$CONTAINER_NAME"
+            # ── Health check ──────────────────────────────────
+            echo "⏳ Waiting for startup..."
+            sleep 15
 
-            echo "Waiting for startup..."
-            sleep 10
-
-            if curl -fsS http://localhost:6001/api/v1/health; then
-              echo "Health check passed: /api/v1/health"
-            elif curl -fsS http://localhost:6001/api/health; then
-              echo "Health check passed: /api/health"
+            echo "🏥 Running health check..."
+            if curl -fsS http://localhost:6001/api/v1/health > /dev/null 2>&1; then
+              echo "✅ Health check passed: /api/v1/health"
+            elif curl -fsS http://localhost:6001/api/health > /dev/null 2>&1; then
+              echo "✅ Health check passed: /api/health"
             else
-              echo "Health check failed"
-              docker logs --tail=150 \$CONTAINER_NAME
+              echo "❌ Health check failed — dumping logs"
+              docker logs --tail=150 "$CONTAINER_NAME"
               exit 1
             fi
 
-            echo "Recent logs..."
-            docker logs --tail=100 \$CONTAINER_NAME
+            # ── Tail logs ─────────────────────────────────────
+            echo "📋 Recent logs:"
+            docker logs --tail=100 "$CONTAINER_NAME"
 
-            echo "Cleaning old images..."
+            # ── Cleanup ───────────────────────────────────────
+            echo "🧹 Cleaning old images..."
             docker image prune -f
 
-            echo "Deployment completed successfully"
-          EOF
-
+            echo ""
+            echo "✅ Deployment to $ENVIRONMENT completed successfully"
+ENDSSH
