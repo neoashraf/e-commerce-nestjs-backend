@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 
 import { ProductMediaService } from '../services/product-media.service';
 import { ProductSupportService } from '../services/product-support.service';
+import { ProductVideoSource } from '../../domain/enums/product-type.enum';
 import { CloudinaryService } from '../../../../shared/media/cloudinary.service';
 import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductVideoOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-video.orm-entity';
@@ -19,7 +20,7 @@ describe('Catalog — ProductMediaService', () => {
   let service: ProductMediaService;
   let products: { findOne: jest.Mock };
   let images: { findOne: jest.Mock; find: jest.Mock; update: jest.Mock };
-  let videos: { findOne: jest.Mock; delete: jest.Mock; count: jest.Mock };
+  let videos: { findOne: jest.Mock; delete: jest.Mock; count: jest.Mock; save: jest.Mock; create: jest.Mock };
   let support: { getFamilyAttributes: jest.Mock };
   let txImgRepo: { delete: jest.Mock; findOne: jest.Mock; update: jest.Mock };
   let txProdRepo: { findOne: jest.Mock; update: jest.Mock };
@@ -27,7 +28,7 @@ describe('Catalog — ProductMediaService', () => {
   beforeEach(async () => {
     products = { findOne: jest.fn() };
     images = { findOne: jest.fn(), find: jest.fn(), update: jest.fn() };
-    videos = { findOne: jest.fn(), delete: jest.fn(), count: jest.fn() };
+    videos = { findOne: jest.fn(), delete: jest.fn(), count: jest.fn(), save: jest.fn(), create: jest.fn() };
     support = { getFamilyAttributes: jest.fn() };
     txImgRepo = { delete: jest.fn(), findOne: jest.fn(), update: jest.fn() };
     txProdRepo = { findOne: jest.fn(), update: jest.fn() };
@@ -161,6 +162,30 @@ describe('Catalog — ProductMediaService', () => {
       const result = await service.deleteVideo('p1', 'v1');
       expect(videos.delete).toHaveBeenCalledWith({ id: 'v1' });
       expect(result).toEqual({ id: 'v1' });
+    });
+  });
+
+  // --- addVideo (FR-CAT-034) ------------------------------------------------
+
+  describe('addVideo', () => {
+    it('returns the stored video link (id + source + url + display_order), not just the id', async () => {
+      products.findOne.mockResolvedValue({ id: 'p1' });
+      videos.count.mockResolvedValue(0);
+      videos.create.mockImplementation((x: Record<string, unknown>) => x);
+      videos.save.mockImplementation((x: Record<string, unknown>) => Promise.resolve({ ...x, id: 'vid-1' }));
+
+      const result = await service.addVideo({
+        productId: 'p1',
+        source: ProductVideoSource.URL,
+        url: 'https://youtu.be/abc',
+      });
+
+      expect(result).toEqual({
+        id: 'vid-1',
+        source: ProductVideoSource.URL,
+        url: 'https://youtu.be/abc',
+        display_order: 0,
+      });
     });
   });
 

@@ -145,7 +145,7 @@ export class ProductMediaController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddVideoDto,
     @UploadedFile() file: UploadedImageFile | undefined,
-  ): Promise<{ id: string }> {
+  ): Promise<{ id: string; source: string; url: string; display_order: number }> {
     return this.media.addVideo(
       { productId: id, source: dto.source, url: dto.url, displayOrder: dto.display_order },
       file,

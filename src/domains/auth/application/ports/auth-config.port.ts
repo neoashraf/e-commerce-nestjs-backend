@@ -16,6 +16,12 @@ export interface AuthConfig {
   emailVerifyResendCooldownSeconds: number;
   /** Password-reset link lifetime in seconds (FR-AUTH-033, default 30 min). */
   passwordResetTtlSeconds: number;
+  /**
+   * DEV-ONLY: echo the generated OTP back in the request-OTP response so a tester can read it on
+   * screen while there's no live SMS gateway. Hard-gated OFF in production regardless of env
+   * (see auth-config.provider) — returning the code in prod would bypass phone verification entirely.
+   */
+  otpDevReturn: boolean;
 }
 
 export const AUTH_CONFIG = Symbol('AUTH_CONFIG');

@@ -139,6 +139,21 @@ export class AdminConfigurableAttributeDto {
   @ApiProperty({ type: [AdminConfigurableOptionDto] }) options: AdminConfigurableOptionDto[];
 }
 
+/** One linked product summary (chip) in the editor's Links section (FR-CAT-019). */
+export class AdminProductLinkDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiProperty() sku: string;
+  @ApiProperty({ nullable: true }) primary_image: string | null;
+}
+
+/** The product's typed links for the editor (FR-CAT-019). */
+export class AdminProductLinksDto {
+  @ApiProperty({ type: [AdminProductLinkDto] }) related: AdminProductLinkDto[];
+  @ApiProperty({ type: [AdminProductLinkDto] }) up_sell: AdminProductLinkDto[];
+  @ApiProperty({ type: [AdminProductLinkDto] }) cross_sell: AdminProductLinkDto[];
+}
+
 export class AdminProductDetailDto {
   @ApiProperty() id: string;
   @ApiProperty({ example: 'configurable' }) type: string;
@@ -168,6 +183,8 @@ export class AdminProductDetailDto {
     description: 'Configurable axes (e.g. color) with all options — image colour-tag source (FR-CAT-032)',
   })
   configurable_attributes: AdminConfigurableAttributeDto[];
+  @ApiProperty({ type: AdminProductLinksDto, description: 'Saved related/up-sell/cross-sell links (FR-CAT-019)' })
+  links: AdminProductLinksDto;
   @ApiProperty({ type: [AdminProductVariantDto] }) variants: AdminProductVariantDto[];
   @ApiProperty({ nullable: true }) meta_title: string | null;
   @ApiProperty({ nullable: true }) meta_keywords: string | null;
@@ -198,6 +215,18 @@ export class UploadImageResponseDto {
 export class AddVideoResponseDto {
   @ApiProperty({ example: 'vd1-uuid' })
   id: string;
+
+  @ApiProperty({ example: 'upload', description: 'url (external) | upload (stored file)' })
+  source: string;
+
+  @ApiProperty({
+    example: 'https://res.cloudinary.com/.../products/.../clip.mp4',
+    description: 'The stored video link (Cloudinary URL for an upload, or the external URL).',
+  })
+  url: string;
+
+  @ApiProperty({ example: 0 })
+  display_order: number;
 }
 
 /** Delete-video response (FR-CAT-034). */

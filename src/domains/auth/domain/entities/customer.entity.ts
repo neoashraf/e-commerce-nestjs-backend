@@ -124,6 +124,35 @@ export class Customer {
     );
   }
 
+  /**
+   * Factory for a Google sign-in account (FR-AUTH-002 family): keyed by the Google-verified email,
+   * so `email_verified = true`, no password, not lightweight, phone empty until the user adds one.
+   * Promotional opt-ins default opted-out (FR-AUTH-062).
+   */
+  static registerWithGoogle(id: string, fullName: string, email: string, now: Date): Customer {
+    return new Customer(
+      id,
+      fullName,
+      '',
+      email,
+      null,
+      false,
+      false,
+      true,
+      null,
+      null,
+      false,
+      false,
+      CustomerStatus.ACTIVE,
+      null,
+      0,
+      null,
+      now,
+      now,
+      null,
+    );
+  }
+
   get isActive(): boolean {
     return this.status === CustomerStatus.ACTIVE && this.deletedAt === null;
   }

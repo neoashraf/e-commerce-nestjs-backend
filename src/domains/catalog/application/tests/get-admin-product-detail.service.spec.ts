@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 
+import { ProductLinkType } from '../../domain/enums/product-type.enum';
 import { AttributeOrmEntity } from '../../infrastructure/persistence/typeorm/entities/attribute.orm-entity';
 import { AttributeOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/attribute-option.orm-entity';
 import { ProductCategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-category.orm-entity';
@@ -44,8 +45,16 @@ function makeService(
     attrs?: Array<Record<string, unknown>>;
     options?: Array<Record<string, unknown>>;
   } = {},
+  productLinks: {
+    rows?: Array<Record<string, unknown>>;
+    linked?: Array<Record<string, unknown>>;
+  } = {},
 ): ProductsService {
-  const products = { findOne: jest.fn().mockResolvedValue(found) };
+  const products = {
+    findOne: jest.fn().mockResolvedValue(found),
+    find: jest.fn().mockResolvedValue(productLinks.linked ?? []),
+  };
+  const links = { find: jest.fn().mockResolvedValue(productLinks.rows ?? []) };
   const families = { findOne: jest.fn().mockResolvedValue({ code: 'boots-family' }) };
   const dataSource = {
     getRepository: (entity: unknown) => {
@@ -68,7 +77,7 @@ function makeService(
     {}, // categories
     images, // images
     videos, // videos
-    {}, // links
+    links, // links
     dataSource,
     {},
     {},
@@ -141,6 +150,34 @@ describe('Catalog — ProductsService.getAdminDetail', () => {
     const svc = makeService(product);
     const d = await svc.getAdminDetail('p1');
     expect(d.configurable_attributes).toEqual([]);
+  });
+
+  it('returns saved links grouped + ordered so the editor reloads them (FR-CAT-019)', async () => {
+    const svc = makeService(product, [], [], [], {}, {
+      rows: [
+        { linkedProductId: 'rel-1', type: ProductLinkType.RELATED, position: 1 },
+        { linkedProductId: 'rel-2', type: ProductLinkType.RELATED, position: 2 },
+        { linkedProductId: 'cs-1', type: ProductLinkType.CROSS_SELL, position: 1 },
+      ],
+      linked: [
+        { id: 'rel-1', name: 'Nike Mercurial Vapor 15', sku: 'NM-15', primaryImageId: null },
+        { id: 'rel-2', name: 'Nike Tiempo Legend 10', sku: 'NT-10', primaryImageId: null },
+        { id: 'cs-1', name: 'Grip Socks', sku: 'GS-1', primaryImageId: null },
+      ],
+    });
+    const d = await svc.getAdminDetail('p1');
+    expect(d.links.related).toEqual([
+      { id: 'rel-1', name: 'Nike Mercurial Vapor 15', sku: 'NM-15', primary_image: null },
+      { id: 'rel-2', name: 'Nike Tiempo Legend 10', sku: 'NT-10', primary_image: null },
+    ]);
+    expect(d.links.up_sell).toEqual([]);
+    expect(d.links.cross_sell).toEqual([{ id: 'cs-1', name: 'Grip Socks', sku: 'GS-1', primary_image: null }]);
+  });
+
+  it('defaults links to empty groups when the product has none', async () => {
+    const svc = makeService(product);
+    const d = await svc.getAdminDetail('p1');
+    expect(d.links).toEqual({ related: [], up_sell: [], cross_sell: [] });
   });
 
   it('throws 404 PRODUCT_NOT_FOUND when the product is missing', async () => {

@@ -302,7 +302,10 @@ export class ProductMediaService {
     return { id: imageId, primary_image_id: primaryImageId };
   }
 
-  async addVideo(input: AddVideoInput, file?: UploadedImageFile): Promise<{ id: string }> {
+  async addVideo(
+    input: AddVideoInput,
+    file?: UploadedImageFile,
+  ): Promise<{ id: string; source: string; url: string; display_order: number }> {
     const product = await this.products.findOne({ where: { id: input.productId } });
     if (!product) {
       throw new NotFoundException({
@@ -336,7 +339,9 @@ export class ProductMediaService {
         displayOrder: input.displayOrder ?? existingCount,
       }),
     );
-    return { id: saved.id };
+    // Return the stored video link (FR-CAT-034) so the editor can show it immediately and the
+    // storefront PDP gallery can render it — for an uploaded file this is the Cloudinary URL.
+    return { id: saved.id, source: saved.source, url: saved.url, display_order: saved.displayOrder };
   }
 
   /** Delete a product video (FR-CAT-034). The video must belong to the product (else 404). */
