@@ -68,12 +68,23 @@ async function bootstrap(): Promise<void> {
   );
   // ResponseInterceptor is registered as APP_INTERCEPTOR (DI) in AppModule.
   app.useGlobalFilters(new AllExceptionsFilter());
-  // CORS: the storefront/admin run on a different origin (e.g. :3000) than the API (:8000).
-  // `exposedHeaders` is required for the browser to read the guest cart token the cart write
-  // mints — custom response headers are hidden from cross-origin JS unless explicitly exposed.
-  // Without this, `X-Cart-Token` never reaches the FE, the token is never persisted, and every
-  // subsequent GET /cart goes out token-less → the guest cart always reads empty.
-  app.enableCors({ exposedHeaders: ['X-Cart-Token'] });
+  // CORS: the storefront/admin run on a different origin (e.g. :3000/:3001, or a LAN IP) than the
+  // API. Set `CORS_ORIGINS` (comma-separated) in production to the real frontend domains; in dev it
+  // falls back to REFLECTING the request origin so any localhost/LAN port is allowed. `credentials:
+  // true` supports cookie/credentialed requests and requires a specific reflected origin (not `*`).
+  // Methods + request headers (Authorization / X-Cart-Token / Idempotency-Key) are reflected so they
+  // pass preflight; `exposedHeaders` lets the browser READ the guest cart token the cart write mints
+  // (custom response headers are hidden from cross-origin JS unless explicitly exposed — without it
+  // the token never reaches the FE, so the guest cart always reads empty).
+  const corsOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin: corsOrigins.length > 0 ? corsOrigins : true,
+    credentials: true,
+    exposedHeaders: ['X-Cart-Token'],
+  });
 
   // Swagger / OpenAPI at http://localhost:<port>/api/v1/docs
   const swaggerConfig = new DocumentBuilder()
