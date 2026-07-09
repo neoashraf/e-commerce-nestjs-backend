@@ -157,6 +157,7 @@ export class CheckoutService {
       guest?: GuestInput | null;
       expected_total?: string;
       acknowledge_changes?: boolean;
+      customer_note?: string | null;
     },
   ): Promise<PlaceResult> {
     if (!idempotencyKey) {
@@ -261,6 +262,7 @@ export class CheckoutService {
       },
       applied_coupon_code: appliedCoupon,
       idempotency_key: idempotencyKey,
+      customer_note: input.customer_note ?? null,
     });
 
     // Reserve stock (INV) + initiate payment (PAY); on any failure release + retain the cart.

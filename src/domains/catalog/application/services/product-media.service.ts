@@ -7,6 +7,7 @@ import { ProductVideoSource } from '../../domain/enums/product-type.enum';
 import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductVideoOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-video.orm-entity';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
+import { ProductSupportService } from './product-support.service';
 
 /** The subset of a multipart upload the media service needs (no `@types/multer` dependency). */
 export interface UploadedImageFile {
@@ -34,6 +35,12 @@ export interface AddVideoInput {
   displayOrder?: number;
 }
 
+export interface UpdateImageInput {
+  altText?: string;
+  /** `undefined` = leave unchanged; `null` = clear the tag; a uuid = set/validate the colour option. */
+  colorOptionId?: string | null;
+}
+
 /**
  * Product media (FR-CAT-030–034): image upload with MIME/size/alt validation, exactly-one-primary
  * enforcement (mirrored to `Product.primary_image_id`), renditions JSON with original-URL fallback +
@@ -52,6 +59,7 @@ export class ProductMediaService {
     private readonly videos: Repository<ProductVideoOrmEntity>,
     private readonly dataSource: DataSource,
     private readonly cloudinary: CloudinaryService,
+    private readonly support: ProductSupportService,
   ) {}
 
   async addImage(
@@ -147,16 +155,62 @@ export class ProductMediaService {
     return { id: imageId, is_primary: true };
   }
 
-  /** Edit an existing image's accessibility alt text (FR-CAT-032). The image must belong to the product. */
-  async updateImageAlt(
+  /**
+   * Reorder a product's gallery (FR-CAT-031). `orderedIds` must be the **complete, exact** set of the
+   * product's image ids — a partial set or any foreign id is rejected (`400`); persists `display_order`
+   * in the given order. `404` when the product doesn't exist. The storefront PDP renders this order.
+   */
+  async reorderImages(productId: string, orderedIds: string[]): Promise<{ ordered: string[] }> {
+    const product = await this.products.findOne({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundException({
+        code: 'PRODUCT_NOT_FOUND',
+        message: `Product ${productId} not found.`,
+      });
+    }
+
+    const existing = await this.images.find({ where: { productId }, select: { id: true } });
+    const existingIds = new Set(existing.map((i) => i.id));
+    const orderedSet = new Set(orderedIds);
+
+    const isExactSet =
+      orderedIds.length === existingIds.size &&
+      orderedSet.size === orderedIds.length &&
+      orderedIds.every((id) => existingIds.has(id));
+    if (!isExactSet) {
+      throw new BadRequestException({
+        code: 'INVALID_IMAGE_ORDER',
+        message: 'ordered_ids must be the complete, exact set of this product’s image ids.',
+      });
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const imgRepo = manager.getRepository(ProductImageOrmEntity);
+      for (let i = 0; i < orderedIds.length; i += 1) {
+        await imgRepo.update({ id: orderedIds[i], productId }, { displayOrder: i });
+      }
+    });
+    return { ordered: orderedIds };
+  }
+
+  /**
+   * Edit an existing image's alt text and/or colour-tag (FR-CAT-032). At least one field must be
+   * present. `colorOptionId` (when not `undefined`) is validated against the product family's `color`
+   * options — `null` clears the tag; an id that is not a valid colour option → `400`. The image must
+   * belong to the product (else `404`).
+   */
+  async updateImage(
     productId: string,
     imageId: string,
-    altText: string,
-  ): Promise<{ id: string; alt_text: string }> {
-    const trimmed = altText?.trim() ?? '';
-    if (trimmed === '') {
-      throw new BadRequestException({ code: 'ALT_TEXT_REQUIRED', message: 'alt_text is required.' });
+    input: UpdateImageInput,
+  ): Promise<{ id: string; alt_text: string; color_option_id: string | null }> {
+    if (input.altText === undefined && input.colorOptionId === undefined) {
+      throw new BadRequestException({
+        code: 'NO_FIELDS',
+        message: 'Provide alt_text and/or color_option_id.',
+      });
     }
+
     const image = await this.images.findOne({ where: { id: imageId, productId } });
     if (!image) {
       throw new NotFoundException({
@@ -164,8 +218,46 @@ export class ProductMediaService {
         message: `Image ${imageId} not found for product ${productId}.`,
       });
     }
-    await this.images.update({ id: imageId }, { altText: trimmed });
-    return { id: imageId, alt_text: trimmed };
+
+    const patch: Partial<ProductImageOrmEntity> = {};
+
+    if (input.altText !== undefined) {
+      const trimmed = input.altText.trim();
+      if (trimmed === '') {
+        throw new BadRequestException({ code: 'ALT_TEXT_REQUIRED', message: 'alt_text cannot be empty.' });
+      }
+      patch.altText = trimmed;
+    }
+
+    if (input.colorOptionId !== undefined) {
+      if (input.colorOptionId !== null) {
+        await this.assertValidColorOption(productId, input.colorOptionId);
+      }
+      patch.colorOptionId = input.colorOptionId;
+    }
+
+    await this.images.update({ id: imageId }, patch);
+
+    const altText = patch.altText ?? image.altText;
+    const colorOptionId =
+      input.colorOptionId !== undefined ? input.colorOptionId : image.colorOptionId;
+    return { id: imageId, alt_text: altText, color_option_id: colorOptionId };
+  }
+
+  /** Validate `colorOptionId` is a `color` attribute option in the product's family (FR-CAT-032; else 400). */
+  private async assertValidColorOption(productId: string, colorOptionId: string): Promise<void> {
+    const product = await this.products.findOne({ where: { id: productId } });
+    const familyId = product?.familyId;
+    const colorAttr = familyId
+      ? (await this.support.getFamilyAttributes(familyId)).get('color')
+      : undefined;
+    const isValid = colorAttr?.options.some((o) => o.id === colorOptionId) ?? false;
+    if (!isValid) {
+      throw new BadRequestException({
+        code: 'INVALID_COLOR_OPTION',
+        message: `color_option_id ${colorOptionId} is not a valid color option for this product.`,
+      });
+    }
   }
 
   /**
@@ -210,7 +302,10 @@ export class ProductMediaService {
     return { id: imageId, primary_image_id: primaryImageId };
   }
 
-  async addVideo(input: AddVideoInput, file?: UploadedImageFile): Promise<{ id: string }> {
+  async addVideo(
+    input: AddVideoInput,
+    file?: UploadedImageFile,
+  ): Promise<{ id: string; source: string; url: string; display_order: number }> {
     const product = await this.products.findOne({ where: { id: input.productId } });
     if (!product) {
       throw new NotFoundException({
@@ -244,7 +339,22 @@ export class ProductMediaService {
         displayOrder: input.displayOrder ?? existingCount,
       }),
     );
-    return { id: saved.id };
+    // Return the stored video link (FR-CAT-034) so the editor can show it immediately and the
+    // storefront PDP gallery can render it — for an uploaded file this is the Cloudinary URL.
+    return { id: saved.id, source: saved.source, url: saved.url, display_order: saved.displayOrder };
+  }
+
+  /** Delete a product video (FR-CAT-034). The video must belong to the product (else 404). */
+  async deleteVideo(productId: string, videoId: string): Promise<{ id: string }> {
+    const video = await this.videos.findOne({ where: { id: videoId, productId } });
+    if (!video) {
+      throw new NotFoundException({
+        code: 'VIDEO_NOT_FOUND',
+        message: `Video ${videoId} not found for product ${productId}.`,
+      });
+    }
+    await this.videos.delete({ id: videoId });
+    return { id: videoId };
   }
 
   /**

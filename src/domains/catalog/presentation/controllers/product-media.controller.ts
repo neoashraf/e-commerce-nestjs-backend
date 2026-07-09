@@ -32,11 +32,14 @@ import {
   UploadedImageFile,
 } from '../../application/services/product-media.service';
 import { AddVideoDto } from '../dto/add-video.dto';
+import { ReorderImagesDto } from '../dto/reorder-images.dto';
 import { UpdateImageDto } from '../dto/update-image.dto';
 import { UploadImageDto } from '../dto/upload-image.dto';
 import {
   AddVideoResponseDto,
   DeleteImageResponseDto,
+  DeleteVideoResponseDto,
+  ReorderImagesResponseDto,
   SetPrimaryImageResponseDto,
   UpdateImageResponseDto,
   UploadImageResponseDto,
@@ -73,6 +76,19 @@ export class ProductMediaController {
     });
   }
 
+  @Patch(':id/images/reorder')
+  @Requires('catalog.image.update')
+  @ApiOperation({ summary: 'Reorder the product gallery (full image-id set, in order)' })
+  @ApiOkResponse({ type: ReorderImagesResponseDto })
+  @ApiBadRequestResponse({ description: 'ordered_ids is not the complete, exact image set' })
+  @ApiNotFoundResponse({ description: 'Product not found' })
+  async reorderImages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReorderImagesDto,
+  ): Promise<{ ordered: string[] }> {
+    return this.media.reorderImages(id, dto.ordered_ids);
+  }
+
   @Patch(':id/images/:imageId/primary')
   @Requires('catalog.image.update')
   @ApiOperation({ summary: 'Set an already-uploaded image as the product primary' })
@@ -87,16 +103,19 @@ export class ProductMediaController {
 
   @Patch(':id/images/:imageId')
   @Requires('catalog.image.update')
-  @ApiOperation({ summary: "Update an image's alt text" })
+  @ApiOperation({ summary: "Update an image's alt text and/or colour-tag" })
   @ApiOkResponse({ type: UpdateImageResponseDto })
-  @ApiBadRequestResponse({ description: 'Missing alt_text' })
+  @ApiBadRequestResponse({ description: 'No fields / empty alt_text / invalid color_option_id' })
   @ApiNotFoundResponse({ description: 'Product or image not found' })
   async updateImage(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('imageId', ParseUUIDPipe) imageId: string,
     @Body() dto: UpdateImageDto,
-  ): Promise<{ id: string; alt_text: string }> {
-    return this.media.updateImageAlt(id, imageId, dto.alt_text);
+  ): Promise<{ id: string; alt_text: string; color_option_id: string | null }> {
+    return this.media.updateImage(id, imageId, {
+      altText: dto.alt_text,
+      colorOptionId: dto.color_option_id,
+    });
   }
 
   @Delete(':id/images/:imageId')
@@ -126,10 +145,22 @@ export class ProductMediaController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddVideoDto,
     @UploadedFile() file: UploadedImageFile | undefined,
-  ): Promise<{ id: string }> {
+  ): Promise<{ id: string; source: string; url: string; display_order: number }> {
     return this.media.addVideo(
       { productId: id, source: dto.source, url: dto.url, displayOrder: dto.display_order },
       file,
     );
+  }
+
+  @Delete(':id/videos/:videoId')
+  @Requires('catalog.image.delete')
+  @ApiOperation({ summary: 'Delete a product video' })
+  @ApiOkResponse({ type: DeleteVideoResponseDto })
+  @ApiNotFoundResponse({ description: 'Product or video not found' })
+  async deleteVideo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('videoId', ParseUUIDPipe) videoId: string,
+  ): Promise<{ id: string }> {
+    return this.media.deleteVideo(id, videoId);
   }
 }

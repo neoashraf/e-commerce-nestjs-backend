@@ -31,6 +31,8 @@ export interface RequestOtpResult {
   challengeId: string;
   expiresIn: number;
   resendAfter: number;
+  /** DEV-ONLY: the plaintext OTP, present only when `otpDevReturn` is on (never in production). */
+  devCode?: string;
 }
 
 @Injectable()
@@ -113,16 +115,23 @@ export class RequestOtpUseCase {
       await this.dispatcher.dispatchOtp({ phone, code, purpose: dispatchPurpose });
     } catch (err) {
       this.logger.error(`OTP dispatch failed for ${phone}: ${(err as Error).message}`);
-      throw new HttpException(
-        { code: 'SMS_UNAVAILABLE', message: "Couldn't send the code. Please try again." },
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
+      // DEV-ONLY: with no live SMS gateway, dispatch always fails. When the dev echo is on we
+      // still return the code (shown by the frontend dev banner), so don't fail the request.
+      // In production (otpDevReturn off) this stays a hard 503 with no side effects (AC2).
+      if (!this.config.otpDevReturn) {
+        throw new HttpException(
+          { code: 'SMS_UNAVAILABLE', message: "Couldn't send the code. Please try again." },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
     }
 
     return {
       challengeId: challenge.id,
       expiresIn: this.config.otpTtlSeconds,
       resendAfter: this.config.otpResendCooldownSeconds,
+      // DEV-ONLY: echo the code so the frontend can show it (no SMS gateway in dev). Off in prod.
+      ...(this.config.otpDevReturn ? { devCode: code } : {}),
     };
   }
 }

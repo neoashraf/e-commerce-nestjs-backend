@@ -14,6 +14,7 @@ import { PASSWORD_RESET_TOKEN_REPOSITORY } from './domain/repositories/password-
 import { ADDRESS_REPOSITORY } from './domain/repositories/address.repository.interface';
 // application
 import { AUTH_CONFIG } from './application/ports/auth-config.port';
+import { GOOGLE_VERIFIER } from './application/ports/google-verifier.port';
 import { GUEST_ORDER_CLAIM_PORT } from './application/ports/guest-order-claim.port';
 import { OTP_SERVICE } from './application/ports/otp-service.port';
 import { TOKEN_SERVICE } from './application/ports/token-service.port';
@@ -28,6 +29,7 @@ import { LogoutUseCase } from './application/use-cases/logout.use-case';
 import { LogoutAllUseCase } from './application/use-cases/logout-all.use-case';
 import { RegisterWithEmailUseCase } from './application/use-cases/register-with-email.use-case';
 import { LoginWithEmailUseCase } from './application/use-cases/login-with-email.use-case';
+import { LoginWithGoogleUseCase } from './application/use-cases/login-with-google.use-case';
 import { VerifyEmailUseCase } from './application/use-cases/verify-email.use-case';
 import { IssueEmailVerificationUseCase } from './application/use-cases/issue-email-verification.use-case';
 import { CreateLightweightAccountUseCase } from './application/use-cases/create-lightweight-account.use-case';
@@ -61,6 +63,7 @@ import { TypeOrmEmailVerificationTokenRepository } from './infrastructure/persis
 import { TypeOrmPasswordResetTokenRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-password-reset-token.repository';
 import { TypeOrmAddressRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-address.repository';
 import { JwtTokenService } from './infrastructure/services/jwt-token.service';
+import { GoogleTokenInfoVerifier } from './infrastructure/services/google-tokeninfo.verifier';
 import { OtpService } from './infrastructure/services/otp.service';
 import { NotificationDispatcherService } from './infrastructure/services/notification-dispatcher.service';
 import { BcryptPasswordHasher } from './infrastructure/services/bcrypt-password-hasher.service';
@@ -122,6 +125,7 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     },
     { provide: ADDRESS_REPOSITORY, useClass: TypeOrmAddressRepository },
     { provide: TOKEN_SERVICE, useClass: JwtTokenService },
+    { provide: GOOGLE_VERIFIER, useClass: GoogleTokenInfoVerifier },
     { provide: OTP_SERVICE, useClass: OtpService },
     { provide: NOTIFICATION_DISPATCHER, useClass: NotificationDispatcherService },
     { provide: PASSWORD_HASHER, useClass: BcryptPasswordHasher },
@@ -136,6 +140,7 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     IssueEmailVerificationUseCase,
     RegisterWithEmailUseCase,
     LoginWithEmailUseCase,
+    LoginWithGoogleUseCase,
     VerifyEmailUseCase,
     CreateLightweightAccountUseCase,
     RequestPasswordResetUseCase,

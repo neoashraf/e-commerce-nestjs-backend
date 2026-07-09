@@ -27,6 +27,7 @@ import { RefreshTokenUseCase } from '../../application/use-cases/refresh-token.u
 import { LogoutUseCase } from '../../application/use-cases/logout.use-case';
 import { RegisterWithEmailUseCase } from '../../application/use-cases/register-with-email.use-case';
 import { LoginWithEmailUseCase } from '../../application/use-cases/login-with-email.use-case';
+import { LoginWithGoogleUseCase } from '../../application/use-cases/login-with-google.use-case';
 import { VerifyEmailUseCase } from '../../application/use-cases/verify-email.use-case';
 import { IssueEmailVerificationUseCase } from '../../application/use-cases/issue-email-verification.use-case';
 import { GetMeUseCase } from '../../application/use-cases/get-me.use-case';
@@ -39,6 +40,7 @@ import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { LogoutDto } from '../dto/logout.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
+import { GoogleLoginDto } from '../dto/google-login.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
@@ -69,6 +71,7 @@ export class AuthController {
     private readonly logoutUseCase: LogoutUseCase,
     private readonly registerWithEmailUseCase: RegisterWithEmailUseCase,
     private readonly loginWithEmailUseCase: LoginWithEmailUseCase,
+    private readonly loginWithGoogleUseCase: LoginWithGoogleUseCase,
     private readonly verifyEmailUseCase: VerifyEmailUseCase,
     private readonly issueEmailVerificationUseCase: IssueEmailVerificationUseCase,
     private readonly getMeUseCase: GetMeUseCase,
@@ -98,6 +101,8 @@ export class AuthController {
       challenge_id: result.challengeId,
       expires_in: result.expiresIn,
       resend_after: result.resendAfter,
+      // DEV-ONLY: present only when OTP_DEV_RETURN is on (never in production).
+      ...(result.devCode ? { dev_otp: result.devCode } : {}),
     };
   }
 
@@ -112,6 +117,30 @@ export class AuthController {
       code: dto.code,
       fullName: dto.full_name,
     });
+    return {
+      is_new_account: result.isNewAccount,
+      customer: {
+        id: result.customer.id,
+        full_name: result.customer.fullName,
+        phone: result.customer.phone,
+        phone_verified: result.customer.phoneVerified,
+      },
+      tokens: {
+        access_token: result.tokens.accessToken,
+        refresh_token: result.tokens.refreshToken,
+        expires_in: result.tokens.expiresIn,
+      },
+    };
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Log in / sign up with a Google ID token (email-keyed account)' })
+  @ApiOkResponse({ type: VerifyOtpResponseDto })
+  @ApiUnauthorizedResponse({ description: 'INVALID_GOOGLE_TOKEN / GOOGLE_EMAIL_UNVERIFIED' })
+  async google(@Body() dto: GoogleLoginDto): Promise<VerifyOtpResponseDto> {
+    const result = await this.loginWithGoogleUseCase.execute({ idToken: dto.id_token });
     return {
       is_new_account: result.isNewAccount,
       customer: {

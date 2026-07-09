@@ -1,9 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class OtpRequestResponseDto {
   @ApiProperty() challenge_id: string;
   @ApiProperty({ example: 300 }) expires_in: number;
   @ApiProperty({ example: 60 }) resend_after: number;
+  @ApiPropertyOptional({
+    example: '123456',
+    description: 'DEV-ONLY: the OTP code, returned only when OTP_DEV_RETURN=true and not in production.',
+  })
+  dev_otp?: string;
 }
 
 export class AuthTokensDto {

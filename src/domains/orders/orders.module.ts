@@ -12,6 +12,7 @@ import { ExchangeService } from './application/services/exchange.service';
 import { FulfilmentService } from './application/services/fulfilment.service';
 import { InvoiceService } from './application/services/invoice.service';
 import { OrderCreationService } from './application/services/order-creation.service';
+import { OrderNotesService } from './application/services/order-notes.service';
 import { OrderNumberingService } from './application/services/order-numbering.service';
 import { OrderQueryService } from './application/services/order-query.service';
 import { OrderTrackingService } from './application/services/order-tracking.service';
@@ -32,6 +33,8 @@ import {
   STOCK_COORDINATOR,
   StubStockCoordinator,
 } from './application/ports/stock-coordinator.port';
+import { AdminUserOrmEntity } from '../rbac/infrastructure/persistence/typeorm/entities/admin-user.orm-entity';
+import { RoleOrmEntity } from '../rbac/infrastructure/persistence/typeorm/entities/role.orm-entity';
 import { ProductOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product.orm-entity';
 import { ProductImageOrmEntity } from '../catalog/infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { PaymentOrmEntity } from '../payments/infrastructure/persistence/typeorm/entities/payment.orm-entity';
@@ -83,6 +86,9 @@ import { PaymentStateController } from './presentation/controllers/payment-state
       ProductImageOrmEntity,
       // PAY read-surface: resolve an order's payment id for the admin order-detail payment panel.
       PaymentOrmEntity,
+      // RBAC read-surface: resolve admin display names + role labels for the notes thread (FR-ORD-072b).
+      AdminUserOrmEntity,
+      RoleOrmEntity,
     ]),
   ],
   controllers: [
@@ -97,6 +103,7 @@ import { PaymentStateController } from './presentation/controllers/payment-state
   ],
   providers: [
     OrderCreationService,
+    OrderNotesService,
     OrderNumberingService,
     OrderQueryService,
     OrderTrackingService,

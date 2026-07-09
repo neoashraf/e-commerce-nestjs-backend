@@ -31,6 +31,7 @@ import { Requires } from '../../../rbac/presentation/decorators/requires.decorat
 import { JwtAdminGuard } from '../../../rbac/presentation/guards/jwt-admin.guard';
 import { PermissionsGuard } from '../../../rbac/presentation/guards/permissions.guard';
 import { FulfilmentService } from '../../application/services/fulfilment.service';
+import { OrderNotesService } from '../../application/services/order-notes.service';
 import { OrderTrackingService } from '../../application/services/order-tracking.service';
 import {
   AdminOrderRowDto,
@@ -44,6 +45,7 @@ import {
   UpdateOrderStatusDto,
   UpdateOrderStatusResultDto,
 } from '../dto/fulfilment.dto';
+import { OrderNoteEntryDto } from '../dto/order-note.dto';
 import { OrderDetailDto } from '../dto/tracking.dto';
 
 /**
@@ -59,6 +61,7 @@ export class FulfilmentController {
   constructor(
     private readonly fulfilment: FulfilmentService,
     private readonly tracking: OrderTrackingService,
+    private readonly orderNotes: OrderNotesService,
   ) {}
 
   @Get()
@@ -67,6 +70,7 @@ export class FulfilmentController {
   @ApiOkResponse({ type: AdminOrderRowDto, isArray: true })
   list(@Query() query: ListAdminOrdersQueryDto): Promise<Paginated<AdminOrderRowDto>> {
     return this.tracking.listAdminOrders({
+      customerId: query.customer_id,
       status: query.status,
       paymentState: query.payment_state,
       q: query.q,
@@ -81,12 +85,12 @@ export class FulfilmentController {
   @Get(':orderNo')
   @Requires('orders.order.read')
   @ApiParam({ name: 'orderNo', example: 'SO-100245' })
-  @ApiOperation({ summary: 'Get full order detail (snapshot, items, amounts, shipment, history)' })
+  @ApiOperation({ summary: 'Get full order detail incl. attributed notes thread (FR-ORD-071/072b)' })
   @ApiOkResponse({ type: OrderDetailDto })
   @ApiNotFoundResponse({ description: 'ORDER_NOT_FOUND' })
   async detail(@Param('orderNo') orderNo: string): Promise<OrderDetailDto> {
     const aggregate = await this.tracking.loadOrder(orderNo);
-    return this.tracking.toDetail(aggregate);
+    return this.tracking.toDetail(aggregate, { isAdmin: true });
   }
 
   @Patch(':orderNo/status')
@@ -127,11 +131,21 @@ export class FulfilmentController {
     return this.fulfilment.adminCancel(orderNo, admin.adminId, dto.reason);
   }
 
+  @Get(':orderNo/notes')
+  @Requires('orders.order.read')
+  @ApiParam({ name: 'orderNo', example: 'SO-100245' })
+  @ApiOperation({ summary: 'Get the attributed notes thread — customer note + admin notes (FR-ORD-072b)' })
+  @ApiOkResponse({ type: OrderNoteEntryDto, isArray: true })
+  @ApiNotFoundResponse({ description: 'ORDER_NOT_FOUND' })
+  getNotes(@Param('orderNo') orderNo: string): Promise<OrderNoteEntryDto[]> {
+    return this.orderNotes.getThread(orderNo);
+  }
+
   @Post(':orderNo/notes')
   @HttpCode(HttpStatus.CREATED)
   @Requires('orders.order.update_status')
   @ApiParam({ name: 'orderNo', example: 'SO-100245' })
-  @ApiOperation({ summary: 'Add an internal note (not customer-visible)' })
+  @ApiOperation({ summary: 'Add an internal admin note (not customer-visible)' })
   @ApiCreatedResponse({ type: AddOrderNoteResultDto })
   @ApiNotFoundResponse({ description: 'ORDER_NOT_FOUND' })
   addNote(

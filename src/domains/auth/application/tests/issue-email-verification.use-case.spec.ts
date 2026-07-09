@@ -20,6 +20,7 @@ const config: AuthConfig = {
   emailVerifyTtlSeconds: 86_400,
   emailVerifyResendCooldownSeconds: 60,
   passwordResetTtlSeconds: 1_800,
+  otpDevReturn: false,
 };
 
 describe('Auth — IssueEmailVerificationUseCase', () => {

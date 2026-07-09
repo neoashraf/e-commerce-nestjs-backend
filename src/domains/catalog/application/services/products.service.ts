@@ -7,7 +7,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { Paginated } from '../../../../shared/dto/paginated';
 import { Attribute } from '../../domain/entities/attribute.entity';
@@ -23,8 +23,10 @@ import { AttributeFamilyOrmEntity } from '../../infrastructure/persistence/typeo
 import { CategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/category.orm-entity';
 import { ProductAttributeValueOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-attribute-value.orm-entity';
 import { ProductCategoryOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-category.orm-entity';
+import { ProductConfigurableAttributeOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-configurable-attribute.orm-entity';
 import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductLinkOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-link.orm-entity';
+import { ProductVideoOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-video.orm-entity';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
 import { ProductVariantOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant.orm-entity';
 import { ProductVariantOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant-option.orm-entity';
@@ -98,9 +100,46 @@ export interface AdminProductRow {
   family: string | null;
   primary_image: string | null;
   base_price: string;
+  sale_price: string | null;
+  sale_active: boolean;
   status: string;
   primary_category: string | null;
   qty: number | null;
+  qty_status: string | null;
+}
+
+/** Raw row shape returned by the admin-list query before the INV/sale enrichment. */
+interface AdminProductRawRow {
+  id: string;
+  name: string;
+  sku: string;
+  type: string;
+  family: string | null;
+  primary_image: string | null;
+  base_price: string;
+  sale_price: string | null;
+  sale_starts_at: string | Date | null;
+  sale_ends_at: string | Date | null;
+  status: string;
+  primary_category: string | null;
+}
+
+/** Filters shared by the admin product list + CSV export. */
+export interface AdminProductListFilter {
+  status?: ProductStatus;
+  type?: ProductType;
+  family?: string;
+  category?: string;
+  q?: string;
+}
+
+/** Outcome of a single product in a bulk status transition (FR-CAT-015/016). */
+export interface BulkStatusResultItem {
+  id: string;
+  ok: boolean;
+  status?: string;
+  code?: string;
+  details?: string[];
 }
 
 /** Full product detail for the admin editor (all editable fields + `updated_at` for optimistic writes). */
@@ -110,6 +149,7 @@ export interface AdminProductVariant {
   sku_code: string;
   options: Record<string, string>;
   price: string | null;
+  image_id: string | null;
   is_enabled: boolean;
   on_hand: number;
   low_stock_threshold: number;
@@ -121,8 +161,47 @@ export interface AdminProductImage {
   url: string;
   renditions: Record<string, string>;
   alt_text: string;
+  color_option_id: string | null;
   is_primary: boolean;
   display_order: number;
+}
+
+/** One video in the admin editor (FR-CAT-034), ordered after images. */
+export interface AdminProductVideo {
+  id: string;
+  source: string;
+  url: string;
+  display_order: number;
+}
+
+/** One option of a configurable axis, for the editor's image colour-tag dropdown + swatch (FR-CAT-032). */
+export interface AdminConfigurableOption {
+  id: string;
+  value: string;
+  swatch_type: string | null;
+  swatch_value: string | null;
+}
+
+/** A product configurable axis (e.g. `color`) with all its options — the colour-tag source (FR-CAT-032). */
+export interface AdminConfigurableAttribute {
+  code: string;
+  label: string;
+  options: AdminConfigurableOption[];
+}
+
+/** A linked product summary shown as a chip in the editor's Links section (FR-CAT-019). */
+export interface AdminProductLink {
+  id: string;
+  name: string;
+  sku: string;
+  primary_image: string | null;
+}
+
+/** The product's typed links for the editor — each group preserves its saved order (FR-CAT-019). */
+export interface AdminProductLinks {
+  related: AdminProductLink[];
+  up_sell: AdminProductLink[];
+  cross_sell: AdminProductLink[];
 }
 
 export interface AdminProductDetail {
@@ -148,6 +227,9 @@ export interface AdminProductDetail {
   category_ids: string[];
   primary_image_id: string | null;
   images: AdminProductImage[];
+  videos: AdminProductVideo[];
+  configurable_attributes: AdminConfigurableAttribute[];
+  links: AdminProductLinks;
   variants: AdminProductVariant[];
   meta_title: string | null;
   meta_keywords: string | null;
@@ -175,6 +257,8 @@ export class ProductsService {
     private readonly categories: Repository<CategoryOrmEntity>,
     @InjectRepository(ProductImageOrmEntity)
     private readonly images: Repository<ProductImageOrmEntity>,
+    @InjectRepository(ProductVideoOrmEntity)
+    private readonly videos: Repository<ProductVideoOrmEntity>,
     @InjectRepository(ProductLinkOrmEntity)
     private readonly links: Repository<ProductLinkOrmEntity>,
     private readonly dataSource: DataSource,
@@ -313,11 +397,26 @@ export class ProductsService {
         url: img.url,
         renditions: img.renditions ?? { detail: img.url, listing: img.url, thumb: img.url },
         alt_text: img.altText,
+        color_option_id: img.colorOptionId,
         is_primary: img.isPrimary,
         display_order: img.displayOrder,
       }));
 
+    // Videos for the editor, ordered after the gallery (FR-CAT-034).
+    const videoRows = await this.videos.find({
+      where: { productId: id },
+      order: { displayOrder: 'ASC', createdAt: 'ASC' },
+    });
+    const videos: AdminProductVideo[] = videoRows.map((v) => ({
+      id: v.id,
+      source: v.source,
+      url: v.url,
+      display_order: v.displayOrder,
+    }));
+
     const variants = await this.loadProductVariants(id);
+    const configurableAttributes = await this.buildAdminConfigurableAttributes(id);
+    const links = await this.buildAdminLinks(id);
 
     return {
       id: p.id,
@@ -342,6 +441,9 @@ export class ProductsService {
       category_ids: categoryLinks.map((c) => c.categoryId),
       primary_image_id: p.primaryImageId,
       images,
+      videos,
+      configurable_attributes: configurableAttributes,
+      links,
       variants,
       meta_title: p.metaTitle,
       meta_keywords: p.metaKeywords,
@@ -402,10 +504,91 @@ export class ProductsService {
       sku_code: v.skuCode,
       options: optionsByVariant.get(v.id) ?? {},
       price: v.priceOverride,
+      image_id: v.imageId,
       is_enabled: v.isEnabled,
       on_hand: levels.get(v.id)?.on_hand ?? 0,
       low_stock_threshold: levels.get(v.id)?.low_stock_threshold ?? 0,
     }));
+  }
+
+  /**
+   * Build the product's configurable attribute groups (e.g. `color`, `size`) with **all** their options
+   * for the editor — the source for the per-image colour-tag dropdown + swatch (FR-CAT-032). Mirrors the
+   * storefront PDP `configurable_attributes` shape, but returns every option of each axis (not just the
+   * variant-used ones) so an image can be tagged with any colour the product's family offers — exactly
+   * the set `ProductMediaService.updateImage` validates a `color_option_id` against. Empty for a simple
+   * product (no configurable axes). Ordered by axis position, options by their own position.
+   */
+  private async buildAdminConfigurableAttributes(
+    productId: string,
+  ): Promise<AdminConfigurableAttribute[]> {
+    const axes = await this.dataSource
+      .getRepository(ProductConfigurableAttributeOrmEntity)
+      .find({ where: { productId }, order: { position: 'ASC' } });
+    if (axes.length === 0) return [];
+
+    const attrIds = Array.from(new Set(axes.map((a) => a.attributeId)));
+    const [attrs, optionRows] = await Promise.all([
+      this.dataSource.getRepository(AttributeOrmEntity).find({ where: { id: In(attrIds) } }),
+      this.dataSource.getRepository(AttributeOptionOrmEntity).find({ where: { attributeId: In(attrIds) } }),
+    ]);
+    const attrById = new Map(attrs.map((a) => [a.id, a]));
+
+    return axes.map((axis) => {
+      const attr = attrById.get(axis.attributeId);
+      const options = optionRows
+        .filter((o) => o.attributeId === axis.attributeId)
+        .sort((a, b) => a.position - b.position)
+        .map((o) => ({
+          id: o.id,
+          value: o.label,
+          swatch_type: o.swatchType,
+          swatch_value: o.swatchValue,
+        }));
+      return { code: attr?.code ?? '', label: attr?.adminLabel ?? '', options };
+    });
+  }
+
+  /**
+   * Build the product's typed links (related / up-sell / cross-sell) with linked-product summaries for
+   * the editor's Links section (FR-CAT-019) — so reopening the editor shows the saved links instead of
+   * blank groups. Each group preserves the saved order; soft-deleted linked products are skipped.
+   */
+  private async buildAdminLinks(productId: string): Promise<AdminProductLinks> {
+    const empty: AdminProductLinks = { related: [], up_sell: [], cross_sell: [] };
+    const linkRows = await this.links.find({ where: { productId }, order: { position: 'ASC' } });
+    if (linkRows.length === 0) return empty;
+
+    const linkedIds = Array.from(new Set(linkRows.map((l) => l.linkedProductId)));
+    const linked = await this.products.find({ where: { id: In(linkedIds) } });
+    const imageIds = linked.map((p) => p.primaryImageId).filter((id): id is string => !!id);
+    const imageById = new Map(
+      (imageIds.length ? await this.images.find({ where: { id: In(imageIds) } }) : []).map((img) => [
+        img.id,
+        img,
+      ]),
+    );
+    const summaryById = new Map<string, AdminProductLink>(
+      linked.map((p) => {
+        const img = p.primaryImageId ? imageById.get(p.primaryImageId) : undefined;
+        return [
+          p.id,
+          { id: p.id, name: p.name, sku: p.sku, primary_image: img ? img.renditions?.thumb ?? img.url : null },
+        ];
+      }),
+    );
+
+    const group = (type: ProductLinkType): AdminProductLink[] =>
+      linkRows
+        .filter((l) => l.type === type)
+        .map((l) => summaryById.get(l.linkedProductId))
+        .filter((x): x is AdminProductLink => !!x);
+
+    return {
+      related: group(ProductLinkType.RELATED),
+      up_sell: group(ProductLinkType.UP_SELL),
+      cross_sell: group(ProductLinkType.CROSS_SELL),
+    };
   }
 
   /** Resolve a product's stored EAV rows to an editor-friendly `{ code: value | value[] }` map. */
@@ -644,15 +827,29 @@ export class ProductsService {
   // Admin list
   // ---------------------------------------------------------------------------
 
-  async list(filter: {
-    page: number;
-    limit: number;
-    status?: ProductStatus;
-    type?: ProductType;
-    family?: string;
-    category?: string;
-    q?: string;
-  }): Promise<Paginated<AdminProductRow>> {
+  async list(
+    filter: AdminProductListFilter & { page: number; limit: number },
+    now: Date = new Date(),
+  ): Promise<Paginated<AdminProductRow>> {
+    const qb = this.buildListQuery(filter);
+    const total = await qb.getCount();
+    const rawRows = await qb
+      .offset((filter.page - 1) * filter.limit)
+      .limit(filter.limit)
+      .getRawMany<AdminProductRawRow>();
+
+    const items = await this.mapListRows(rawRows, now);
+    return new Paginated(items, { page: filter.page, limit: filter.limit, total });
+  }
+
+  /** The full filtered set (no pagination) for the CSV export (SRS §10). */
+  async exportRows(filter: AdminProductListFilter, now: Date = new Date()): Promise<AdminProductRow[]> {
+    const rawRows = await this.buildListQuery(filter).getRawMany<AdminProductRawRow>();
+    return this.mapListRows(rawRows, now);
+  }
+
+  /** Shared admin-list query (filters + selected columns), reused by `list` + `exportRows`. */
+  private buildListQuery(filter: AdminProductListFilter): SelectQueryBuilder<ProductOrmEntity> {
     const qb = this.products
       .createQueryBuilder('p')
       .leftJoin(AttributeFamilyOrmEntity, 'f', 'f.id = p.family_id')
@@ -665,6 +862,9 @@ export class ProductsService {
       .addSelect('f.code', 'family')
       .addSelect('img.url', 'primary_image')
       .addSelect('p.base_price', 'base_price')
+      .addSelect('p.sale_price', 'sale_price')
+      .addSelect('p.sale_starts_at', 'sale_starts_at')
+      .addSelect('p.sale_ends_at', 'sale_ends_at')
       .addSelect('p.status', 'status')
       .addSelect('pc.name', 'primary_category')
       .orderBy('p.created_at', 'DESC');
@@ -675,30 +875,91 @@ export class ProductsService {
       qb.andWhere('(f.code = :family OR p.family_id::text = :family)', { family: filter.family });
     }
     if (filter.category) {
+      // Accept a category id (UUID) OR its slug — mirrors the family filter (code-or-id). The admin
+      // filter sends the slug (e.g. `football`); matching only by id previously returned zero rows
+      // for any selection. Matches the product's primary category OR any linked category.
       qb.andWhere(
-        `(p.primary_category_id::text = :category OR EXISTS (
-            SELECT 1 FROM "product_categories" pcj
-             WHERE pcj."product_id" = p.id AND pcj."category_id"::text = :category))`,
+        `(p.primary_category_id::text = :category
+            OR pc.slug = :category
+            OR EXISTS (
+              SELECT 1 FROM "product_categories" pcj
+                JOIN "categories" cc ON cc.id = pcj."category_id"
+               WHERE pcj."product_id" = p.id
+                 AND (pcj."category_id"::text = :category OR cc.slug = :category)))`,
         { category: filter.category },
       );
     }
     if (filter.q) {
       qb.andWhere('(p.name ILIKE :q OR p.sku ILIKE :q)', { q: `%${filter.q}%` });
     }
+    return qb;
+  }
 
-    const total = await qb.getCount();
-    const rawRows = await qb
-      .offset((filter.page - 1) * filter.limit)
-      .limit(filter.limit)
-      .getRawMany<Omit<AdminProductRow, 'qty'>>();
+  /** Join live INV stock (BR-CAT-5) + derive sale_active (BR-CAT-4) onto the raw rows. */
+  private async mapListRows(rawRows: AdminProductRawRow[], now: Date): Promise<AdminProductRow[]> {
+    const stockMap = await this.inventoryQty.getStockByProductIds(rawRows.map((r) => r.id));
+    return rawRows.map((r) => {
+      const stock = stockMap.get(r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        sku: r.sku,
+        type: r.type,
+        family: r.family,
+        primary_image: r.primary_image,
+        base_price: r.base_price,
+        sale_price: r.sale_price,
+        sale_active: this.isSaleActiveRow(r, now),
+        status: r.status,
+        primary_category: r.primary_category,
+        qty: stock ? stock.qty : null,
+        qty_status: stock ? stock.qty_status : null,
+      };
+    });
+  }
 
-    const qtyMap = await this.inventoryQty.getQtyByProductIds(rawRows.map((r) => r.id));
-    const items: AdminProductRow[] = rawRows.map((r) => ({
-      ...r,
-      qty: qtyMap.has(r.id) ? (qtyMap.get(r.id) as number) : null,
-    }));
+  /** A row's sale is active only when a sale price is set and now ∈ [sale_starts_at, sale_ends_at] (BR-CAT-4). */
+  private isSaleActiveRow(r: AdminProductRawRow, now: Date): boolean {
+    if (r.sale_price === null || !r.sale_starts_at || !r.sale_ends_at) return false;
+    const starts = new Date(r.sale_starts_at);
+    const ends = new Date(r.sale_ends_at);
+    return now >= starts && now <= ends;
+  }
 
-    return new Paginated(items, { page: filter.page, limit: filter.limit, total });
+  /**
+   * Bulk publish/archive (SRS §10; FR-CAT-015/016). Runs the **same** per-product validation as the
+   * single-product transition (publish-trinity for `published`), returning **per-item** results and
+   * never aborting the batch on an individual failure.
+   */
+  async bulkStatus(ids: string[], status: ProductStatus): Promise<{
+    processed: number;
+    succeeded: number;
+    failed: number;
+    results: BulkStatusResultItem[];
+  }> {
+    const results: BulkStatusResultItem[] = [];
+    for (const id of ids) {
+      results.push(await this.applyBulkStatus(id, status));
+    }
+    const succeeded = results.filter((r) => r.ok).length;
+    return { processed: results.length, succeeded, failed: results.length - succeeded, results };
+  }
+
+  private async applyBulkStatus(id: string, status: ProductStatus): Promise<BulkStatusResultItem> {
+    const product = await this.products.findOne({ where: { id } });
+    if (!product) {
+      return { id, ok: false, code: 'PRODUCT_NOT_FOUND' };
+    }
+    if (status === ProductStatus.PUBLISHED) {
+      const details = await this.gatherPublishDetails(product);
+      if (details.length > 0) {
+        return { id, ok: false, code: 'NOT_PUBLISHABLE', details };
+      }
+    }
+    await this.products.update({ id }, { status });
+    // Mirror to the storefront index (idempotent + graceful), same as the single transition.
+    await this.searchIndex.upsert(id);
+    return { id, ok: true, status };
   }
 
   // ---------------------------------------------------------------------------

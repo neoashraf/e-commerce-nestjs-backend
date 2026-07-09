@@ -51,10 +51,40 @@ export class AdminProductRowDto {
   @ApiProperty({ nullable: true }) family: string | null;
   @ApiProperty({ nullable: true }) primary_image: string | null;
   @ApiProperty({ example: '14000.00' }) base_price: string;
+  @ApiProperty({ nullable: true, example: '12500.00', description: 'Effective sale price (struck base shown alongside)' })
+  sale_price: string | null;
+  @ApiProperty({ description: 'true only when now ∈ [sale_starts_at, sale_ends_at] (BR-CAT-4)' })
+  sale_active: boolean;
   @ApiProperty() status: string;
   @ApiProperty({ nullable: true }) primary_category: string | null;
   @ApiProperty({ nullable: true, description: 'Live on-hand from INV; null when unavailable' })
   qty: number | null;
+  @ApiProperty({
+    nullable: true,
+    enum: ['in_stock', 'low_stock', 'out_of_stock'],
+    description: 'Derived live from INV (FR-CAT-042); null when unavailable',
+  })
+  qty_status: 'in_stock' | 'low_stock' | 'out_of_stock' | null;
+}
+
+/** One per-item outcome of a bulk publish/archive (FR-CAT-015/016). */
+export class BulkStatusItemDto {
+  @ApiProperty({ example: 'c7-uuid' }) id: string;
+  @ApiProperty({ example: true }) ok: boolean;
+  @ApiProperty({ required: false, example: 'published', description: 'New status when ok' })
+  status?: string;
+  @ApiProperty({ required: false, example: 'NOT_PUBLISHABLE', description: 'Failure code when !ok' })
+  code?: string;
+  @ApiProperty({ required: false, type: [String], example: ['no_primary_image'] })
+  details?: string[];
+}
+
+/** Bulk publish/archive response — per-item results (FR-CAT-015/016). */
+export class BulkStatusResponseDto {
+  @ApiProperty({ example: 2 }) processed: number;
+  @ApiProperty({ example: 1 }) succeeded: number;
+  @ApiProperty({ example: 1 }) failed: number;
+  @ApiProperty({ type: [BulkStatusItemDto] }) results: BulkStatusItemDto[];
 }
 
 /** Full product detail for the admin editor — `GET /admin/products/{id}` (includes `updated_at`). */
@@ -66,6 +96,8 @@ export class AdminProductVariantDto {
   options: Record<string, string>;
   @ApiProperty({ nullable: true, example: '9500.00', description: 'Per-variant price override' })
   price: string | null;
+  @ApiProperty({ nullable: true, description: 'Variant-specific image id (FR-CAT-023)' })
+  image_id: string | null;
   @ApiProperty() is_enabled: boolean;
   @ApiProperty({ example: 50, description: 'Live on-hand stock from INV' }) on_hand: number;
   @ApiProperty({ example: 5 }) low_stock_threshold: number;
@@ -78,8 +110,48 @@ export class AdminProductImageDto {
   @ApiProperty({ example: { thumb: '…', listing: '…', detail: '…' } })
   renditions: Record<string, string>;
   @ApiProperty() alt_text: string;
+  @ApiProperty({ nullable: true, description: 'Tagged `color` attribute option (FR-CAT-032)' })
+  color_option_id: string | null;
   @ApiProperty() is_primary: boolean;
   @ApiProperty() display_order: number;
+}
+
+/** One video in the admin editor (ordered after images). */
+export class AdminProductVideoDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ example: 'url', description: 'url (external) | upload (stored file)' }) source: string;
+  @ApiProperty({ example: 'https://…' }) url: string;
+  @ApiProperty() display_order: number;
+}
+
+/** One option of a configurable axis — the editor's image colour-tag dropdown + swatch source (FR-CAT-032). */
+export class AdminConfigurableOptionDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ example: 'Black' }) value: string;
+  @ApiProperty({ nullable: true, example: 'color' }) swatch_type: string | null;
+  @ApiProperty({ nullable: true, example: '#000000' }) swatch_value: string | null;
+}
+
+/** A product configurable axis (e.g. `color`) with all its options (FR-CAT-032). */
+export class AdminConfigurableAttributeDto {
+  @ApiProperty({ example: 'color' }) code: string;
+  @ApiProperty({ example: 'Color' }) label: string;
+  @ApiProperty({ type: [AdminConfigurableOptionDto] }) options: AdminConfigurableOptionDto[];
+}
+
+/** One linked product summary (chip) in the editor's Links section (FR-CAT-019). */
+export class AdminProductLinkDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+  @ApiProperty() sku: string;
+  @ApiProperty({ nullable: true }) primary_image: string | null;
+}
+
+/** The product's typed links for the editor (FR-CAT-019). */
+export class AdminProductLinksDto {
+  @ApiProperty({ type: [AdminProductLinkDto] }) related: AdminProductLinkDto[];
+  @ApiProperty({ type: [AdminProductLinkDto] }) up_sell: AdminProductLinkDto[];
+  @ApiProperty({ type: [AdminProductLinkDto] }) cross_sell: AdminProductLinkDto[];
 }
 
 export class AdminProductDetailDto {
@@ -105,6 +177,14 @@ export class AdminProductDetailDto {
   @ApiProperty({ type: [String] }) category_ids: string[];
   @ApiProperty({ nullable: true }) primary_image_id: string | null;
   @ApiProperty({ type: [AdminProductImageDto] }) images: AdminProductImageDto[];
+  @ApiProperty({ type: [AdminProductVideoDto] }) videos: AdminProductVideoDto[];
+  @ApiProperty({
+    type: [AdminConfigurableAttributeDto],
+    description: 'Configurable axes (e.g. color) with all options — image colour-tag source (FR-CAT-032)',
+  })
+  configurable_attributes: AdminConfigurableAttributeDto[];
+  @ApiProperty({ type: AdminProductLinksDto, description: 'Saved related/up-sell/cross-sell links (FR-CAT-019)' })
+  links: AdminProductLinksDto;
   @ApiProperty({ type: [AdminProductVariantDto] }) variants: AdminProductVariantDto[];
   @ApiProperty({ nullable: true }) meta_title: string | null;
   @ApiProperty({ nullable: true }) meta_keywords: string | null;
@@ -135,6 +215,30 @@ export class UploadImageResponseDto {
 export class AddVideoResponseDto {
   @ApiProperty({ example: 'vd1-uuid' })
   id: string;
+
+  @ApiProperty({ example: 'upload', description: 'url (external) | upload (stored file)' })
+  source: string;
+
+  @ApiProperty({
+    example: 'https://res.cloudinary.com/.../products/.../clip.mp4',
+    description: 'The stored video link (Cloudinary URL for an upload, or the external URL).',
+  })
+  url: string;
+
+  @ApiProperty({ example: 0 })
+  display_order: number;
+}
+
+/** Delete-video response (FR-CAT-034). */
+export class DeleteVideoResponseDto {
+  @ApiProperty({ example: 'vd1-uuid' })
+  id: string;
+}
+
+/** Image-reorder response — the persisted order (FR-CAT-031). */
+export class ReorderImagesResponseDto {
+  @ApiProperty({ type: [String], example: ['i3-uuid', 'i1-uuid', 'i2-uuid'] })
+  ordered: string[];
 }
 
 /** Set-primary response — the now-primary image id (FR-CAT-032). */
@@ -159,11 +263,14 @@ export class DeleteImageResponseDto {
   primary_image_id: string | null;
 }
 
-/** Alt-text update response (FR-CAT-032). */
+/** Image metadata update response — alt text + colour-tag (FR-CAT-032). */
 export class UpdateImageResponseDto {
   @ApiProperty({ example: 'i1-uuid' })
   id: string;
 
   @ApiProperty({ example: 'Brazil home jersey, front view' })
   alt_text: string;
+
+  @ApiProperty({ nullable: true, example: 'o-yellow', description: 'Tagged colour option; null when untagged' })
+  color_option_id: string | null;
 }

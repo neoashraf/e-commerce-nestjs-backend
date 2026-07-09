@@ -238,6 +238,66 @@ export class InventoryService {
     return this.applyDelta(variantId, quantityDelta, StockMovementType.ADJUST, reason, actor);
   }
 
+  /**
+   * Set on-hand to an absolute target (FR-INV-015): compute `delta = target − current` under a row
+   * lock and write a `correction` movement stamped with the admin actor + a system/provided reason
+   * (BR-INV-10). A target `< 0` is rejected (409); a target below `reserved` is allowed (available
+   * goes negative, surfaced — §12.12). Setting to the current value is an idempotent no-op (delta 0):
+   * no spurious movement is written. The `source` tag is folded into the reason (the ledger has no
+   * dedicated source column, so no migration is introduced).
+   */
+  async setOnHand(
+    variantId: string,
+    onHand: number,
+    reason: string | undefined,
+    source: string | undefined,
+    actor: MovementActor,
+  ): Promise<StockMutationResult> {
+    if (!Number.isInteger(onHand)) {
+      throw new BadRequestException({ code: 'INVALID_ON_HAND', message: 'on_hand must be an integer.' });
+    }
+    if (onHand < 0) {
+      throw new ConflictException({ code: 'NEGATIVE_ON_HAND', message: "On-hand can't be negative." });
+    }
+    const resolvedReason =
+      reason && reason.trim() !== ''
+        ? reason.trim()
+        : `inline set · ${source && source.trim() !== '' ? source.trim() : 'product-editor'}`;
+
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(InventoryOrmEntity);
+      const row = await repo
+        .createQueryBuilder('inv')
+        .setLock('pessimistic_write')
+        .where('inv.variant_id = :variantId', { variantId })
+        .getOne();
+      if (!row) throw this.notFound(variantId);
+
+      const delta = onHand - row.onHand;
+      if (delta === 0) {
+        // Idempotent: a set to the current value writes no spurious adjustment (FR-INV-015).
+        return this.toMutationResult(row, null);
+      }
+
+      row.onHand = onHand;
+      row.available = onHand - row.reserved;
+      await repo.save(row);
+
+      const movementId = await this.movements.recordMovement(manager, {
+        type: StockMovementType.CORRECTION,
+        variantId,
+        quantityDelta: delta,
+        resultingOnHand: onHand,
+        reason: resolvedReason,
+        actor,
+      });
+
+      // An absolute set may cross the low-stock threshold either way — evaluate alerts in-transaction.
+      await this.alerts.evaluate(manager, variantId);
+      return this.toMutationResult(row, movementId);
+    });
+  }
+
   async setThreshold(variantId: string, threshold: number): Promise<StockMutationResult> {
     if (!Number.isInteger(threshold) || threshold < 0) {
       throw new BadRequestException({

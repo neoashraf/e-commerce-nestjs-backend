@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
+import { OrderNoteEntryDto } from './order-note.dto';
+
 import { OrderStatus } from '../../domain/order-enums';
 
 /** PATCH /admin/orders/{orderNo}/status body — advance fulfilment + record shipment (FR-ORD-020–024). */
@@ -102,4 +104,7 @@ export class AddOrderNoteResultDto {
 
   @ApiProperty({ example: '2026-06-04T11:00:00Z' })
   created_at: string;
+
+  @ApiProperty({ type: OrderNoteEntryDto, description: 'Full attributed entry for immediate thread display.' })
+  entry: OrderNoteEntryDto;
 }

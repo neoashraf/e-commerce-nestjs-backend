@@ -2,6 +2,8 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { OrderNotesService } from './order-notes.service';
+
 import { Paginated } from '../../../../shared/dto/paginated';
 import {
   IProductSnapshotReader,
@@ -24,6 +26,9 @@ import {
 
 /** Filters for the admin order list/search (FR-ORD-070). All optional; combined with AND. */
 export interface AdminOrderFilters {
+  /** Restrict to a registered buyer's linked orders (Customer 360); combined with `phone` it ORs in
+   *  guest orders placed under that phone (BR-CUST-4). */
+  customerId?: string;
   status?: OrderStatus;
   paymentState?: OrderPaymentState;
   q?: string;
@@ -61,6 +66,7 @@ export class OrderTrackingService {
     private readonly payments: Repository<PaymentOrmEntity>,
     @Inject(PRODUCT_SNAPSHOT_READER)
     private readonly productSnapshots: IProductSnapshotReader,
+    private readonly orderNotes: OrderNotesService,
   ) {}
 
   /** The order-purpose payment id for an order (latest attempt), or null — for the admin payment panel. */
@@ -118,7 +124,18 @@ export class OrderTrackingService {
     if (filters.paymentState)
       qb.andWhere('o.paymentState = :paymentState', { paymentState: filters.paymentState });
     if (filters.q) qb.andWhere('o.orderNo ILIKE :q', { q: `%${filters.q}%` });
-    if (filters.phone) {
+    // Customer 360 passes customer_id (+ the account phone): match LINKED orders OR guest orders placed
+    // under that phone (BR-CUST-4) — so a registered buyer's history is complete even when an order
+    // shipped to a different recipient phone, or pre-dates the guest-order claim. Phone-only = the
+    // list's phone search; customer_id-only = strictly that buyer's linked orders.
+    if (filters.customerId && filters.phone) {
+      qb.andWhere(
+        "(o.customerId = :customerId OR o.guestPhone ILIKE :phone OR o.address_snapshot->>'recipient_phone' ILIKE :phone)",
+        { customerId: filters.customerId, phone: `%${filters.phone}%` },
+      );
+    } else if (filters.customerId) {
+      qb.andWhere('o.customerId = :customerId', { customerId: filters.customerId });
+    } else if (filters.phone) {
       qb.andWhere(
         "(o.guestPhone ILIKE :phone OR o.address_snapshot->>'recipient_phone' ILIKE :phone)",
         { phone: `%${filters.phone}%` },
@@ -199,15 +216,19 @@ export class OrderTrackingService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Build the full customer/admin detail DTO from a read aggregate. Enriches each line with the
-   * current product's listing thumbnail + Bangla title (RW6, read-time CAT lookup — null when gone).
+   * Build the full customer/admin detail DTO from a read aggregate. Pass `isAdmin: true` to include
+   * the attributed notes thread + raw customer_note field (FR-ORD-072b, BR-ORD-15).
    */
-  async toDetail({ order, items, history }: OrderReadAggregate): Promise<OrderDetailDto> {
+  async toDetail(
+    { order, items, history }: OrderReadAggregate,
+    opts: { isAdmin?: boolean } = {},
+  ): Promise<OrderDetailDto> {
     const [snapshots, paymentId] = await Promise.all([
       this.productSnapshots.getByProductIds(items.map((it) => it.productId)),
       this.findOrderPaymentId(order.id),
     ]);
-    return {
+
+    const base: OrderDetailDto = {
       order_no: order.orderNo,
       status: order.status,
       placed_at: order.placedAt.toISOString(),
@@ -256,7 +277,20 @@ export class OrderTrackingService {
           created_at: h.createdAt.toISOString(),
         }),
       ),
+      // customer_note: shown to both customer (read-only) and admin (FR-ORD-072a, BR-ORD-15).
+      customer_note: order.customerNote ?? null,
     };
+
+    if (opts.isAdmin) {
+      // Admin detail includes the full attributed thread (FR-ORD-072b) + legacy internal_notes.
+      const notes = await this.orderNotes.buildThread(order);
+      base.notes = notes;
+      base.internal_notes = notes
+        .filter((n) => n.author_type === 'admin')
+        .map((n) => ({ body: n.body, created_at: n.created_at }));
+    }
+
+    return base;
   }
 
   private async attachHistory(order: OrderOrmEntity): Promise<OrderReadAggregate> {

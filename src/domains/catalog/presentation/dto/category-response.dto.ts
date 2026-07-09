@@ -64,3 +64,15 @@ export class AdminCategoryNodeDto {
 export class AdminCategoryTreeResponseDto {
   @ApiProperty({ type: [AdminCategoryNodeDto] }) data: AdminCategoryNodeDto[];
 }
+
+/** `{ data: { url, slot } }` returned on a category image upload (FR-CAT-001/010a). */
+class UploadedCategoryImageDto {
+  @ApiProperty({ example: 'https://res.cloudinary.com/.../categories/<id>/abc.webp' })
+  url: string;
+  @ApiProperty({ example: 'logo', enum: ['thumbnail', 'logo', 'banner'] })
+  slot: string;
+}
+
+export class UploadCategoryImageResponseDto {
+  @ApiProperty({ type: UploadedCategoryImageDto }) data: UploadedCategoryImageDto;
+}

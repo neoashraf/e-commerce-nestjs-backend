@@ -8,6 +8,7 @@ import {
   IsNumberString,
   IsOptional,
   IsString,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -110,6 +111,16 @@ export class PlaceCheckoutDto {
   @IsOptional()
   @IsBoolean()
   acknowledge_changes?: boolean;
+
+  @ApiPropertyOptional({
+    example: 'Please call before delivery; gate code is 1234.',
+    maxLength: 500,
+    description: 'Optional free-text note from the customer, attached to the order (FR-ORD-072a). Max 500 chars.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  customer_note?: string;
 }
 
 // --- admin delivery settings ---

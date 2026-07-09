@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 
 import { Paginated } from '../../../shared/dto/paginated';
+import { OrderOrmEntity } from '../../orders/infrastructure/persistence/typeorm/entities/order.orm-entity';
 import {
   StockMovementActorType,
   StockMovementType,
@@ -34,6 +35,8 @@ export interface MovementRow {
   resulting_on_hand: number;
   reason: string | null;
   order_id: string | null;
+  /** Human-readable `SO-` order number resolved from `order_id` (BR-ORD-2); null when unlinked/unknown. */
+  order_no: string | null;
   actor_type: StockMovementActorType;
   actor_id: string | null;
   created_at: Date;
@@ -59,6 +62,9 @@ export class MovementService {
   constructor(
     @InjectRepository(StockMovementOrmEntity)
     private readonly movements: Repository<StockMovementOrmEntity>,
+    // Read-only cross-domain lookup to map a movement's order_id → order_no for the ledger display.
+    @InjectRepository(OrderOrmEntity)
+    private readonly orders: Repository<OrderOrmEntity>,
   ) {}
 
   /**
@@ -108,6 +114,8 @@ export class MovementService {
       .take(filter.limit)
       .getMany();
 
+    const orderNoById = await this.resolveOrderNos(rows);
+
     const items: MovementRow[] = rows.map((r) => ({
       id: r.id,
       type: r.type,
@@ -115,11 +123,30 @@ export class MovementService {
       resulting_on_hand: r.resultingOnHand,
       reason: r.reason,
       order_id: r.orderId,
+      order_no: r.orderId ? orderNoById.get(r.orderId) ?? null : null,
       actor_type: r.actorType,
       actor_id: r.actorId,
       created_at: r.createdAt,
     }));
 
     return new Paginated(items, { page: filter.page, limit: filter.limit, total });
+  }
+
+  /**
+   * Batch-resolve the distinct order ids on a ledger page to their human-readable `SO-` numbers
+   * (BR-ORD-2), so the admin Movements view can show/link the order number instead of the raw UUID.
+   * One query per page; unknown ids simply map to nothing (→ null on the row).
+   */
+  private async resolveOrderNos(
+    rows: StockMovementOrmEntity[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(rows.map((r) => r.orderId).filter((id): id is string => !!id))];
+    if (ids.length === 0) return new Map();
+
+    const orders = await this.orders.find({
+      where: { id: In(ids) },
+      select: { id: true, orderNo: true },
+    });
+    return new Map(orders.map((o) => [o.id, o.orderNo]));
   }
 }

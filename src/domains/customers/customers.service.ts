@@ -1,9 +1,11 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { AuditService } from '../rbac/application/services/audit.service';
 import { AuditResult } from '../rbac/domain/enums/audit-result.enum';
+import { AdminUserOrmEntity } from '../rbac/infrastructure/persistence/typeorm/entities/admin-user.orm-entity';
+import { RoleOrmEntity } from '../rbac/infrastructure/persistence/typeorm/entities/role.orm-entity';
 import { Paginated } from '../../shared/dto/paginated';
 import { CustomerDirectoryReader, DirectoryFilter } from './customers-directory.reader';
 import { CustomerAccountActionType, CustomerStatus } from './customers.enums';
@@ -20,7 +22,7 @@ import {
 import { AUTH_CUSTOMER_GATEWAY, IAuthCustomerGateway } from './ports/auth-customer.port';
 import { ILeadSource, LEAD_SOURCE } from './ports/lead-source.port';
 import { IOrderStats, ORDER_STATS } from './ports/order-stats.port';
-import { IWishlistSource, WISHLIST_SOURCE } from './ports/wishlist-source.port';
+import { AdminWishlistItem, IWishlistSource, WISHLIST_SOURCE } from './ports/wishlist-source.port';
 
 const RECENT_ORDERS_LIMIT = 10;
 const LINKED_LEADS_LIMIT = 10;
@@ -38,6 +40,8 @@ export class CustomersService {
     @InjectRepository(CustomerNoteEntity) private readonly notes: Repository<CustomerNoteEntity>,
     @InjectRepository(CustomerAccountActionEntity)
     private readonly actions: Repository<CustomerAccountActionEntity>,
+    @InjectRepository(AdminUserOrmEntity) private readonly adminUsers: Repository<AdminUserOrmEntity>,
+    @InjectRepository(RoleOrmEntity) private readonly roles: Repository<RoleOrmEntity>,
     private readonly directory: CustomerDirectoryReader,
     @Inject(AUTH_CUSTOMER_GATEWAY) private readonly auth: IAuthCustomerGateway,
     @Inject(ORDER_STATS) private readonly orders: IOrderStats,
@@ -149,6 +153,16 @@ export class CustomersService {
     };
   }
 
+  /**
+   * A customer's wishlist items for the 360 Wishlist panel (FR-CUST-013), read live over WISH
+   * (price/availability per BR-WISH-2). 404s an unknown customer; a customer with no/empty wishlist
+   * returns `[]`. Read-only — the admin never mutates another customer's wishlist (BR-CUST-1).
+   */
+  async getWishlist(customerId: string): Promise<AdminWishlistItem[]> {
+    await this.requireCustomer(customerId);
+    return this.wishlist.getItems(customerId);
+  }
+
   // ── Account actions (FR-CUST-020–023, BR-CUST-2/4/5/6) ────────────────────
 
   async suspend(customerId: string, adminId: string, reason?: string): Promise<SuspendResultDto> {
@@ -187,12 +201,30 @@ export class CustomersService {
   async listNotes(customerId: string): Promise<NoteDto[]> {
     await this.requireCustomer(customerId);
     const rows = await this.notes.find({ where: { customerId }, order: { createdAt: 'DESC' } });
+    const nameMap = await this.resolveAdminNames(rows.map((n) => n.adminId));
     return rows.map((n) => ({
       id: n.id,
       body: n.body,
       admin_id: n.adminId,
+      admin_name: nameMap.get(n.adminId) ?? null,
       created_at: n.createdAt.toISOString(),
     }));
+  }
+
+  /** Batch-resolve admin display names as "Full Name (Role)" for note attribution. */
+  private async resolveAdminNames(adminIds: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(adminIds)].filter(Boolean);
+    if (!unique.length) return new Map();
+    const admins = await this.adminUsers.find({ where: { id: In(unique) } });
+    const roleIds = [...new Set(admins.map((a) => a.roleId))];
+    const roleList = roleIds.length ? await this.roles.find({ where: { id: In(roleIds) } }) : [];
+    const roleMap = new Map(roleList.map((r) => [r.id, r.name]));
+    const result = new Map<string, string>();
+    for (const a of admins) {
+      const role = roleMap.get(a.roleId);
+      result.set(a.id, role ? `${a.fullName} (${role})` : a.fullName);
+    }
+    return result;
   }
 
   async addNote(customerId: string, adminId: string, body: string): Promise<CreateNoteResultDto> {

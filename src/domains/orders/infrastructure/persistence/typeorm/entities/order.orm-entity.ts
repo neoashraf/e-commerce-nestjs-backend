@@ -107,6 +107,10 @@ export class OrderOrmEntity {
   @Column({ type: 'varchar', name: 'tracking_number', length: 80, nullable: true })
   trackingNumber: string | null;
 
+  /** Optional free-text note from the customer at checkout (FR-ORD-072a, BR-ORD-13). Set once; immutable. */
+  @Column({ name: 'customer_note', type: 'text', nullable: true })
+  customerNote: string | null;
+
   /** When the auto-cancel reminder was sent (FR-ORD-012a) — null until sent; idempotency guard. */
   @Column({ name: 'reminder_sent_at', type: 'timestamptz', nullable: true })
   reminderSentAt: Date | null;

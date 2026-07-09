@@ -15,6 +15,7 @@ import {
   IAttributeRepository,
 } from '../../domain/repositories/attribute.repository.interface';
 import { ProductConfigurableAttributeOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-configurable-attribute.orm-entity';
+import { ProductImageOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-image.orm-entity';
 import { ProductVariantOptionOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant-option.orm-entity';
 import { ProductVariantOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product-variant.orm-entity';
 import { ProductOrmEntity } from '../../infrastructure/persistence/typeorm/entities/product.orm-entity';
@@ -61,6 +62,8 @@ export class VariantsService {
     private readonly variants: Repository<ProductVariantOrmEntity>,
     @InjectRepository(ProductVariantOptionOrmEntity)
     private readonly variantOptions: Repository<ProductVariantOptionOrmEntity>,
+    @InjectRepository(ProductImageOrmEntity)
+    private readonly images: Repository<ProductImageOrmEntity>,
     @InjectRepository(ProductConfigurableAttributeOrmEntity)
     private readonly configurableAttributes: Repository<ProductConfigurableAttributeOrmEntity>,
     @Inject(ATTRIBUTE_REPOSITORY)
@@ -167,6 +170,19 @@ export class VariantsService {
         throw new ConflictException({
           code: 'SKU_NOT_UNIQUE',
           message: `SKU "${input.skuCode}" is already in use.`,
+        });
+      }
+    }
+
+    // image_id (when set, not cleared) must reference an image of this variant's product (FR-CAT-023).
+    if (input.imageId !== undefined && input.imageId !== null) {
+      const image = await this.images.findOne({
+        where: { id: input.imageId, productId: variant.productId },
+      });
+      if (!image) {
+        throw new BadRequestException({
+          code: 'IMAGE_NOT_FOR_PRODUCT',
+          message: `Image ${input.imageId} does not belong to this variant's product.`,
         });
       }
     }

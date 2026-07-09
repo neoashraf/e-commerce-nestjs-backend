@@ -42,6 +42,7 @@ function makeService(qb: ReturnType<typeof buildQb>) {
     {} as Repository<OrderStatusHistoryOrmEntity>,
     paymentsRepo(),
     { getByProductIds: jest.fn().mockResolvedValue(new Map()) },
+    { buildThread: jest.fn().mockResolvedValue([]) } as any,
   );
 }
 
@@ -110,6 +111,21 @@ describe('Orders — OrderTrackingService.listAdminOrders', () => {
     expect(qb.skip).toHaveBeenCalledWith(0);
     expect(qb.take).toHaveBeenCalledWith(20);
   });
+
+  it('filters strictly by customer_id when no phone is given (Customer 360 linked orders)', async () => {
+    const qb = buildQb([], 0);
+    await makeService(qb).listAdminOrders({ customerId: 'cust-1' });
+    expect(qb.andWhere).toHaveBeenCalledWith('o.customerId = :customerId', { customerId: 'cust-1' });
+  });
+
+  it('ORs customer_id with phone so linked AND guest-by-phone orders both show (BR-CUST-4)', async () => {
+    const qb = buildQb([], 0);
+    await makeService(qb).listAdminOrders({ customerId: 'cust-1', phone: '+8801711000001' });
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      expect.stringContaining('o.customerId = :customerId OR'),
+      { customerId: 'cust-1', phone: '%+8801711000001%' },
+    );
+  });
 });
 
 describe('Orders — OrderTrackingService.toDetail (RW6)', () => {
@@ -123,6 +139,7 @@ describe('Orders — OrderTrackingService.toDetail (RW6)', () => {
       {} as Repository<OrderStatusHistoryOrmEntity>,
       paymentsRepo(paymentId),
       { getByProductIds: jest.fn().mockResolvedValue(snapshotMap) },
+      { buildThread: jest.fn().mockResolvedValue([]) } as any,
     );
   }
 

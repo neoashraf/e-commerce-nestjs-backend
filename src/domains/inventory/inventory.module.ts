@@ -15,6 +15,7 @@ import { LoggingInventoryNotifier } from './infrastructure/services/logging-inve
 import { InventoryOrmEntity } from './infrastructure/persistence/typeorm/entities/inventory.orm-entity';
 import { StockMovementOrmEntity } from './infrastructure/persistence/typeorm/entities/stock-movement.orm-entity';
 import { StockReservationOrmEntity } from './infrastructure/persistence/typeorm/entities/stock-reservation.orm-entity';
+import { OrderOrmEntity } from '../orders/infrastructure/persistence/typeorm/entities/order.orm-entity';
 import { BulkController } from './presentation/bulk.controller';
 import { InventoryController } from './presentation/inventory.controller';
 import { InventoryInternalController } from './presentation/inventory-internal.controller';
@@ -36,6 +37,8 @@ import { ReservationController } from './presentation/reservation.controller';
       InventoryOrmEntity,
       StockMovementOrmEntity,
       StockReservationOrmEntity,
+      // Read-only: resolve a movement's order_id → human-readable order_no for the ledger (BR-ORD-2).
+      OrderOrmEntity,
     ]),
   ],
   controllers: [

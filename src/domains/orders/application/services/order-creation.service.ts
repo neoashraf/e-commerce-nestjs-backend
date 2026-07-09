@@ -57,6 +57,8 @@ export interface PlaceOrderSnapshot {
   applied_coupon_code?: string | null;
   /** Idempotency key from CART so a replayed placement returns the same order (BR-CART-7). */
   idempotency_key?: string | null;
+  /** Optional free-text note from the customer at checkout (FR-ORD-072a, max 500 chars). */
+  customer_note?: string | null;
 }
 
 export interface PlaceOrderResult {
@@ -125,6 +127,7 @@ export class OrderCreationService {
         codSurcharge: this.money(snapshot.amounts.cod_surcharge),
         vatAmount: this.money(snapshot.amounts.vat_amount),
         grandTotal: this.money(snapshot.amounts.grand_total),
+        customerNote: snapshot.customer_note?.trim() || null,
         idempotencyKey: snapshot.idempotency_key ?? null,
         placedAt: now,
       } as Partial<OrderOrmEntity>);

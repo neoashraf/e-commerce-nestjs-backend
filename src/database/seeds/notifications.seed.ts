@@ -104,6 +104,18 @@ const TEMPLATES: TemplateSeed[] = [
   },
   { event: 'admin.2fa', channel: 'sms', locale: 'en', subject: null, body: 'Your SportShop admin code is {{code}}.' },
   {
+    event: 'payment.received',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Payment received for order {{order_no}}',
+    body: emailHtml(
+      'Payment received',
+      '  <p>Hi {{name}},</p>\n  <p>We have received your payment for order <strong>{{order_no}}</strong> '
+        + '(amount: <strong>৳{{amount}}</strong>). Your order is now confirmed and is being prepared.</p>\n'
+        + '  <p>Thank you for shopping with SportShop.</p>',
+    ),
+  },
+  {
     event: 'lead.received_ack',
     channel: 'email',
     locale: 'en',

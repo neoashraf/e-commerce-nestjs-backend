@@ -36,7 +36,7 @@ export class ListProductsQueryDto {
   @IsString()
   family?: string;
 
-  @ApiPropertyOptional({ description: 'Category id' })
+  @ApiPropertyOptional({ description: 'Category id or slug' })
   @IsOptional()
   @IsString()
   category?: string;
