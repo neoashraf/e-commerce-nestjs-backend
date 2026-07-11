@@ -51,9 +51,27 @@ export class LoginCustomerDto {
   @ApiProperty() id: string;
 }
 
+export class LoginMfaChallengeDto {
+  @ApiProperty({ example: 'mfa_9f1c…' }) id: string;
+  @ApiProperty({ enum: ['sms', 'email'], example: 'email' }) channel: string;
+  @ApiProperty({ example: 's****r@example.com', description: 'Masked destination' }) sent_to: string;
+  @ApiProperty({ example: 300 }) expires_in: number;
+  @ApiProperty({ example: 60 }) resend_after: number;
+}
+
+/**
+ * Email+password login response. When 2FA is required (FR-MFA-010) `mfa_required` is true and the
+ * `pre_auth_token` + `challenge` + `available_channels` are returned instead of `customer`/`tokens`;
+ * otherwise `customer` + `tokens` are returned and the MFA fields are absent.
+ */
 export class LoginResponseDto {
-  @ApiProperty({ type: LoginCustomerDto }) customer: LoginCustomerDto;
-  @ApiProperty({ type: AuthTokensDto }) tokens: AuthTokensDto;
+  @ApiPropertyOptional({ example: false }) mfa_required?: boolean;
+  @ApiPropertyOptional({ type: LoginCustomerDto }) customer?: LoginCustomerDto;
+  @ApiPropertyOptional({ type: AuthTokensDto }) tokens?: AuthTokensDto;
+  @ApiPropertyOptional({ example: 'pat_3af9…', description: 'Short-lived login-continuation token' })
+  pre_auth_token?: string;
+  @ApiPropertyOptional({ type: LoginMfaChallengeDto }) challenge?: LoginMfaChallengeDto;
+  @ApiPropertyOptional({ type: [String], example: ['email'] }) available_channels?: string[];
 }
 
 export class VerifyEmailResponseDto {

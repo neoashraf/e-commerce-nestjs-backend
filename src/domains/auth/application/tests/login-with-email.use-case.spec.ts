@@ -69,6 +69,7 @@ describe('Auth — LoginWithEmailUseCase', () => {
 
     const result = await useCase.execute({ email: 'sabbir@example.com', password: 'footy2026' });
 
+    if (result.mfaRequired) throw new Error('expected a non-MFA login');
     expect(result.tokens.accessToken).toBe('acc');
     expect(sessions.save).toHaveBeenCalledTimes(1);
     expect(customer.failedLoginAttempts).toBe(0);

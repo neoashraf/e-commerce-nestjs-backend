@@ -188,7 +188,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Log in with email + password' })
+  @ApiOperation({ summary: 'Log in with email + password (may require a second factor)' })
   @ApiOkResponse({ type: LoginResponseDto })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   async login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
@@ -196,6 +196,21 @@ export class AuthController {
       email: dto.email,
       password: dto.password,
     });
+    if (result.mfaRequired) {
+      // 2FA required — tokens withheld until the second factor is verified (FR-MFA-010).
+      return {
+        mfa_required: true,
+        pre_auth_token: result.preAuthToken,
+        challenge: {
+          id: result.challenge.id,
+          channel: result.challenge.channel,
+          sent_to: result.challenge.sentTo,
+          expires_in: result.challenge.expiresIn,
+          resend_after: result.challenge.resendAfter,
+        },
+        available_channels: result.availableChannels,
+      };
+    }
     return {
       customer: { id: result.customer.id },
       tokens: {

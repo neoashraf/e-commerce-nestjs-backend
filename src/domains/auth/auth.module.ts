@@ -79,12 +79,45 @@ import { InternalCustomersController } from './presentation/controllers/internal
 import { ServiceTokenGuard } from '../../shared/guards/service-token.guard';
 import { JwtCustomerStrategy } from './presentation/strategies/jwt-customer.strategy';
 import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
+// MFA (module 17) — configurable customer 2FA, registered here so it reuses AUTH's customer/otp/
+// token/session/notification providers and can gate email+password login (no cross-module cycle).
+import { RbacModule } from '../rbac/rbac.module';
+import { MFA_SETTINGS_REPOSITORY } from '../mfa/domain/repositories/mfa-settings.repository.interface';
+import { CUSTOMER_MFA_REPOSITORY } from '../mfa/domain/repositories/customer-mfa.repository.interface';
+import { MFA_CHALLENGE_REPOSITORY } from '../mfa/domain/repositories/mfa-challenge.repository.interface';
+import { MFA_PRE_AUTH_REPOSITORY } from '../mfa/domain/repositories/mfa-pre-auth.repository.interface';
+import { MfaSettingsOrmEntity } from '../mfa/infrastructure/persistence/typeorm/entities/mfa-settings.orm-entity';
+import { CustomerMfaOrmEntity } from '../mfa/infrastructure/persistence/typeorm/entities/customer-mfa.orm-entity';
+import { MfaChallengeOrmEntity } from '../mfa/infrastructure/persistence/typeorm/entities/mfa-challenge.orm-entity';
+import { MfaPreAuthOrmEntity } from '../mfa/infrastructure/persistence/typeorm/entities/mfa-pre-auth.orm-entity';
+import { TypeOrmMfaSettingsRepository } from '../mfa/infrastructure/persistence/typeorm/repositories/typeorm-mfa-settings.repository';
+import { TypeOrmCustomerMfaRepository } from '../mfa/infrastructure/persistence/typeorm/repositories/typeorm-customer-mfa.repository';
+import { TypeOrmMfaChallengeRepository } from '../mfa/infrastructure/persistence/typeorm/repositories/typeorm-mfa-challenge.repository';
+import { TypeOrmMfaPreAuthRepository } from '../mfa/infrastructure/persistence/typeorm/repositories/typeorm-mfa-pre-auth.repository';
+import { mfaConfigProvider } from '../mfa/infrastructure/config/mfa-config.provider';
+import { MfaChallengeIssuer } from '../mfa/application/services/mfa-challenge-issuer.service';
+import { MfaLoginGateService } from '../mfa/application/services/mfa-login-gate.service';
+import { VerifySecondFactorUseCase } from '../mfa/application/use-cases/verify-second-factor.use-case';
+import { ResendSecondFactorUseCase } from '../mfa/application/use-cases/resend-second-factor.use-case';
+import { SwitchChannelUseCase } from '../mfa/application/use-cases/switch-channel.use-case';
+import { GetMyMfaUseCase } from '../mfa/application/use-cases/get-my-mfa.use-case';
+import { EnableMfaUseCase } from '../mfa/application/use-cases/enable-mfa.use-case';
+import { ConfirmEnableUseCase } from '../mfa/application/use-cases/confirm-enable.use-case';
+import { DisableMfaUseCase } from '../mfa/application/use-cases/disable-mfa.use-case';
+import { SetPreferredChannelUseCase } from '../mfa/application/use-cases/set-preferred-channel.use-case';
+import { GetMfaPolicyUseCase } from '../mfa/application/use-cases/get-mfa-policy.use-case';
+import { UpdateMfaPolicyUseCase } from '../mfa/application/use-cases/update-mfa-policy.use-case';
+import { MfaAuthController } from '../mfa/presentation/controllers/mfa-auth.controller';
+import { MeMfaController } from '../mfa/presentation/controllers/me-mfa.controller';
+import { AdminMfaController } from '../mfa/presentation/controllers/admin-mfa.controller';
 
 @Module({
   imports: [
     ConfigModule,
     PassportModule,
     forwardRef(() => CartModule),
+    // RBAC exports the admin guards + AuditService the admin MFA-policy controller needs.
+    RbacModule,
     TypeOrmModule.forFeature([
       CustomerOrmEntity,
       OtpChallengeOrmEntity,
@@ -95,6 +128,11 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
       // Read/write access to ORD's orders table so AUTH can claim a phone's guest orders on OTP
       // verification (guest-order-claim adapter). forFeature only registers the repository here.
       OrderOrmEntity,
+      // MFA (module 17) tables.
+      MfaSettingsOrmEntity,
+      CustomerMfaOrmEntity,
+      MfaChallengeOrmEntity,
+      MfaPreAuthOrmEntity,
     ]),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -109,6 +147,10 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     MeSessionsController,
     MeAddressesController,
     InternalCustomersController,
+    // MFA (module 17)
+    MfaAuthController,
+    MeMfaController,
+    AdminMfaController,
   ],
   providers: [
     authConfigProvider,
@@ -160,6 +202,24 @@ import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
     JwtCustomerStrategy,
     JwtCustomerGuard,
     ServiceTokenGuard,
+    // MFA (module 17) — repositories, config, services, use-cases.
+    { provide: MFA_SETTINGS_REPOSITORY, useClass: TypeOrmMfaSettingsRepository },
+    { provide: CUSTOMER_MFA_REPOSITORY, useClass: TypeOrmCustomerMfaRepository },
+    { provide: MFA_CHALLENGE_REPOSITORY, useClass: TypeOrmMfaChallengeRepository },
+    { provide: MFA_PRE_AUTH_REPOSITORY, useClass: TypeOrmMfaPreAuthRepository },
+    mfaConfigProvider,
+    MfaChallengeIssuer,
+    MfaLoginGateService,
+    VerifySecondFactorUseCase,
+    ResendSecondFactorUseCase,
+    SwitchChannelUseCase,
+    GetMyMfaUseCase,
+    EnableMfaUseCase,
+    ConfirmEnableUseCase,
+    DisableMfaUseCase,
+    SetPreferredChannelUseCase,
+    GetMfaPolicyUseCase,
+    UpdateMfaPolicyUseCase,
   ],
   exports: [
     JwtCustomerGuard,
