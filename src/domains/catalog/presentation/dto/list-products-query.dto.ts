@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 import { ProductStatus, ProductType } from '../../domain/enums/product-type.enum';
 
@@ -45,4 +45,17 @@ export class ListProductsQueryDto {
   @IsOptional()
   @IsString()
   q?: string;
+
+  @ApiPropertyOptional({
+    enum: ['name', 'price', 'status', 'created'],
+    description: 'Sort column (FR-CAT-042); defaults to newest-first (created).',
+  })
+  @IsOptional()
+  @IsIn(['name', 'price', 'status', 'created'])
+  sort?: 'name' | 'price' | 'status' | 'created';
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], description: 'Sort direction (default desc).' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  order?: 'asc' | 'desc';
 }
