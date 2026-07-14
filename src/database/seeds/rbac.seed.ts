@@ -53,7 +53,7 @@ async function seed(): Promise<void> {
   }
 
   // 3) Bootstrap Super Admin.
-  const email = (process.env.SUPER_ADMIN_SEED_EMAIL ?? 'koushik101517@gmail.com').toLowerCase();
+  const email = (process.env.SUPER_ADMIN_SEED_EMAIL ?? 'startsmartztechnologiesbd@gmail.com').toLowerCase();
   const existing = await ds.query(`SELECT "id" FROM "admin_users" WHERE "email"=$1`, [email]);
   if (existing.length === 0) {
     const password = process.env.SUPER_ADMIN_SEED_PASSWORD ?? 'ChangeMe-Admin1';
@@ -64,10 +64,11 @@ async function seed(): Promise<void> {
       `SELECT "id" FROM "roles" WHERE "name"=$1 AND "deleted_at" IS NULL`,
       [SUPER_ADMIN_ROLE_NAME],
     );
+    // 2FA is off by default for every admin (incl. Super Admin) — each opts in later (FR-RBAC-008).
     await ds.query(
       `INSERT INTO "admin_users"
         ("id","full_name","email","phone","password_hash","role_id","twofa_enabled","twofa_channel","status")
-       VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,true,'email','active')`,
+       VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,false,null,'active')`,
       [fullName, email, phone, passwordHash, superRole[0].id],
     );
     console.log(`Bootstrap Super Admin created: ${email}`);

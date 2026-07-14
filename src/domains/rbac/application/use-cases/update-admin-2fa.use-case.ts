@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Inject,
   Injectable,
   UnauthorizedException,
@@ -12,7 +11,6 @@ import {
   ADMIN_USER_REPOSITORY,
   IAdminUserRepository,
 } from '../../domain/repositories/admin-user.repository.interface';
-import { IRoleRepository, ROLE_REPOSITORY } from '../../domain/repositories/role.repository.interface';
 import { IPasswordHasher, PASSWORD_HASHER } from '../ports/password-hasher.port';
 import { AuditService } from '../services/audit.service';
 
@@ -31,16 +29,15 @@ export interface Update2faResult {
 
 /**
  * Enable/disable own 2FA (FR-RBAC-008). Both directions re-confirm the current password.
- * Enable validates the channel (`sms` needs a stored phone). Disable is blocked for a Super
- * Admin (2FA is mandatory). NOTE: the API contract models this as a single password-gated
- * PATCH (no separate OTP-confirm endpoint), so we follow the contract over the brief's
- * optional OTP-confirm design-note.
+ * Enable validates the channel (`sms` needs a stored phone). Every admin — including Super
+ * Admin — controls their own 2FA (no forced-on role). NOTE: the API contract models this as a
+ * single password-gated PATCH (no separate OTP-confirm endpoint), so we follow the contract over
+ * the brief's optional OTP-confirm design-note.
  */
 @Injectable()
 export class UpdateAdmin2faUseCase {
   constructor(
     @Inject(ADMIN_USER_REPOSITORY) private readonly admins: IAdminUserRepository,
-    @Inject(ROLE_REPOSITORY) private readonly roles: IRoleRepository,
     @Inject(PASSWORD_HASHER) private readonly hasher: IPasswordHasher,
     private readonly audit: AuditService,
   ) {}
@@ -69,13 +66,7 @@ export class UpdateAdmin2faUseCase {
       }
       admin.enableTwofa(command.channel, now);
     } else {
-      const role = await this.roles.findById(admin.roleId);
-      if (role?.isSuperAdmin()) {
-        throw new ForbiddenException({
-          code: 'TWOFA_MANDATORY',
-          message: 'Two-factor authentication is mandatory for Super Admin and cannot be disabled.',
-        });
-      }
+      // Every admin controls their own 2FA — including Super Admin (no forced-on role).
       admin.disableTwofa(now);
     }
 

@@ -131,7 +131,18 @@ export interface AdminProductListFilter {
   family?: string;
   category?: string;
   q?: string;
+  /** Sortable column (FR-CAT-042). Defaults to newest-first. */
+  sort?: 'name' | 'price' | 'status' | 'created';
+  order?: 'asc' | 'desc';
 }
+
+/** Whitelisted sort columns → SQL expressions (guards against injection via the `sort` param). */
+const PRODUCT_SORT_COLUMNS: Record<NonNullable<AdminProductListFilter['sort']>, string> = {
+  name: 'p.name',
+  price: 'p.base_price',
+  status: 'p.status',
+  created: 'p.created_at',
+};
 
 /** Outcome of a single product in a bulk status transition (FR-CAT-015/016). */
 export interface BulkStatusResultItem {
@@ -892,6 +903,14 @@ export class ProductsService {
     if (filter.q) {
       qb.andWhere('(p.name ILIKE :q OR p.sku ILIKE :q)', { q: `%${filter.q}%` });
     }
+
+    // Sort (FR-CAT-042): whitelisted column + direction; overrides the default newest-first.
+    // A secondary created_at DESC keeps ties (e.g. same status/price) in a stable order.
+    const sortCol = PRODUCT_SORT_COLUMNS[filter.sort ?? 'created'];
+    const sortDir = filter.order === 'asc' ? 'ASC' : 'DESC';
+    qb.orderBy(sortCol, sortDir);
+    if (sortCol !== 'p.created_at') qb.addOrderBy('p.created_at', 'DESC');
+
     return qb;
   }
 
