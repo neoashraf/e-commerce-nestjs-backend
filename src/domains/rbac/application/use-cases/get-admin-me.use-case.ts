@@ -11,7 +11,12 @@ export interface AdminMeView {
   id: string;
   fullName: string;
   email: string;
+  phone: string | null;
   roleName: string;
+  /** Super Admin → 2FA is mandatory (the profile UI locks the toggle on). */
+  isSuperAdmin: boolean;
+  twofaEnabled: boolean;
+  twofaChannel: string | null;
   permissions: string[];
 }
 
@@ -35,7 +40,11 @@ export class GetAdminMeUseCase {
       id: admin.id,
       fullName: admin.fullName,
       email: admin.email,
+      phone: admin.phone,
       roleName: role?.name ?? 'Unknown',
+      isSuperAdmin: role?.isSuperAdmin() ?? false,
+      twofaEnabled: admin.twofaEnabled,
+      twofaChannel: admin.twofaChannel,
       permissions,
     };
   }

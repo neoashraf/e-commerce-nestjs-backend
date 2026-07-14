@@ -112,8 +112,9 @@ export class AdminLoginUseCase {
     admin.failedLoginAttempts = 0;
     admin.lockedUntil = null;
 
-    // 2FA is mandatory for Super Admin, otherwise per the admin's own toggle (FR-RBAC-002).
-    const twofaRequired = admin.twofaEnabled || role.isSuperAdmin();
+    // 2FA is required only when the admin has enabled it on their own account (FR-RBAC-002).
+    // Every admin — including Super Admin — controls their own 2FA (no forced-on role).
+    const twofaRequired = admin.twofaEnabled;
     if (twofaRequired) {
       await this.admins.save(admin);
       return this.issueChallenge(admin, command.rememberDevice, now);

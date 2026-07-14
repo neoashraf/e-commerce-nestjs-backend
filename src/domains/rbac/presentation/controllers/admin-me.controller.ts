@@ -47,7 +47,11 @@ export class AdminMeController {
       id: view.id,
       full_name: view.fullName,
       email: view.email,
+      phone: view.phone,
       role: view.roleName,
+      is_super_admin: view.isSuperAdmin,
+      two_fa_enabled: view.twofaEnabled,
+      two_fa_channel: view.twofaChannel,
       permissions: view.permissions,
     };
   }
@@ -106,6 +110,6 @@ export class AdminMeController {
       currentPassword: dto.current_password,
       ipAddress: ip,
     });
-    return { twofa_enabled: result.twofaEnabled, channel: result.channel };
+    return { two_fa_enabled: result.twofaEnabled, two_fa_channel: result.channel };
   }
 }

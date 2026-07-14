@@ -20,8 +20,8 @@ export class AdminMessageResponseDto {
 
 export class Update2faResponseDto {
   @ApiProperty({ example: true })
-  twofa_enabled: boolean;
+  two_fa_enabled: boolean;
 
   @ApiPropertyOptional({ enum: TwofaChannel, nullable: true })
-  channel: TwofaChannel | null;
+  two_fa_channel: TwofaChannel | null;
 }
