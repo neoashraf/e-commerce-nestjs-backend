@@ -37,6 +37,9 @@ export const EVENT_CATALOG: Record<string, EventDefinition> = {
   'admin.invite': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'invite_url'], optionalPlaceholders: ['role'] },
   'admin.password_reset': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'reset_url'] },
   'admin.2fa': { category: TX, channels: [EMAIL, SMS], requiredPlaceholders: ['code'], optionalPlaceholders: ['ttl_minutes'] },
+  // MFA (module 17) — customer login second factor over email/SMS (FR-MFA-012/021).
+  'otp.login_2fa': { category: TX, channels: [EMAIL, SMS], requiredPlaceholders: ['code'], optionalPlaceholders: ['ttl_minutes', 'otp'] },
+  'auth.mfa_changed': { category: TX, channels: [EMAIL, SMS], requiredPlaceholders: ['state'] },
 
   // ORD / PAY — order lifecycle
   'order.placed': { category: TX, channels: [SMS, EMAIL], requiredPlaceholders: ['name', 'order_no'], optionalPlaceholders: ['total', 'payment_method'] },
