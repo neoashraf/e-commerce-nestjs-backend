@@ -105,8 +105,9 @@ export class MeController {
       customerId: customer.customerId,
       currentPassword: dto.current_password,
       newPassword: dto.new_password,
+      currentSessionId: customer.sessionId,
     });
-    return { message: 'Password changed.' };
+    return { message: 'Password changed. Other devices have been signed out.' };
   }
 
   @Post('phone/change/request')

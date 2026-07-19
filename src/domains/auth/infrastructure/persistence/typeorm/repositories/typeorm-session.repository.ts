@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 
 import { Session } from '../../../../domain/entities/session.entity';
 import { ISessionRepository } from '../../../../domain/repositories/session.repository.interface';
@@ -26,5 +26,20 @@ export class TypeOrmSessionRepository implements ISessionRepository {
 
   async revokeAllForCustomer(customerId: string, now: Date): Promise<void> {
     await this.repo.update({ customerId, revokedAt: IsNull() }, { revokedAt: now });
+  }
+
+  async revokeAllForCustomerExcept(
+    customerId: string,
+    exceptSessionId: string | null,
+    now: Date,
+  ): Promise<void> {
+    if (!exceptSessionId) {
+      await this.repo.update({ customerId, revokedAt: IsNull() }, { revokedAt: now });
+      return;
+    }
+    await this.repo.update(
+      { customerId, revokedAt: IsNull(), id: Not(exceptSessionId) },
+      { revokedAt: now },
+    );
   }
 }

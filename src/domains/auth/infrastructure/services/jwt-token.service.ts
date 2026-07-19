@@ -16,9 +16,9 @@ export class JwtTokenService implements ITokenService {
     @Inject(AUTH_CONFIG) private readonly config: AuthConfig,
   ) {}
 
-  async signAccessToken(customerId: string): Promise<SignedAccessToken> {
+  async signAccessToken(customerId: string, sessionId: string): Promise<SignedAccessToken> {
     const token = await this.jwt.signAsync(
-      { sub: customerId, aud: 'customer' },
+      { sub: customerId, aud: 'customer', sid: sessionId },
       { expiresIn: this.config.accessTtlSeconds },
     );
     return { token, expiresIn: this.config.accessTtlSeconds };

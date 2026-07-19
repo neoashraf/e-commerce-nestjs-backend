@@ -115,10 +115,11 @@ export class ClaimAccountUseCase {
     }
     const saved = await this.customers.save(customer);
 
-    const access = await this.tokens.signAccessToken(saved.id);
+    const sessionId = randomUUID();
+    const access = await this.tokens.signAccessToken(saved.id, sessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
-      Session.issue(randomUUID(), saved.id, refresh.hash, refresh.expiresAt, now),
+      Session.issue(sessionId, saved.id, refresh.hash, refresh.expiresAt, now),
     );
 
     return {

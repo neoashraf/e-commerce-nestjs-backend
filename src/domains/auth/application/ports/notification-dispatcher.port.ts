@@ -37,6 +37,16 @@ export interface DispatchMfaStateChangeCommand {
   enabled: boolean;
 }
 
+export interface DispatchPasswordChangedCommand {
+  /** Recipient email (present when the account has a verified email). */
+  email?: string | null;
+  /** Recipient phone (fallback when only a verified phone is available). */
+  phone?: string | null;
+  fullName: string;
+  /** Kind of credential change — used to pick the notification template variant. */
+  event: 'password_changed' | 'password_set' | 'password_reset';
+}
+
 /**
  * Outbound port to the NOTIF module. AUTH only triggers delivery (FR-AUTH-021, 002);
  * templates/delivery are owned by NOTIF. Implementations throw on delivery failure
@@ -52,6 +62,11 @@ export interface INotificationDispatcher {
   dispatchMfaCode(command: DispatchMfaCodeCommand): Promise<void>;
   /** Sends the `auth.mfa_changed` enable/disable confirmation (FR-MFA-006, 043). */
   dispatchMfaStateChange(command: DispatchMfaStateChangeCommand): Promise<void>;
+  /**
+   * Sends a `auth.password_changed` (set / change / reset) confirmation to the account's
+   * verified channels (FR-AUTH-038, BR-AUTH-5). Best-effort — must not fail the caller.
+   */
+  dispatchPasswordChanged(command: DispatchPasswordChangedCommand): Promise<void>;
 }
 
 export const NOTIFICATION_DISPATCHER = Symbol('INotificationDispatcher');

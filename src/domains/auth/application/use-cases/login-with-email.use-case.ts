@@ -105,11 +105,12 @@ export class LoginWithEmailUseCase {
       }
     }
 
-    const access = await this.tokens.signAccessToken(customer.id);
+    const sessionId = randomUUID();
+    const access = await this.tokens.signAccessToken(customer.id, sessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
       Session.issue(
-        randomUUID(),
+        sessionId,
         customer.id,
         refresh.hash,
         refresh.expiresAt,

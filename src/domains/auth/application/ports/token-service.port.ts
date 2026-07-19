@@ -13,7 +13,11 @@ export interface MintedRefreshToken {
 }
 
 export interface ITokenService {
-  signAccessToken(customerId: string): Promise<SignedAccessToken>;
+  /**
+   * Sign an access token that binds to a specific refresh-session so `PATCH /me/password`
+   * can revoke every OTHER session (BR-AUTH-5). `sessionId` maps to the JWT `sid` claim.
+   */
+  signAccessToken(customerId: string, sessionId: string): Promise<SignedAccessToken>;
   mintRefreshToken(now: Date): MintedRefreshToken;
   hashRefreshToken(raw: string): string;
 }

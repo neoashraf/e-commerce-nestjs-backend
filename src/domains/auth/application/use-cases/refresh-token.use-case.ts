@@ -57,10 +57,11 @@ export class RefreshTokenUseCase {
     session.revoke(now);
     await this.sessions.save(session);
 
-    const access = await this.tokens.signAccessToken(session.customerId);
+    const nextSessionId = randomUUID();
+    const access = await this.tokens.signAccessToken(session.customerId, nextSessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
-      Session.issue(randomUUID(), session.customerId, refresh.hash, refresh.expiresAt, now),
+      Session.issue(nextSessionId, session.customerId, refresh.hash, refresh.expiresAt, now),
     );
 
     return {
