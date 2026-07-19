@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { requireEnv } from '../../shared/config/require-env';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 // domain repository tokens
@@ -102,7 +103,7 @@ import { AdminTokenVerifierService } from './application/services/admin-token-ve
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-access-secret',
+        secret: requireEnv(config, 'JWT_ACCESS_SECRET'),
       }),
     }),
   ],

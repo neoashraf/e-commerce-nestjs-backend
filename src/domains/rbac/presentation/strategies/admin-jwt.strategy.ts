@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
+import { requireEnv } from '../../../../shared/config/require-env';
 import { AdminUserStatus } from '../../domain/enums/admin-user-status.enum';
 import {
   ADMIN_USER_REPOSITORY,
@@ -31,7 +32,7 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'jwt-admin') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-access-secret',
+      secretOrKey: requireEnv(config, 'JWT_ACCESS_SECRET'),
     });
   }
 

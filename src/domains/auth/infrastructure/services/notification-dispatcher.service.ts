@@ -6,6 +6,7 @@ import {
   DispatchMfaCodeCommand,
   DispatchMfaStateChangeCommand,
   DispatchOtpCommand,
+  DispatchPasswordChangedCommand,
   DispatchPasswordResetCommand,
   INotificationDispatcher,
 } from '../../application/ports/notification-dispatcher.port';
@@ -194,6 +195,48 @@ export class NotificationDispatcherService implements INotificationDispatcher {
     } catch (err) {
       // A confirmation notice is best-effort; never fail the enable/disable action over it.
       this.logger.error(`MFA state-change notification failed: ${(err as Error).message}`);
+    }
+  }
+
+  async dispatchPasswordChanged(command: DispatchPasswordChangedCommand): Promise<void> {
+    const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
+    // Prefer email; fall back to SMS if the account has no verified email.
+    const channel: 'email' | 'sms' = command.email ? 'email' : 'sms';
+    const recipient = channel === 'email' ? { email: command.email } : { phone: command.phone };
+    const target = channel === 'email' ? command.email : command.phone;
+
+    if (!target) {
+      // Nothing verified to notify — silently skip (best-effort per FR-AUTH-038).
+      return;
+    }
+
+    if (!baseUrl) {
+      this.logger.warn(
+        `[DEV PASSWORD CHANGED] auth.password_changed (${channel}) → ${target} event=${command.event}`,
+      );
+      return;
+    }
+
+    const token = this.config.get<string>('NOTIF_SERVICE_TOKEN');
+    try {
+      await fetch(`${baseUrl}/api/v1/internal/notifications/dispatch`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          event_type: 'auth.password_changed',
+          locale: 'bn',
+          recipient,
+          channels: [channel],
+          variables: { name: command.fullName, event: command.event },
+          idempotency_key: `auth.password_changed:${target}:${command.event}:${Date.now()}`,
+        }),
+      });
+    } catch (err) {
+      // Non-fatal: the credential change already succeeded; the notice is a courtesy.
+      this.logger.error(`password-changed notification failed: ${(err as Error).message}`);
     }
   }
 

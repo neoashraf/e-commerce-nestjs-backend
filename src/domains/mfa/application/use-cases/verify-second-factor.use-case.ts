@@ -87,11 +87,12 @@ export class VerifySecondFactorUseCase {
     preAuth.consume(now);
     await this.preAuth.save(preAuth);
 
-    const access = await this.tokens.signAccessToken(preAuth.customerId);
+    const sessionId = randomUUID();
+    const access = await this.tokens.signAccessToken(preAuth.customerId, sessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
       Session.issue(
-        randomUUID(),
+        sessionId,
         preAuth.customerId,
         refresh.hash,
         refresh.expiresAt,
