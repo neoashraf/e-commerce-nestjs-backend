@@ -61,7 +61,16 @@ export class RefreshTokenUseCase {
     const access = await this.tokens.signAccessToken(session.customerId, nextSessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
-      Session.issue(nextSessionId, session.customerId, refresh.hash, refresh.expiresAt, now),
+      // Carry the OTP-verified marker across the rotation — same login lineage (FR-AUTH-037).
+      Session.issue(
+        nextSessionId,
+        session.customerId,
+        refresh.hash,
+        refresh.expiresAt,
+        now,
+        null,
+        session.otpVerifiedAt,
+      ),
     );
 
     return {

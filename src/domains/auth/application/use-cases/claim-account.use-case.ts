@@ -119,7 +119,8 @@ export class ClaimAccountUseCase {
     const access = await this.tokens.signAccessToken(saved.id, sessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
-      Session.issue(sessionId, saved.id, refresh.hash, refresh.expiresAt, now),
+      // otpVerifiedAt = now: the claim was proven by a phone OTP (FR-AUTH-037).
+      Session.issue(sessionId, saved.id, refresh.hash, refresh.expiresAt, now, null, now),
     );
 
     return {

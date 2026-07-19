@@ -27,12 +27,15 @@ import { Customer } from '../../domain/entities/customer.entity';
 import { GetMeUseCase } from '../../application/use-cases/get-me.use-case';
 import { UpdateProfileUseCase } from '../../application/use-cases/update-profile.use-case';
 import { ChangePasswordUseCase } from '../../application/use-cases/change-password.use-case';
+import { RequestPasswordSetUseCase } from '../../application/use-cases/request-password-set.use-case';
+import { SetPasswordUseCase } from '../../application/use-cases/set-password.use-case';
 import { RequestPhoneChangeUseCase } from '../../application/use-cases/request-phone-change.use-case';
 import { ConfirmPhoneChangeUseCase } from '../../application/use-cases/confirm-phone-change.use-case';
 import { DeleteAccountUseCase } from '../../application/use-cases/delete-account.use-case';
 import { JwtCustomerGuard } from '../guards/jwt-customer.guard';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
+import { PasswordSetRequestResponseDto, SetPasswordDto } from '../dto/password-set.dto';
 import { ChangePhoneConfirmDto, ChangePhoneRequestDto } from '../dto/change-phone.dto';
 import { DeleteAccountDto } from '../dto/delete-account.dto';
 import { MessageResponseDto } from '../dto/message-response.dto';
@@ -52,6 +55,8 @@ export class MeController {
     private readonly getMeUseCase: GetMeUseCase,
     private readonly updateProfileUseCase: UpdateProfileUseCase,
     private readonly changePasswordUseCase: ChangePasswordUseCase,
+    private readonly requestPasswordSetUseCase: RequestPasswordSetUseCase,
+    private readonly setPasswordUseCase: SetPasswordUseCase,
     private readonly requestPhoneChangeUseCase: RequestPhoneChangeUseCase,
     private readonly confirmPhoneChangeUseCase: ConfirmPhoneChangeUseCase,
     private readonly deleteAccountUseCase: DeleteAccountUseCase,
@@ -108,6 +113,53 @@ export class MeController {
       currentSessionId: customer.sessionId,
     });
     return { message: 'Password changed. Other devices have been signed out.' };
+  }
+
+  @Post('password/set/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Start the first-password set flow (passwordless accounts, FR-AUTH-036/037)',
+  })
+  @ApiOkResponse({ type: PasswordSetRequestResponseDto })
+  @ApiConflictResponse({
+    description: 'Account already has a password (PASSWORD_EXISTS) or no verified phone (PHONE_REQUIRED)',
+  })
+  async requestPasswordSet(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+  ): Promise<PasswordSetRequestResponseDto> {
+    const result = await this.requestPasswordSetUseCase.execute({
+      customerId: customer.customerId,
+      currentSessionId: customer.sessionId,
+    });
+    return {
+      otp_required: result.otpRequired,
+      expires_in: result.expiresIn,
+      ...(result.challengeId ? { challenge_id: result.challengeId } : {}),
+      ...(result.resendAfter !== undefined ? { resend_after: result.resendAfter } : {}),
+      ...(result.setToken ? { set_token: result.setToken } : {}),
+      ...(result.devCode ? { dev_otp: result.devCode } : {}),
+    };
+  }
+
+  @Post('password/set')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create the first password with an OTP code or a set_token' })
+  @ApiOkResponse({ type: MessageResponseDto })
+  @ApiBadRequestResponse({ description: 'Weak password, or wrong/expired code or set token' })
+  @ApiConflictResponse({ description: 'Account already has a password (PASSWORD_EXISTS)' })
+  async setPassword(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+    @Body() dto: SetPasswordDto,
+  ): Promise<MessageResponseDto> {
+    await this.setPasswordUseCase.execute({
+      customerId: customer.customerId,
+      newPassword: dto.new_password,
+      challengeId: dto.challenge_id,
+      code: dto.code,
+      setToken: dto.set_token,
+      currentSessionId: customer.sessionId,
+    });
+    return { message: 'Password created. You can now log in with email + password.' };
   }
 
   @Post('phone/change/request')

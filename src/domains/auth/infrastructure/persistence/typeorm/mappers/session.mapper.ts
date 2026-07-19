@@ -11,6 +11,7 @@ export class SessionMapper {
       new Date(o.expiresAt),
       o.revokedAt ? new Date(o.revokedAt) : null,
       new Date(o.createdAt),
+      o.otpVerifiedAt ? new Date(o.otpVerifiedAt) : null,
     );
   }
 
@@ -22,6 +23,7 @@ export class SessionMapper {
     o.deviceLabel = d.deviceLabel;
     o.expiresAt = d.expiresAt;
     o.revokedAt = d.revokedAt;
+    o.otpVerifiedAt = d.otpVerifiedAt;
     return o;
   }
 }

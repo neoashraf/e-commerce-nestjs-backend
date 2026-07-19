@@ -133,7 +133,8 @@ export class VerifyOtpUseCase {
     const access = await this.tokens.signAccessToken(customer.id, sessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
-      Session.issue(sessionId, customer.id, refresh.hash, refresh.expiresAt, now),
+      // otpVerifiedAt = now: this session was established by a phone OTP (FR-AUTH-037).
+      Session.issue(sessionId, customer.id, refresh.hash, refresh.expiresAt, now, null, now),
     );
 
     return {
