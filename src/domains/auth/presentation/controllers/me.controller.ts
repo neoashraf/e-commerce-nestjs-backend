@@ -261,6 +261,7 @@ export class MeController {
       phone_verified: c.phoneVerified,
       email: c.email,
       email_verified: c.emailVerified,
+      has_password: c.passwordHash !== null,
       gender: c.gender,
       date_of_birth: c.dateOfBirth ? c.dateOfBirth.toISOString().slice(0, 10) : null,
       promo_sms_opt_in: c.promoSmsOptIn,

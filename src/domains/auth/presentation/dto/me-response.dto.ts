@@ -21,6 +21,13 @@ export class MeResponseDto {
   @ApiProperty({ example: false })
   email_verified: boolean;
 
+  @ApiProperty({
+    example: false,
+    description:
+      'Whether a password is set — drives the storefront "finish your account" card (FR-AUTH-036/074). Flagged addition beyond contract v0.2.',
+  })
+  has_password: boolean;
+
   @ApiPropertyOptional({ enum: Gender, nullable: true })
   gender: Gender | null;
 
