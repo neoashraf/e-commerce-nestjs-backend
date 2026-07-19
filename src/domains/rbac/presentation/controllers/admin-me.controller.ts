@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Ip, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Ip, Patch, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -13,12 +13,14 @@ import { GetAdminMeUseCase } from '../../application/use-cases/get-admin-me.use-
 import { UpdateAdminProfileUseCase } from '../../application/use-cases/update-admin-profile.use-case';
 import { ChangeAdminPasswordUseCase } from '../../application/use-cases/change-admin-password.use-case';
 import { UpdateAdmin2faUseCase } from '../../application/use-cases/update-admin-2fa.use-case';
+import { ConfirmAdmin2faUseCase } from '../../application/use-cases/confirm-admin-2fa.use-case';
 import { AdminMeResponseDto } from '../dto/admin-me-response.dto';
 import { UpdateAdminMeDto } from '../dto/update-admin-me.dto';
 import { ChangeAdminPasswordDto } from '../dto/change-admin-password.dto';
-import { UpdateAdmin2faDto } from '../dto/update-admin-2fa.dto';
+import { ConfirmAdmin2faDto, UpdateAdmin2faDto } from '../dto/update-admin-2fa.dto';
 import {
   AdminMessageResponseDto,
+  Confirm2faResponseDto,
   Update2faResponseDto,
   UpdateAdminMeResponseDto,
 } from '../dto/admin-profile-response.dto';
@@ -35,6 +37,7 @@ export class AdminMeController {
     private readonly updateProfile: UpdateAdminProfileUseCase,
     private readonly changePassword: ChangeAdminPasswordUseCase,
     private readonly update2fa: UpdateAdmin2faUseCase,
+    private readonly confirm2fa: ConfirmAdmin2faUseCase,
   ) {}
 
   @Get()
@@ -51,7 +54,9 @@ export class AdminMeController {
       role: view.roleName,
       is_super_admin: view.isSuperAdmin,
       two_fa_enabled: view.twofaEnabled,
-      two_fa_channel: view.twofaChannel,
+      // Whether this session passed the 2FA step at login — drives the disable-flow UI
+      // (contract 16 v0.2; there is no two_fa_channel — codes always go to the email).
+      session_mfa_verified: admin.mfaVerified === true,
       permissions: view.permissions,
     };
   }
@@ -93,11 +98,15 @@ export class AdminMeController {
   }
 
   @Patch('2fa')
-  @ApiOperation({ summary: 'Enable/disable own 2FA; mandatory for Super Admin (FR-RBAC-008)' })
+  @ApiOperation({
+    summary:
+      'Enable (step 1: emails a code — activate via /2fa/confirm) or disable own 2FA. Email-only; opt-in for every admin incl. Super Admin (FR-RBAC-008/009)',
+  })
   @ApiOkResponse({ type: Update2faResponseDto })
   @ApiUnauthorizedResponse({ description: 'Current password incorrect' })
-  @ApiBadRequestResponse({ description: 'Missing channel / SMS without a stored phone' })
-  @ApiForbiddenResponse({ description: 'Super Admin cannot disable mandatory 2FA' })
+  @ApiBadRequestResponse({
+    description: 'TWOFA_NOT_ENABLED | INVALID_2FA_CODE (disable code wrong/expired)',
+  })
   async updateOwn2fa(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Body() dto: UpdateAdmin2faDto,
@@ -106,10 +115,44 @@ export class AdminMeController {
     const result = await this.update2fa.execute({
       adminId: admin.adminId,
       enabled: dto.enabled,
-      channel: dto.channel,
       currentPassword: dto.current_password,
+      code: dto.code,
+      sessionMfaVerified: admin.mfaVerified === true,
+      currentSessionId: admin.sessionId,
       ipAddress: ip,
     });
-    return { two_fa_enabled: result.twofaEnabled, two_fa_channel: result.channel };
+    return {
+      two_fa_enabled: result.twofaEnabled,
+      ...(result.verification
+        ? {
+            verification: {
+              challenge_id: result.verification.challengeId,
+              sent_to: result.verification.sentTo,
+              expires_in: result.verification.expiresIn,
+              resend_after: result.verification.resendAfter,
+            },
+          }
+        : {}),
+    };
+  }
+
+  @Post('2fa/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm the enable code — 2FA activates only now (FR-RBAC-008)' })
+  @ApiOkResponse({ type: Confirm2faResponseDto })
+  @ApiBadRequestResponse({ description: 'INVALID_2FA_CODE (wrong/expired/exhausted)' })
+  async confirmOwn2fa(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Body() dto: ConfirmAdmin2faDto,
+    @Ip() ip: string,
+  ): Promise<Confirm2faResponseDto> {
+    const result = await this.confirm2fa.execute({
+      adminId: admin.adminId,
+      challengeId: dto.challenge_id,
+      code: dto.code,
+      currentSessionId: admin.sessionId,
+      ipAddress: ip,
+    });
+    return { two_fa_enabled: result.twofaEnabled };
   }
 }

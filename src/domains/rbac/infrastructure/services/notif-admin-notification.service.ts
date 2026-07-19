@@ -51,6 +51,24 @@ export class NotifAdminNotificationService implements IAdminNotificationDispatch
     }
   }
 
+  async dispatchTwofaStateChange(input: {
+    email: string;
+    fullName: string;
+    enabled: boolean;
+  }): Promise<void> {
+    try {
+      // Reuses the auth.mfa_changed template (email variant) — same semantic event.
+      await this.dispatch.dispatch({
+        eventType: 'auth.mfa_changed',
+        recipient: { email: input.email },
+        channels: [NotificationChannel.EMAIL],
+        variables: { state: input.enabled ? 'enabled' : 'disabled', name: input.fullName },
+      });
+    } catch (err) {
+      this.logger.error('Admin 2FA state-change dispatch failed', (err as Error)?.stack);
+    }
+  }
+
   async dispatchPasswordReset(input: {
     email: string;
     fullName: string;

@@ -1,5 +1,6 @@
 import { TwofaChallenge } from '../../../../domain/entities/twofa-challenge.entity';
 import { TwofaChannel } from '../../../../domain/enums/twofa-channel.enum';
+import { TwofaPurpose } from '../../../../domain/enums/twofa-purpose.enum';
 import { TwofaChallengeOrmEntity } from '../entities/twofa-challenge.orm-entity';
 
 export class TwofaChallengeMapper {
@@ -14,6 +15,7 @@ export class TwofaChallengeMapper {
       o.expiresAt,
       o.consumedAt ?? null,
       o.createdAt,
+      o.purpose as TwofaPurpose,
     );
   }
 
@@ -24,6 +26,7 @@ export class TwofaChallengeMapper {
     o.otpHash = d.otpHash;
     o.channel = d.channel;
     o.rememberDevice = d.rememberDevice;
+    o.purpose = d.purpose;
     o.attempts = d.attempts;
     o.expiresAt = d.expiresAt;
     o.consumedAt = d.consumedAt;

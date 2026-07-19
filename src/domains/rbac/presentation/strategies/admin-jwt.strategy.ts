@@ -15,6 +15,10 @@ interface AdminJwtPayload {
   sub: string;
   aud?: string;
   role_id?: string;
+  /** The refresh session this token binds to (spared by revoke sweeps). */
+  sid?: string;
+  /** True when the login passed the 2FA step (FR-RBAC-009). */
+  mfa?: boolean;
 }
 
 /**
@@ -44,6 +48,11 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'jwt-admin') {
     if (!admin || admin.status !== AdminUserStatus.ACTIVE) {
       throw new UnauthorizedException({ code: 'INVALID_TOKEN', message: 'Invalid token.' });
     }
-    return { adminId: admin.id, roleId: admin.roleId };
+    return {
+      adminId: admin.id,
+      roleId: admin.roleId,
+      sessionId: payload.sid,
+      mfaVerified: payload.mfa === true,
+    };
   }
 }
