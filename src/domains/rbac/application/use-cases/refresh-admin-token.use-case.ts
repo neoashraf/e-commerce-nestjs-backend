@@ -56,12 +56,14 @@ export class RefreshAdminTokenUseCase {
     // Rotate: revoke the presented session, issue a new one within the same expiry ceiling.
     session.revoke(now);
     await this.sessions.save(session);
+    // Carry the 2FA-verified marker across the rotation — same login lineage (FR-RBAC-009).
     return this.sessionIssuer.issueForRotation(
       admin.id,
       admin.roleId,
       session.expiresAt,
       command.deviceLabel ?? session.deviceLabel,
       now,
+      session.mfaVerified,
     );
   }
 }

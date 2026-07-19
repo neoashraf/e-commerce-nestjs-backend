@@ -11,6 +11,7 @@ export class AdminSessionMapper {
       o.expiresAt,
       o.revokedAt ?? null,
       o.createdAt,
+      o.mfaVerified,
     );
   }
 
@@ -22,6 +23,7 @@ export class AdminSessionMapper {
     o.deviceLabel = d.deviceLabel;
     o.expiresAt = d.expiresAt;
     o.revokedAt = d.revokedAt;
+    o.mfaVerified = d.mfaVerified;
     return o;
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 
 import { AdminSession } from '../../../../domain/entities/admin-session.entity';
 import { IAdminSessionRepository } from '../../../../domain/repositories/admin-session.repository.interface';
@@ -26,5 +26,20 @@ export class TypeOrmAdminSessionRepository implements IAdminSessionRepository {
 
   async revokeAllForAdmin(adminUserId: string, now: Date): Promise<void> {
     await this.repo.update({ adminUserId, revokedAt: IsNull() }, { revokedAt: now });
+  }
+
+  async revokeAllForAdminExcept(
+    adminUserId: string,
+    exceptSessionId: string | null,
+    now: Date,
+  ): Promise<void> {
+    if (!exceptSessionId) {
+      await this.revokeAllForAdmin(adminUserId, now);
+      return;
+    }
+    await this.repo.update(
+      { adminUserId, revokedAt: IsNull(), id: Not(exceptSessionId) },
+      { revokedAt: now },
+    );
   }
 }

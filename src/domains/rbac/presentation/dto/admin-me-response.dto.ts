@@ -16,14 +16,18 @@ export class AdminMeResponseDto {
   @ApiPropertyOptional({ example: '+8801712345678', nullable: true })
   phone: string | null;
 
-  @ApiProperty({ example: false, description: 'Super Admin → 2FA is mandatory (toggle locked on).' })
+  @ApiProperty({ example: false, description: '2FA is opt-in for every admin incl. Super Admin.' })
   is_super_admin: boolean;
 
-  @ApiProperty({ example: false, description: 'Whether the admin requires a 2FA code at login.' })
+  @ApiProperty({ example: false, description: 'Whether the admin requires a 2FA code at login (email-only).' })
   two_fa_enabled: boolean;
 
-  @ApiPropertyOptional({ example: 'sms', nullable: true, description: '2FA delivery channel when enabled.' })
-  two_fa_channel: string | null;
+  @ApiProperty({
+    example: false,
+    description:
+      'Whether THIS session passed the 2FA step at login — the disable flow needs a fresh code when false (FR-RBAC-009).',
+  })
+  session_mfa_verified: boolean;
 
   @ApiProperty({
     type: [String],

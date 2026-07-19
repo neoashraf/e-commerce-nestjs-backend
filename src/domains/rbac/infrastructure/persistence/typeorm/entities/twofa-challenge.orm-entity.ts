@@ -18,6 +18,10 @@ export class TwofaChallengeOrmEntity {
   @Column({ name: 'remember_device', default: false })
   rememberDevice: boolean;
 
+  /** login | enable | disable (FR-RBAC-002/008/009 purpose binding). */
+  @Column({ type: 'varchar', length: 10, default: 'login' })
+  purpose: string;
+
   @Column({ type: 'int', default: 0 })
   attempts: number;
 

@@ -8,6 +8,8 @@ export class AdminSession {
     public expiresAt: Date,
     public revokedAt: Date | null,
     public readonly createdAt: Date,
+    /** True when the login passed the 2FA step (mirrors FR-MFA-018); carried on rotation. */
+    public readonly mfaVerified: boolean = false,
   ) {}
 
   static issue(
@@ -17,8 +19,18 @@ export class AdminSession {
     expiresAt: Date,
     now: Date,
     deviceLabel: string | null = null,
+    mfaVerified = false,
   ): AdminSession {
-    return new AdminSession(id, adminUserId, refreshTokenHash, deviceLabel, expiresAt, null, now);
+    return new AdminSession(
+      id,
+      adminUserId,
+      refreshTokenHash,
+      deviceLabel,
+      expiresAt,
+      null,
+      now,
+      mfaVerified,
+    );
   }
 
   isRevoked(): boolean {
