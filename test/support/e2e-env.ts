@@ -38,14 +38,34 @@ export class RecordingDispatcher {
   emailChangeByEmail = new Map<string, string>();
   passwordEvents: string[] = [];
   emailChangedNotices: string[] = [];
+  /** MFA second-factor / enrollment codes, keyed by destination (phone or email). */
+  mfaCodeByTarget = new Map<string, string>();
+  /** MFA enable/disable confirmations: `${channel}:${target}:${enabled}`. */
+  mfaStateChanges: string[] = [];
 
   async dispatchOtp(cmd: { phone: string; code: string }): Promise<void> {
     this.otpByPhone.set(cmd.phone, cmd.code);
   }
   async dispatchEmailVerification(): Promise<void> {}
   async dispatchPasswordReset(): Promise<void> {}
-  async dispatchMfaCode(): Promise<void> {}
-  async dispatchMfaStateChange(): Promise<void> {}
+  async dispatchMfaCode(cmd: {
+    channel: 'sms' | 'email';
+    phone?: string | null;
+    email?: string | null;
+    code: string;
+  }): Promise<void> {
+    const target = cmd.channel === 'sms' ? cmd.phone : cmd.email;
+    if (target) this.mfaCodeByTarget.set(target, cmd.code);
+  }
+  async dispatchMfaStateChange(cmd: {
+    channel: 'sms' | 'email';
+    phone?: string | null;
+    email?: string | null;
+    enabled: boolean;
+  }): Promise<void> {
+    const target = cmd.channel === 'sms' ? cmd.phone : cmd.email;
+    this.mfaStateChanges.push(`${cmd.channel}:${target}:${cmd.enabled}`);
+  }
   async dispatchPasswordChanged(cmd: { event: string }): Promise<void> {
     this.passwordEvents.push(cmd.event);
   }
