@@ -70,7 +70,7 @@ export interface PlaceOrderResult {
 /**
  * Order creation core — the real `OrderPlacer` CART calls at `/checkout/place` (FR-ORD-001–005). Accepts
  * the placed-checkout snapshot, snapshots items/prices/address/amounts/coupon immutably (BR-ORD-1),
- * allocates an `SO-` order number (BR-ORD-2), associates the customer (or the AUTH lightweight account,
+ * allocates an `SO-` order number (BR-ORD-2), associates the customer (checkout is OTP-gated,
  * FR-ORD-003), sets the initial status by method (`pending_payment` online / `confirmed` COD, BR-ORD-3),
  * and writes the creation history entry — all in one transaction. COD orders decrement stock + notify
  * on creation; online orders wait for the `paid` payment-state to confirm.

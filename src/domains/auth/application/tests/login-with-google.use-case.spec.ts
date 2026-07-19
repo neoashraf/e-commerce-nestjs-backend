@@ -41,9 +41,9 @@ describe('Auth — LoginWithGoogleUseCase', () => {
     expect(result.isNewAccount).toBe(true);
     expect(result.customer.email).toBe('sabit@gmail.com');
     expect(result.tokens.accessToken).toBe('access');
-    // A fresh Google account is email-verified, has no password, and is not lightweight.
+    // A fresh Google account is email-verified and has no password.
     const saved = customers.save.mock.calls[0][0] as Customer;
-    expect(saved).toMatchObject({ email: 'sabit@gmail.com', emailVerified: true, passwordHash: null, isLightweight: false });
+    expect(saved).toMatchObject({ email: 'sabit@gmail.com', emailVerified: true, passwordHash: null });
     expect(sessions.save).toHaveBeenCalledTimes(1);
   });
 
