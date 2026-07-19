@@ -35,4 +35,22 @@ export class TypeOrmCustomerRepository implements ICustomerRepository {
     const saved = await this.repo.save(CustomerMapper.toOrm(customer));
     return CustomerMapper.toDomain(saved);
   }
+
+  async releaseUnverifiedEmails(cutoff: Date, now: Date): Promise<number> {
+    // FR-AUTH-045: email+password registrations (password set, email unverified) older than
+    // the window with no successful login since registering. Registration stamps
+    // `last_login_at = created_at`, so any REAL later login moves it strictly forward.
+    const result = await this.repo
+      .createQueryBuilder()
+      .update(CustomerOrmEntity)
+      .set({ email: null, emailVerified: false, updatedAt: now })
+      .where('email IS NOT NULL')
+      .andWhere('email_verified = false')
+      .andWhere('password_hash IS NOT NULL')
+      .andWhere('deleted_at IS NULL')
+      .andWhere('created_at <= :cutoff', { cutoff })
+      .andWhere('(last_login_at IS NULL OR last_login_at <= created_at)')
+      .execute();
+    return result.affected ?? 0;
+  }
 }

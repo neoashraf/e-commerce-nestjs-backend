@@ -23,6 +23,8 @@ const config: AuthConfig = {
   passwordResetTtlSeconds: 1_800,
   passwordSetFreshnessSeconds: 600,
   passwordSetTokenTtlSeconds: 600,
+  emailChangeTtlSeconds: 900,
+  emailChangeResendCooldownSeconds: 60,
   otpDevReturn: false,
 };
 

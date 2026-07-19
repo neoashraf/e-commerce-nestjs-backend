@@ -13,6 +13,7 @@ import { SESSION_REPOSITORY } from './domain/repositories/session.repository.int
 import { EMAIL_VERIFICATION_TOKEN_REPOSITORY } from './domain/repositories/email-verification-token.repository.interface';
 import { PASSWORD_RESET_TOKEN_REPOSITORY } from './domain/repositories/password-reset-token.repository.interface';
 import { PASSWORD_SET_TOKEN_REPOSITORY } from './domain/repositories/password-set-token.repository.interface';
+import { EMAIL_CHANGE_REQUEST_REPOSITORY } from './domain/repositories/email-change-request.repository.interface';
 import { ADDRESS_REPOSITORY } from './domain/repositories/address.repository.interface';
 // application
 import { AUTH_CONFIG } from './application/ports/auth-config.port';
@@ -42,6 +43,9 @@ import { UpdateProfileUseCase } from './application/use-cases/update-profile.use
 import { ChangePasswordUseCase } from './application/use-cases/change-password.use-case';
 import { RequestPasswordSetUseCase } from './application/use-cases/request-password-set.use-case';
 import { SetPasswordUseCase } from './application/use-cases/set-password.use-case';
+import { RequestEmailChangeUseCase } from './application/use-cases/request-email-change.use-case';
+import { ConfirmEmailChangeUseCase } from './application/use-cases/confirm-email-change.use-case';
+import { UnverifiedEmailReleaseTask } from './application/unverified-email-release.task';
 import { RequestPhoneChangeUseCase } from './application/use-cases/request-phone-change.use-case';
 import { ConfirmPhoneChangeUseCase } from './application/use-cases/confirm-phone-change.use-case';
 import { DeleteAccountUseCase } from './application/use-cases/delete-account.use-case';
@@ -58,6 +62,7 @@ import { SessionOrmEntity } from './infrastructure/persistence/typeorm/entities/
 import { EmailVerificationTokenOrmEntity } from './infrastructure/persistence/typeorm/entities/email-verification-token.orm-entity';
 import { PasswordResetTokenOrmEntity } from './infrastructure/persistence/typeorm/entities/password-reset-token.orm-entity';
 import { PasswordSetTokenOrmEntity } from './infrastructure/persistence/typeorm/entities/password-set-token.orm-entity';
+import { EmailChangeRequestOrmEntity } from './infrastructure/persistence/typeorm/entities/email-change-request.orm-entity';
 import { AddressOrmEntity } from './infrastructure/persistence/typeorm/entities/address.orm-entity';
 import { OrderOrmEntity } from '../orders/infrastructure/persistence/typeorm/entities/order.orm-entity';
 import { GuestOrderClaimAdapter } from './infrastructure/adapters/guest-order-claim.adapter';
@@ -67,6 +72,7 @@ import { TypeOrmSessionRepository } from './infrastructure/persistence/typeorm/r
 import { TypeOrmEmailVerificationTokenRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-email-verification-token.repository';
 import { TypeOrmPasswordResetTokenRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-password-reset-token.repository';
 import { TypeOrmPasswordSetTokenRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-password-set-token.repository';
+import { TypeOrmEmailChangeRequestRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-email-change-request.repository';
 import { TypeOrmAddressRepository } from './infrastructure/persistence/typeorm/repositories/typeorm-address.repository';
 import { JwtTokenService } from './infrastructure/services/jwt-token.service';
 import { GoogleTokenInfoVerifier } from './infrastructure/services/google-tokeninfo.verifier';
@@ -131,6 +137,7 @@ import { AdminMfaController } from '../mfa/presentation/controllers/admin-mfa.co
       EmailVerificationTokenOrmEntity,
       PasswordResetTokenOrmEntity,
       PasswordSetTokenOrmEntity,
+      EmailChangeRequestOrmEntity,
       AddressOrmEntity,
       // Read/write access to ORD's orders table so AUTH can claim a phone's guest orders on OTP
       // verification (guest-order-claim adapter). forFeature only registers the repository here.
@@ -176,6 +183,10 @@ import { AdminMfaController } from '../mfa/presentation/controllers/admin-mfa.co
       provide: PASSWORD_SET_TOKEN_REPOSITORY,
       useClass: TypeOrmPasswordSetTokenRepository,
     },
+    {
+      provide: EMAIL_CHANGE_REQUEST_REPOSITORY,
+      useClass: TypeOrmEmailChangeRequestRepository,
+    },
     { provide: ADDRESS_REPOSITORY, useClass: TypeOrmAddressRepository },
     { provide: TOKEN_SERVICE, useClass: JwtTokenService },
     { provide: GOOGLE_VERIFIER, useClass: GoogleTokenInfoVerifier },
@@ -203,6 +214,9 @@ import { AdminMfaController } from '../mfa/presentation/controllers/admin-mfa.co
     ChangePasswordUseCase,
     RequestPasswordSetUseCase,
     SetPasswordUseCase,
+    RequestEmailChangeUseCase,
+    ConfirmEmailChangeUseCase,
+    UnverifiedEmailReleaseTask,
     RequestPhoneChangeUseCase,
     ConfirmPhoneChangeUseCase,
     DeleteAccountUseCase,

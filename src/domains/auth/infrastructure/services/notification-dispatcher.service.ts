@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import {
+  DispatchEmailChangeCodeCommand,
+  DispatchEmailChangedNoticeCommand,
   DispatchEmailVerificationCommand,
   DispatchMfaCodeCommand,
   DispatchMfaStateChangeCommand,
@@ -237,6 +239,76 @@ export class NotificationDispatcherService implements INotificationDispatcher {
     } catch (err) {
       // Non-fatal: the credential change already succeeded; the notice is a courtesy.
       this.logger.error(`password-changed notification failed: ${(err as Error).message}`);
+    }
+  }
+
+  async dispatchEmailChangeCode(command: DispatchEmailChangeCodeCommand): Promise<void> {
+    const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
+
+    if (!baseUrl) {
+      // DEV stub — NOTIF not deployed yet; log the code so the flow is testable locally.
+      this.logger.warn(`[DEV EMAIL CHANGE] ${command.email} code=${command.code}`);
+      return;
+    }
+
+    const token = this.config.get<string>('NOTIF_SERVICE_TOKEN');
+    const res = await fetch(`${baseUrl}/api/v1/internal/notifications/dispatch`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        event_type: 'auth.email_change_verify',
+        locale: 'bn',
+        recipient: { email: command.email },
+        channels: ['email'],
+        variables: {
+          name: command.fullName,
+          code: command.code,
+          otp: command.code,
+          ttl_minutes: command.ttlMinutes,
+        },
+        idempotency_key: `auth.email_change_verify:${command.email}:${Date.now()}`,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`NOTIF email-change dispatch failed with status ${res.status}`);
+    }
+  }
+
+  async dispatchEmailChangedNotice(command: DispatchEmailChangedNoticeCommand): Promise<void> {
+    const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
+
+    if (!baseUrl) {
+      // DEV stub — NOTIF not deployed yet. Best-effort, non-fatal.
+      this.logger.warn(
+        `[DEV EMAIL CHANGED] notice → ${command.email} new=${command.newEmailMasked}`,
+      );
+      return;
+    }
+
+    const token = this.config.get<string>('NOTIF_SERVICE_TOKEN');
+    try {
+      await fetch(`${baseUrl}/api/v1/internal/notifications/dispatch`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          event_type: 'auth.email_changed',
+          locale: 'bn',
+          recipient: { email: command.email },
+          channels: ['email'],
+          variables: { name: command.fullName, new_email: command.newEmailMasked },
+          idempotency_key: `auth.email_changed:${command.email}:${Date.now()}`,
+        }),
+      });
+    } catch (err) {
+      // The change already succeeded; the courtesy notice must not fail it (FR-AUTH-046).
+      this.logger.error(`email-changed notice failed: ${(err as Error).message}`);
     }
   }
 
