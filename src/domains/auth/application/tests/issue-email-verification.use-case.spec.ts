@@ -20,6 +20,8 @@ const config: AuthConfig = {
   emailVerifyTtlSeconds: 86_400,
   emailVerifyResendCooldownSeconds: 60,
   passwordResetTtlSeconds: 1_800,
+  passwordSetFreshnessSeconds: 600,
+  passwordSetTokenTtlSeconds: 600,
   otpDevReturn: false,
 };
 

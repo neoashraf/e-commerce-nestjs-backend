@@ -22,6 +22,10 @@ export class SessionOrmEntity {
   @Column({ name: 'revoked_at', type: 'timestamptz', nullable: true })
   revokedAt: Date | null;
 
+  /** When the session's login lineage last verified a phone OTP (FR-AUTH-037). */
+  @Column({ name: 'otp_verified_at', type: 'timestamptz', nullable: true })
+  otpVerifiedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

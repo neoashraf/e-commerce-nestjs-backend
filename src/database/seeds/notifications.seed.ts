@@ -63,6 +63,8 @@ const TEMPLATES: TemplateSeed[] = [
   { event: 'otp.login', channel: 'sms', locale: 'bn', subject: null, body: OTP_BODY_BN },
   { event: 'otp.phone_change', channel: 'sms', locale: 'en', subject: null, body: OTP_BODY_EN },
   { event: 'otp.password_reset', channel: 'sms', locale: 'en', subject: null, body: OTP_BODY_EN },
+  { event: 'otp.password_set', channel: 'sms', locale: 'en', subject: null, body: OTP_BODY_EN },
+  { event: 'otp.password_set', channel: 'sms', locale: 'bn', subject: null, body: OTP_BODY_BN },
 
   // MFA (module 17) — customer login second factor (email + SMS, en + bn).
   {

@@ -14,6 +14,11 @@ export class TypeOrmSessionRepository implements ISessionRepository {
     private readonly repo: Repository<SessionOrmEntity>,
   ) {}
 
+  async findById(id: string): Promise<Session | null> {
+    const orm = await this.repo.findOne({ where: { id } });
+    return orm ? SessionMapper.toDomain(orm) : null;
+  }
+
   async findByRefreshTokenHash(hash: string): Promise<Session | null> {
     const orm = await this.repo.findOne({ where: { refreshTokenHash: hash } });
     return orm ? SessionMapper.toDomain(orm) : null;

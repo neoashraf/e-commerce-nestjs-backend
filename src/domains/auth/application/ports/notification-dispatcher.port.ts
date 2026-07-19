@@ -1,7 +1,7 @@
 export interface DispatchOtpCommand {
   phone: string;
   code: string;
-  purpose: 'register' | 'login' | 'phone_change' | 'password_reset';
+  purpose: 'register' | 'login' | 'phone_change' | 'password_reset' | 'password_set';
 }
 
 export interface DispatchEmailVerificationCommand {

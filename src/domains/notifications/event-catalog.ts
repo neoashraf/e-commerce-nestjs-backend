@@ -32,6 +32,7 @@ export const EVENT_CATALOG: Record<string, EventDefinition> = {
   'otp.login': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
   'otp.phone_change': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
   'otp.password_reset': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
+  'otp.password_set': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
   'auth.email_verify': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'verify_url'] },
   'auth.password_reset': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'reset_url'], optionalPlaceholders: ['expires_minutes'] },
   'admin.invite': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'invite_url'], optionalPlaceholders: ['role'] },

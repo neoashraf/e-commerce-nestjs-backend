@@ -1,6 +1,7 @@
 import { Session } from '../entities/session.entity';
 
 export interface ISessionRepository {
+  findById(id: string): Promise<Session | null>;
   findByRefreshTokenHash(hash: string): Promise<Session | null>;
   save(session: Session): Promise<Session>;
   /** Revoke every active session for a customer (FR-AUTH-015). Returns count revoked. */
