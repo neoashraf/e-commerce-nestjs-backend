@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
+import { MfaChannel } from '../../domain/enums/mfa-channel.enum';
 import { MfaEnforcement } from '../../domain/enums/mfa-enforcement.enum';
 
 export class UpdateMfaPolicyDto {
@@ -18,6 +19,16 @@ export class UpdateMfaPolicyDto {
   @IsOptional()
   @IsEnum(MfaEnforcement)
   enforcement_mode?: MfaEnforcement;
+
+  @ApiPropertyOptional({
+    enum: MfaChannel,
+    example: MfaChannel.EMAIL,
+    description:
+      'First-attempt channel for both-eligible, no-preference customers (FR-MFA-036); must reference an enabled channel',
+  })
+  @IsOptional()
+  @IsEnum(MfaChannel)
+  default_channel?: MfaChannel;
 
   @ApiPropertyOptional({ example: 300, minimum: 60, maximum: 3600 })
   @IsOptional()

@@ -19,7 +19,12 @@ import {
 import { MFA_CONFIG, MfaConfig } from '../ports/mfa-config.port';
 import { MfaLoginStarted } from '../mfa-results';
 import { MfaChallengeIssuer } from './mfa-challenge-issuer.service';
-import { destinationFor, eligibleChannels, maskDestination } from './mfa-channels';
+import {
+  destinationFor,
+  eligibleChannels,
+  maskDestination,
+  resolveChallengeChannel,
+} from './mfa-channels';
 import { mintPreAuthToken } from './pre-auth-token';
 
 /**
@@ -62,8 +67,8 @@ export class MfaLoginGateService {
       });
     }
 
-    const preferred = state?.preferredChannel ?? null;
-    const channel = preferred && eligible.includes(preferred) ? preferred : eligible[0];
+    // FR-MFA-012/036: preference → policy default_channel → the single eligible channel.
+    const channel = resolveChallengeChannel(settings, state?.preferredChannel ?? null, eligible);
     const destination = destinationFor(channel, contacts);
     // eligibleChannels guarantees a destination exists for `channel`.
     const dest = destination as string;

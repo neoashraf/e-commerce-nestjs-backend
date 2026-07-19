@@ -48,7 +48,10 @@ export class AdminMfaController {
   @Requires('settings.setting.update')
   @ApiOperation({ summary: 'Update the MFA policy — channels + enforcement (FR-MFA-030/031)' })
   @ApiOkResponse({ type: MfaPolicyResponseDto })
-  @ApiBadRequestResponse({ description: 'MFA_NO_CHANNEL (mandatory with no channel enabled)' })
+  @ApiBadRequestResponse({
+    description:
+      'MFA_NO_CHANNEL (mandatory with no channel enabled, or default_channel references a disabled channel)',
+  })
   @ApiForbiddenResponse({ description: 'Missing settings permission' })
   async update(
     @Body() dto: UpdateMfaPolicyDto,
@@ -58,6 +61,7 @@ export class AdminMfaController {
       smsEnabled: dto.sms_enabled,
       emailEnabled: dto.email_enabled,
       enforcementMode: dto.enforcement_mode,
+      defaultChannel: dto.default_channel,
       otpTtlSeconds: dto.otp_ttl_seconds,
       resendCooldownSeconds: dto.resend_cooldown_seconds,
       maxAttempts: dto.max_attempts,
@@ -74,6 +78,7 @@ export class AdminMfaController {
         sms_enabled: updated.smsEnabled,
         email_enabled: updated.emailEnabled,
         enforcement_mode: updated.enforcementMode,
+        default_channel: updated.defaultChannel,
       },
     });
     return this.toResponse(updated);
@@ -84,6 +89,7 @@ export class AdminMfaController {
       sms_enabled: s.smsEnabled,
       email_enabled: s.emailEnabled,
       enforcement_mode: s.enforcementMode,
+      default_channel: s.defaultChannel,
       otp_ttl_seconds: s.otpTtlSeconds,
       resend_cooldown_seconds: s.resendCooldownSeconds,
       max_attempts: s.maxAttempts,

@@ -13,6 +13,11 @@ export class Session {
      * OTP login/claim, carried over on refresh rotation. Null for password/Google logins.
      */
     public readonly otpVerifiedAt: Date | null = null,
+    /**
+     * True when the session was created through a completed second factor (FR-MFA-018);
+     * carried over on refresh rotation. Consulted by FR-MFA-002 (disable gating).
+     */
+    public readonly mfaVerified: boolean = false,
   ) {}
 
   static issue(
@@ -23,6 +28,7 @@ export class Session {
     now: Date,
     deviceLabel: string | null = null,
     otpVerifiedAt: Date | null = null,
+    mfaVerified = false,
   ): Session {
     return new Session(
       id,
@@ -33,6 +39,7 @@ export class Session {
       null,
       now,
       otpVerifiedAt,
+      mfaVerified,
     );
   }
 

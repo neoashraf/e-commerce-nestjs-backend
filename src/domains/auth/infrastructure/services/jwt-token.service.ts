@@ -6,6 +6,7 @@ import { AUTH_CONFIG, AuthConfig } from '../../application/ports/auth-config.por
 import {
   ITokenService,
   MintedRefreshToken,
+  SignAccessTokenOptions,
   SignedAccessToken,
 } from '../../application/ports/token-service.port';
 
@@ -16,9 +17,19 @@ export class JwtTokenService implements ITokenService {
     @Inject(AUTH_CONFIG) private readonly config: AuthConfig,
   ) {}
 
-  async signAccessToken(customerId: string, sessionId: string): Promise<SignedAccessToken> {
+  async signAccessToken(
+    customerId: string,
+    sessionId: string,
+    options?: SignAccessTokenOptions,
+  ): Promise<SignedAccessToken> {
     const token = await this.jwt.signAsync(
-      { sub: customerId, aud: 'customer', sid: sessionId },
+      {
+        sub: customerId,
+        aud: 'customer',
+        sid: sessionId,
+        // FR-MFA-018: mark 2FA-verified sessions so disable gating is decidable.
+        ...(options?.mfaVerified ? { mfa: true } : {}),
+      },
       { expiresIn: this.config.accessTtlSeconds },
     );
     return { token, expiresIn: this.config.accessTtlSeconds };

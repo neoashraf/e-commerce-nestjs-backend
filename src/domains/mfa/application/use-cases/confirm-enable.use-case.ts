@@ -5,6 +5,10 @@ import {
   INotificationDispatcher,
   NOTIFICATION_DISPATCHER,
 } from '../../../auth/application/ports/notification-dispatcher.port';
+import {
+  ISessionRepository,
+  SESSION_REPOSITORY,
+} from '../../../auth/domain/repositories/session.repository.interface';
 import { CustomerMfa } from '../../domain/entities/customer-mfa.entity';
 import { MfaChannel } from '../../domain/enums/mfa-channel.enum';
 import { MfaChallengePurpose } from '../../domain/enums/mfa-challenge-purpose.enum';
@@ -27,6 +31,8 @@ export interface ConfirmEnableCommand {
   customerId: string;
   challengeId: string;
   code: string;
+  /** The session id (JWT `sid`) making the request — spared by the revoke sweep (FR-MFA-007). */
+  currentSessionId?: string;
 }
 
 export interface ConfirmEnableResult {
@@ -44,6 +50,7 @@ export class ConfirmEnableUseCase {
     @Inject(MFA_SETTINGS_REPOSITORY) private readonly settingsRepo: IMfaSettingsRepository,
     @Inject(OTP_SERVICE) private readonly otp: IOtpService,
     @Inject(NOTIFICATION_DISPATCHER) private readonly dispatcher: INotificationDispatcher,
+    @Inject(SESSION_REPOSITORY) private readonly sessions: ISessionRepository,
   ) {}
 
   async execute(command: ConfirmEnableCommand): Promise<ConfirmEnableResult> {
@@ -84,6 +91,13 @@ export class ConfirmEnableUseCase {
       CustomerMfa.none(command.customerId, now);
     state.enable(channel, now);
     await this.customerMfa.save(state);
+
+    // FR-MFA-007 / BR-AUTH-5: revoke every other session; the current one survives.
+    await this.sessions.revokeAllForCustomerExcept(
+      command.customerId,
+      command.currentSessionId ?? null,
+      now,
+    );
 
     await this.dispatcher.dispatchMfaStateChange({
       channel,

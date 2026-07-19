@@ -1,4 +1,11 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import {
   CUSTOMER_REPOSITORY,
@@ -7,32 +14,74 @@ import {
 import { MfaChannel } from '../../domain/enums/mfa-channel.enum';
 import { MfaChallengePurpose } from '../../domain/enums/mfa-challenge-purpose.enum';
 import {
+  IMfaChallengeRepository,
+  MFA_CHALLENGE_REPOSITORY,
+} from '../../domain/repositories/mfa-challenge.repository.interface';
+import {
   IMfaSettingsRepository,
   MFA_SETTINGS_REPOSITORY,
 } from '../../domain/repositories/mfa-settings.repository.interface';
+import { MFA_CONFIG, MfaConfig } from '../ports/mfa-config.port';
 import { MfaChallengeView } from '../mfa-results';
 import { MfaChallengeIssuer } from '../services/mfa-challenge-issuer.service';
-import { destinationFor, eligibleChannels, maskDestination } from '../services/mfa-channels';
+import {
+  destinationFor,
+  eligibleChannels,
+  maskDestination,
+  resolveChallengeChannel,
+} from '../services/mfa-channels';
 
 export interface EnableMfaCommand {
   customerId: string;
   preferredChannel?: MfaChannel;
 }
 
-/** Start enabling 2FA: send a confirmation code to prove the channel works (FR-MFA-001, 003). */
+/**
+ * Start enabling 2FA: send a confirmation code to prove the channel works (FR-MFA-001, 003).
+ * Subject to the same resend cooldown + hourly cap as the login challenge (FR-MFA-008) —
+ * the settings path is not a code-flooding bypass.
+ */
 @Injectable()
 export class EnableMfaUseCase {
   constructor(
     @Inject(MFA_SETTINGS_REPOSITORY) private readonly settingsRepo: IMfaSettingsRepository,
     @Inject(CUSTOMER_REPOSITORY) private readonly customers: ICustomerRepository,
+    @Inject(MFA_CHALLENGE_REPOSITORY) private readonly challenges: IMfaChallengeRepository,
+    @Inject(MFA_CONFIG) private readonly config: MfaConfig,
     private readonly issuer: MfaChallengeIssuer,
   ) {}
 
   async execute(command: EnableMfaCommand): Promise<MfaChallengeView> {
+    const now = new Date();
     const settings = await this.settingsRepo.get();
     const customer = await this.customers.findById(command.customerId);
     if (!settings || !customer) {
       throw new NotFoundException({ code: 'MFA_UNAVAILABLE', message: 'MFA is not available.' });
+    }
+
+    // Enrollment throttling (FR-MFA-008): same cooldown + hourly cap as the login challenge.
+    const latest = await this.challenges.findLatestByCustomer(command.customerId);
+    if (latest) {
+      const cooldown = settings.resendCooldownSeconds;
+      const elapsed = (now.getTime() - latest.createdAt.getTime()) / 1000;
+      if (elapsed < cooldown) {
+        throw new HttpException(
+          {
+            code: 'MFA_COOLDOWN',
+            message: 'Please wait before requesting another code.',
+            retry_after: Math.ceil(cooldown - elapsed),
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
+    const since = new Date(now.getTime() - 3600 * 1000);
+    const recent = await this.challenges.countCreatedSince(command.customerId, since);
+    if (recent >= this.config.resendHourlyCap) {
+      throw new HttpException(
+        { code: 'MFA_HOURLY_CAP', message: 'Too many code requests. Please try again later.' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     // 2FA is a second factor on password login — a passwordless account must set a password first
@@ -67,8 +116,9 @@ export class EnableMfaUseCase {
         });
       }
     } else {
-      // Default to email when eligible (BR-MFA-10), else the single other eligible channel.
-      channel = eligible.includes(MfaChannel.EMAIL) ? MfaChannel.EMAIL : eligible[0];
+      // No explicit choice: policy default_channel when eligible, else the eligible one
+      // (FR-MFA-036, BR-MFA-10 — the shipped default_channel default is email).
+      channel = resolveChallengeChannel(settings, null, eligible);
     }
     const destination = destinationFor(channel, contacts) as string;
 
@@ -78,7 +128,7 @@ export class EnableMfaUseCase {
       channel,
       destination,
       ttlSeconds: settings.otpTtlSeconds,
-      now: new Date(),
+      now,
     });
 
     return {
