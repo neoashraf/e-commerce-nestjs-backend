@@ -15,7 +15,6 @@ export interface CustomerIdentity {
   gender: string | null;
   dateOfBirth: string | null;
   status: string;
-  isLightweight: boolean;
   promoSmsOptIn: boolean;
   promoEmailOptIn: boolean;
   createdAt: string;
@@ -55,7 +54,7 @@ export class AuthCustomerAdapter implements IAuthCustomerGateway {
   async getIdentity(customerId: string): Promise<CustomerIdentity | null> {
     const rows: Array<Record<string, unknown>> = await this.dataSource.query(
       `SELECT id, full_name, phone, phone_verified, email, email_verified, gender,
-              to_char(date_of_birth, 'YYYY-MM-DD') AS date_of_birth, status, is_lightweight,
+              to_char(date_of_birth, 'YYYY-MM-DD') AS date_of_birth, status,
               promo_sms_opt_in, promo_email_opt_in, created_at
        FROM customers WHERE id = $1`,
       [customerId],
@@ -72,7 +71,6 @@ export class AuthCustomerAdapter implements IAuthCustomerGateway {
       gender: (r.gender as string | null) ?? null,
       dateOfBirth: (r.date_of_birth as string | null) ?? null,
       status: r.status as string,
-      isLightweight: r.is_lightweight as boolean,
       promoSmsOptIn: r.promo_sms_opt_in as boolean,
       promoEmailOptIn: r.promo_email_opt_in as boolean,
       createdAt: (r.created_at as Date).toISOString(),

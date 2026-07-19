@@ -35,7 +35,6 @@ import { LoginWithEmailUseCase } from './application/use-cases/login-with-email.
 import { LoginWithGoogleUseCase } from './application/use-cases/login-with-google.use-case';
 import { VerifyEmailUseCase } from './application/use-cases/verify-email.use-case';
 import { IssueEmailVerificationUseCase } from './application/use-cases/issue-email-verification.use-case';
-import { CreateLightweightAccountUseCase } from './application/use-cases/create-lightweight-account.use-case';
 import { RequestPasswordResetUseCase } from './application/use-cases/request-password-reset.use-case';
 import { ResetPasswordUseCase } from './application/use-cases/reset-password.use-case';
 import { GetMeUseCase } from './application/use-cases/get-me.use-case';
@@ -49,7 +48,6 @@ import { UnverifiedEmailReleaseTask } from './application/unverified-email-relea
 import { RequestPhoneChangeUseCase } from './application/use-cases/request-phone-change.use-case';
 import { ConfirmPhoneChangeUseCase } from './application/use-cases/confirm-phone-change.use-case';
 import { DeleteAccountUseCase } from './application/use-cases/delete-account.use-case';
-import { ClaimAccountUseCase } from './application/use-cases/claim-account.use-case';
 import { ListAddressesUseCase } from './application/use-cases/list-addresses.use-case';
 import { GetAddressUseCase } from './application/use-cases/get-address.use-case';
 import { CreateAddressUseCase } from './application/use-cases/create-address.use-case';
@@ -87,7 +85,6 @@ import { AuthController } from './presentation/controllers/auth.controller';
 import { MeController } from './presentation/controllers/me.controller';
 import { MeSessionsController } from './presentation/controllers/me-sessions.controller';
 import { MeAddressesController } from './presentation/controllers/me-addresses.controller';
-import { InternalCustomersController } from './presentation/controllers/internal-customers.controller';
 import { ServiceTokenGuard } from '../../shared/guards/service-token.guard';
 import { JwtCustomerStrategy } from './presentation/strategies/jwt-customer.strategy';
 import { JwtCustomerGuard } from './presentation/guards/jwt-customer.guard';
@@ -160,7 +157,6 @@ import { AdminMfaController } from '../mfa/presentation/controllers/admin-mfa.co
     MeController,
     MeSessionsController,
     MeAddressesController,
-    InternalCustomersController,
     // MFA (module 17)
     MfaAuthController,
     MeMfaController,
@@ -206,7 +202,6 @@ import { AdminMfaController } from '../mfa/presentation/controllers/admin-mfa.co
     LoginWithEmailUseCase,
     LoginWithGoogleUseCase,
     VerifyEmailUseCase,
-    CreateLightweightAccountUseCase,
     RequestPasswordResetUseCase,
     ResetPasswordUseCase,
     GetMeUseCase,
@@ -220,7 +215,6 @@ import { AdminMfaController } from '../mfa/presentation/controllers/admin-mfa.co
     RequestPhoneChangeUseCase,
     ConfirmPhoneChangeUseCase,
     DeleteAccountUseCase,
-    ClaimAccountUseCase,
     ListAddressesUseCase,
     GetAddressUseCase,
     CreateAddressUseCase,
@@ -252,7 +246,6 @@ import { AdminMfaController } from '../mfa/presentation/controllers/admin-mfa.co
     JwtCustomerGuard,
     PassportModule,
     IssueEmailVerificationUseCase,
-    CreateLightweightAccountUseCase,
     GetAddressUseCase,
   ],
 })

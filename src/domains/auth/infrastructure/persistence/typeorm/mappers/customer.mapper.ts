@@ -11,7 +11,6 @@ export class CustomerMapper {
       o.phone,
       o.email,
       o.passwordHash,
-      o.isLightweight,
       o.phoneVerified,
       o.emailVerified,
       o.gender ? (o.gender as Gender) : null,
@@ -35,7 +34,6 @@ export class CustomerMapper {
     o.phone = d.phone;
     o.email = d.email;
     o.passwordHash = d.passwordHash;
-    o.isLightweight = d.isLightweight;
     o.phoneVerified = d.phoneVerified;
     o.emailVerified = d.emailVerified;
     o.gender = d.gender;
