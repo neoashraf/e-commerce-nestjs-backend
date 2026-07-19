@@ -29,6 +29,8 @@ import { UpdateProfileUseCase } from '../../application/use-cases/update-profile
 import { ChangePasswordUseCase } from '../../application/use-cases/change-password.use-case';
 import { RequestPasswordSetUseCase } from '../../application/use-cases/request-password-set.use-case';
 import { SetPasswordUseCase } from '../../application/use-cases/set-password.use-case';
+import { RequestEmailChangeUseCase } from '../../application/use-cases/request-email-change.use-case';
+import { ConfirmEmailChangeUseCase } from '../../application/use-cases/confirm-email-change.use-case';
 import { RequestPhoneChangeUseCase } from '../../application/use-cases/request-phone-change.use-case';
 import { ConfirmPhoneChangeUseCase } from '../../application/use-cases/confirm-phone-change.use-case';
 import { DeleteAccountUseCase } from '../../application/use-cases/delete-account.use-case';
@@ -36,6 +38,12 @@ import { JwtCustomerGuard } from '../guards/jwt-customer.guard';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
 import { PasswordSetRequestResponseDto, SetPasswordDto } from '../dto/password-set.dto';
+import {
+  EmailChangeConfirmDto,
+  EmailChangeConfirmResponseDto,
+  EmailChangeRequestDto,
+  EmailChangeRequestResponseDto,
+} from '../dto/email-change.dto';
 import { ChangePhoneConfirmDto, ChangePhoneRequestDto } from '../dto/change-phone.dto';
 import { DeleteAccountDto } from '../dto/delete-account.dto';
 import { MessageResponseDto } from '../dto/message-response.dto';
@@ -57,6 +65,8 @@ export class MeController {
     private readonly changePasswordUseCase: ChangePasswordUseCase,
     private readonly requestPasswordSetUseCase: RequestPasswordSetUseCase,
     private readonly setPasswordUseCase: SetPasswordUseCase,
+    private readonly requestEmailChangeUseCase: RequestEmailChangeUseCase,
+    private readonly confirmEmailChangeUseCase: ConfirmEmailChangeUseCase,
     private readonly requestPhoneChangeUseCase: RequestPhoneChangeUseCase,
     private readonly confirmPhoneChangeUseCase: ConfirmPhoneChangeUseCase,
     private readonly deleteAccountUseCase: DeleteAccountUseCase,
@@ -71,30 +81,63 @@ export class MeController {
   }
 
   @Patch()
-  @ApiOperation({ summary: 'Update profile; changing email re-triggers verification' })
+  @ApiOperation({
+    summary: 'Update profile (email NOT accepted here — use the email-change pair, FR-AUTH-041)',
+  })
   @ApiOkResponse({ type: UpdateProfileResponseDto })
-  @ApiConflictResponse({ description: 'Email already in use by another account' })
-  @ApiBadRequestResponse({ description: 'Invalid date of birth / under 13' })
+  @ApiBadRequestResponse({ description: 'Invalid date of birth / under 13 / unknown field (email)' })
   async updateProfile(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: UpdateProfileDto,
   ): Promise<UpdateProfileResponseDto> {
-    const { customer: updated, emailChanged } = await this.updateProfileUseCase.execute({
+    const { customer: updated } = await this.updateProfileUseCase.execute({
       customerId: customer.customerId,
       fullName: dto.full_name,
       gender: dto.gender,
       dateOfBirth: dto.date_of_birth,
-      email: dto.email,
       promoSmsOptIn: dto.promo_sms_opt_in,
       promoEmailOptIn: dto.promo_email_opt_in,
     });
+    return { id: updated.id, full_name: updated.fullName };
+  }
+
+  @Post('email/change/request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request an email add/change: code sent to the NEW address (pending only)' })
+  @ApiOkResponse({ type: EmailChangeRequestResponseDto })
+  @ApiConflictResponse({ description: 'Email already in use by another account' })
+  async requestEmailChange(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+    @Body() dto: EmailChangeRequestDto,
+  ): Promise<EmailChangeRequestResponseDto> {
+    const result = await this.requestEmailChangeUseCase.execute({
+      customerId: customer.customerId,
+      newEmail: dto.new_email,
+    });
     return {
-      id: updated.id,
-      email_verified: updated.emailVerified,
-      ...(emailChanged && updated.email
-        ? { message: `Verification email sent to ${updated.email}` }
-        : {}),
+      request_id: result.requestId,
+      sent_to: result.sentTo,
+      expires_in: result.expiresIn,
     };
+  }
+
+  @Post('email/change/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm an email change: attaches already-verified (FR-AUTH-044)' })
+  @ApiOkResponse({ type: EmailChangeConfirmResponseDto })
+  @ApiBadRequestResponse({ description: 'Wrong/expired code; request expired (15 min)' })
+  @ApiConflictResponse({ description: 'Address was verified by another account meanwhile' })
+  async confirmEmailChange(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+    @Body() dto: EmailChangeConfirmDto,
+  ): Promise<EmailChangeConfirmResponseDto> {
+    const result = await this.confirmEmailChangeUseCase.execute({
+      customerId: customer.customerId,
+      requestId: dto.request_id,
+      code: dto.code,
+      currentSessionId: customer.sessionId,
+    });
+    return { email: result.email, email_verified: result.emailVerified };
   }
 
   @Patch('password')

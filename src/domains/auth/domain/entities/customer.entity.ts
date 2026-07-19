@@ -216,10 +216,13 @@ export class Customer {
     this.updatedAt = now;
   }
 
-  /** Begin an email change (FR-AUTH-041): store the new address but require re-verification. */
-  changeEmailPending(email: string, now: Date): void {
+  /**
+   * Attach an email that has just been verified via the change-confirm flow
+   * (FR-AUTH-041/044): lands on the account already `email_verified = true`.
+   */
+  attachVerifiedEmail(email: string, now: Date): void {
     this.email = email;
-    this.emailVerified = false;
+    this.emailVerified = true;
     this.updatedAt = now;
   }
 

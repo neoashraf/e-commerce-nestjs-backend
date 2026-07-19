@@ -38,11 +38,8 @@ export class UpdateProfileResponseDto {
   @ApiProperty({ example: 'c_77...' })
   id: string;
 
-  @ApiProperty({ example: false })
-  email_verified: boolean;
-
-  @ApiPropertyOptional({ example: 'Verification email sent to new@example.com' })
-  message?: string;
+  @ApiProperty({ example: 'Sabbir A.' })
+  full_name: string;
 }
 
 export class ChangePhoneRequestResponseDto {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 
 import { Customer } from '../../domain/entities/customer.entity';
 import { Session } from '../../domain/entities/session.entity';
@@ -56,8 +56,16 @@ export class LoginWithGoogleUseCase {
     let isNewAccount = false;
 
     if (customer) {
-      // Known email → log in. A Google-verified email implies the address is confirmed.
-      if (!customer.emailVerified) customer.markEmailVerified(now);
+      // Link by VERIFIED email only (FR-AUTH-091/093, BR-AUTH-11): if the matching account's
+      // email is unverified, it may belong to a squatter — never link or merge. The user must
+      // verify that address (proving account ownership) or use another login method.
+      if (!customer.emailVerified) {
+        throw new ConflictException({
+          code: 'EMAIL_UNVERIFIED_CONFLICT',
+          message:
+            'An account with this email exists but the address is not verified. Verify the email on that account or use another login method.',
+        });
+      }
       customer.markLoggedIn(now);
       customer = await this.customers.save(customer);
     } else {

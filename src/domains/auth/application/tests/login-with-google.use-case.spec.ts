@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 
 import { Customer } from '../../domain/entities/customer.entity';
 import { LoginWithGoogleUseCase } from '../use-cases/login-with-google.use-case';
@@ -54,6 +54,18 @@ describe('Auth — LoginWithGoogleUseCase', () => {
 
     expect(result.isNewAccount).toBe(false);
     expect(result.customer.id).toBe('c1');
+  });
+
+  it('never links on an UNVERIFIED email match — 409 EMAIL_UNVERIFIED_CONFLICT (FR-AUTH-093)', async () => {
+    // A squatter attached this address via email+password registration but never verified it.
+    const squatted = Customer.registerWithEmail('c9', 'Squatter', 'sabit@gmail.com', 'hash', false, new Date('2026-01-01'));
+    const { useCase, customers, sessions } = makeUseCase(VERIFIED, squatted);
+
+    await expect(useCase.execute({ idToken: 'tok' })).rejects.toBeInstanceOf(ConflictException);
+    // No link, no merge, no session — and the squatted email must NOT get verified.
+    expect(customers.save).not.toHaveBeenCalled();
+    expect(sessions.save).not.toHaveBeenCalled();
+    expect(squatted.emailVerified).toBe(false);
   });
 
   it('rejects a Google token whose email is not verified (401)', async () => {

@@ -34,6 +34,9 @@ export const EVENT_CATALOG: Record<string, EventDefinition> = {
   'otp.password_reset': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
   'otp.password_set': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
   'auth.email_verify': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'verify_url'] },
+  // Verify-before-attach email change (FR-AUTH-041/046): code to the NEW address + notice to the OLD.
+  'auth.email_change_verify': { category: TX, channels: [EMAIL], requiredPlaceholders: ['code'], optionalPlaceholders: ['name', 'ttl_minutes', 'otp'] },
+  'auth.email_changed': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name'], optionalPlaceholders: ['new_email'] },
   'auth.password_reset': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'reset_url'], optionalPlaceholders: ['expires_minutes'] },
   'admin.invite': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'invite_url'], optionalPlaceholders: ['role'] },
   'admin.password_reset': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'reset_url'] },

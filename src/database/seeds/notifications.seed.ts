@@ -66,6 +66,48 @@ const TEMPLATES: TemplateSeed[] = [
   { event: 'otp.password_set', channel: 'sms', locale: 'en', subject: null, body: OTP_BODY_EN },
   { event: 'otp.password_set', channel: 'sms', locale: 'bn', subject: null, body: OTP_BODY_BN },
 
+  // Verify-before-attach email change (FR-AUTH-041/046) — code to the NEW address + notice to the OLD.
+  {
+    event: 'auth.email_change_verify',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Confirm your new email address',
+    body: emailHtml(
+      'Confirm your new email',
+      emailCode('Your email change code is:', "This code expires in {{ttl_minutes}} minutes. If you didn't request this change, you can ignore this email."),
+    ),
+  },
+  {
+    event: 'auth.email_change_verify',
+    channel: 'email',
+    locale: 'bn',
+    subject: 'আপনার নতুন ইমেইল ঠিকানা নিশ্চিত করুন',
+    body: emailHtml(
+      'নতুন ইমেইল নিশ্চিত করুন',
+      emailCode('আপনার ইমেইল পরিবর্তনের কোড:', 'কোডটির মেয়াদ {{ttl_minutes}} মিনিট। আপনি এই পরিবর্তনের অনুরোধ না করলে এই ইমেইল উপেক্ষা করুন।'),
+    ),
+  },
+  {
+    event: 'auth.email_changed',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Your account email was changed',
+    body: emailHtml(
+      'Account email changed',
+      '  <p>Hi {{name}}, the email on your account was just changed to {{new_email}}. Other devices have been signed out.</p>\n  <p style="font-size:13px;color:#6b7280">If this was not you, please contact support immediately.</p>',
+    ),
+  },
+  {
+    event: 'auth.email_changed',
+    channel: 'email',
+    locale: 'bn',
+    subject: 'আপনার অ্যাকাউন্টের ইমেইল পরিবর্তিত হয়েছে',
+    body: emailHtml(
+      'অ্যাকাউন্টের ইমেইল পরিবর্তিত',
+      '  <p>প্রিয় {{name}}, আপনার অ্যাকাউন্টের ইমেইল {{new_email}}-এ পরিবর্তন করা হয়েছে। অন্যান্য ডিভাইস সাইন আউট করা হয়েছে।</p>\n  <p style="font-size:13px;color:#6b7280">এটি আপনি না করে থাকলে দ্রুত সাপোর্টে যোগাযোগ করুন।</p>',
+    ),
+  },
+
   // MFA (module 17) — customer login second factor (email + SMS, en + bn).
   {
     event: 'otp.login_2fa',

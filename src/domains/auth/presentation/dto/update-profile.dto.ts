@@ -1,7 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsEnum, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
 
 import { Gender } from '../../domain/enums/gender.enum';
+
+// NOTE (2026-07-19): `email` is intentionally ABSENT (amended contract 01, FR-AUTH-041).
+// Email add/change goes through POST /me/email/change/request|confirm (verify-before-attach);
+// with `forbidNonWhitelisted` on, a request still sending `email` here is rejected with 400.
 
 export class UpdateProfileDto {
   @ApiPropertyOptional({ example: 'Sabbir A.', maxLength: 120 })
@@ -19,11 +23,6 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsISO8601()
   date_of_birth?: string;
-
-  @ApiPropertyOptional({ example: 'new@example.com', description: 'Changing this re-triggers email verification' })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

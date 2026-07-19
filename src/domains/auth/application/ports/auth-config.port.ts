@@ -23,6 +23,10 @@ export interface AuthConfig {
   passwordSetFreshnessSeconds: number;
   /** Lifetime of the single-use `set_token` issued inside the freshness window (default 10 min). */
   passwordSetTokenTtlSeconds: number;
+  /** Pending email-change lifetime in seconds (FR-AUTH-044, default 15 min). */
+  emailChangeTtlSeconds: number;
+  /** Cooldown between email-change requests, in seconds (contract 01: 429). */
+  emailChangeResendCooldownSeconds: number;
   /**
    * DEV-ONLY: echo the generated OTP back in the request-OTP response so a tester can read it on
    * screen while there's no live SMS gateway. Hard-gated OFF in production regardless of env
