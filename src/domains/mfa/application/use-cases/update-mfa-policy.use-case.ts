@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { MfaSettings } from '../../domain/entities/mfa-settings.entity';
+import { MfaChannel } from '../../domain/enums/mfa-channel.enum';
 import { MfaEnforcement } from '../../domain/enums/mfa-enforcement.enum';
 import {
   IMfaSettingsRepository,
@@ -11,6 +12,8 @@ export interface UpdateMfaPolicyCommand {
   smsEnabled?: boolean;
   emailEnabled?: boolean;
   enforcementMode?: MfaEnforcement;
+  /** First-attempt channel for both-eligible, no-preference customers (FR-MFA-036). */
+  defaultChannel?: MfaChannel;
   otpTtlSeconds?: number;
   resendCooldownSeconds?: number;
   maxAttempts?: number;
@@ -36,6 +39,7 @@ export class UpdateMfaPolicyUseCase {
           smsEnabled: command.smsEnabled,
           emailEnabled: command.emailEnabled,
           enforcementMode: command.enforcementMode,
+          defaultChannel: command.defaultChannel,
           otpTtlSeconds: command.otpTtlSeconds,
           resendCooldownSeconds: command.resendCooldownSeconds,
           maxAttempts: command.maxAttempts,
@@ -48,6 +52,13 @@ export class UpdateMfaPolicyUseCase {
         throw new BadRequestException({
           code: 'MFA_NO_CHANNEL',
           message: 'Mandatory 2FA requires at least one delivery channel (SMS or email) enabled.',
+        });
+      }
+      if ((err as Error).message === 'MFA_DEFAULT_CHANNEL_DISABLED') {
+        // Contract 17 groups this under the same 400 MFA_NO_CHANNEL error (FR-MFA-036).
+        throw new BadRequestException({
+          code: 'MFA_NO_CHANNEL',
+          message: 'default_channel must reference an enabled channel.',
         });
       }
       throw err;

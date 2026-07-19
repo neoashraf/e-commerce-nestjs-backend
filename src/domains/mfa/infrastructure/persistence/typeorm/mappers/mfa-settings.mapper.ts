@@ -1,4 +1,5 @@
 import { MfaSettings } from '../../../../domain/entities/mfa-settings.entity';
+import { MfaChannel } from '../../../../domain/enums/mfa-channel.enum';
 import { MfaEnforcement } from '../../../../domain/enums/mfa-enforcement.enum';
 import { MfaSettingsOrmEntity } from '../entities/mfa-settings.orm-entity';
 
@@ -15,6 +16,7 @@ export class MfaSettingsMapper {
       o.updatedBy ?? null,
       new Date(o.createdAt),
       new Date(o.updatedAt),
+      o.defaultChannel as MfaChannel,
     );
   }
 
@@ -24,6 +26,7 @@ export class MfaSettingsMapper {
     o.smsEnabled = d.smsEnabled;
     o.emailEnabled = d.emailEnabled;
     o.enforcementMode = d.enforcementMode;
+    o.defaultChannel = d.defaultChannel;
     o.otpTtlSeconds = d.otpTtlSeconds;
     o.resendCooldownSeconds = d.resendCooldownSeconds;
     o.maxAttempts = d.maxAttempts;

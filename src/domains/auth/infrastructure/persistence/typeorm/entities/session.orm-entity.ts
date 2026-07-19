@@ -26,6 +26,10 @@ export class SessionOrmEntity {
   @Column({ name: 'otp_verified_at', type: 'timestamptz', nullable: true })
   otpVerifiedAt: Date | null;
 
+  /** True when created through a completed second factor (FR-MFA-018). */
+  @Column({ name: 'mfa_verified', default: false })
+  mfaVerified: boolean;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

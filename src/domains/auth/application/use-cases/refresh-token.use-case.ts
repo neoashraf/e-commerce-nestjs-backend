@@ -58,10 +58,13 @@ export class RefreshTokenUseCase {
     await this.sessions.save(session);
 
     const nextSessionId = randomUUID();
-    const access = await this.tokens.signAccessToken(session.customerId, nextSessionId);
+    const access = await this.tokens.signAccessToken(session.customerId, nextSessionId, {
+      mfaVerified: session.mfaVerified,
+    });
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
-      // Carry the OTP-verified marker across the rotation — same login lineage (FR-AUTH-037).
+      // Carry the OTP-verified + 2FA-verified markers across the rotation — same login
+      // lineage (FR-AUTH-037, FR-MFA-018).
       Session.issue(
         nextSessionId,
         session.customerId,
@@ -70,6 +73,7 @@ export class RefreshTokenUseCase {
         now,
         null,
         session.otpVerifiedAt,
+        session.mfaVerified,
       ),
     );
 

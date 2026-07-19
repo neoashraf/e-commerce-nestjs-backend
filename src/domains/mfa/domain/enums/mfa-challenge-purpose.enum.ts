@@ -4,4 +4,6 @@ export enum MfaChallengePurpose {
   LOGIN_2FA = 'login_2fa',
   /** Confirming the channel works while enabling 2FA (FR-MFA-001). */
   ENABLE = 'enable',
+  /** Fresh proof-of-control code required to disable 2FA from a non-2FA-verified session (FR-MFA-002). */
+  DISABLE = 'disable',
 }

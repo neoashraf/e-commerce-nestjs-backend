@@ -5,8 +5,10 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import {
   AuthenticatedCustomer,
@@ -57,6 +59,7 @@ export class MeMfaController {
       policy: {
         enforcement_mode: result.policy.enforcementMode,
         available_channels: result.policy.availableChannels,
+        default_channel: result.policy.defaultChannel,
       },
       eligible_channels: result.eligibleChannels,
     };
@@ -64,9 +67,11 @@ export class MeMfaController {
 
   @Post('enable')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Start enabling 2FA — sends a confirmation code (FR-MFA-001)' })
   @ApiOkResponse({ type: EnableMfaResponseDto })
   @ApiBadRequestResponse({ description: 'NO_ELIGIBLE_CHANNEL | CHANNEL_NOT_AVAILABLE | MFA_PASSWORD_REQUIRED' })
+  @ApiTooManyRequestsResponse({ description: 'MFA_COOLDOWN | MFA_HOURLY_CAP (FR-MFA-008)' })
   async enableMfa(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: EnableMfaDto,
@@ -87,7 +92,10 @@ export class MeMfaController {
 
   @Post('enable/confirm')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Confirm the enable code and activate 2FA (FR-MFA-001)' })
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Confirm the enable code and activate 2FA; other sessions are revoked (FR-MFA-001/007)',
+  })
   @ApiOkResponse({ type: ConfirmEnableResponseDto })
   @ApiBadRequestResponse({ description: 'INVALID_CODE | CODE_EXPIRED' })
   async confirm(
@@ -98,6 +106,7 @@ export class MeMfaController {
       customerId: customer.customerId,
       challengeId: dto.challenge_id,
       code: dto.code,
+      currentSessionId: customer.sessionId,
     });
     return {
       enabled: result.enabled,
@@ -108,10 +117,17 @@ export class MeMfaController {
 
   @Post('disable')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Disable 2FA (requires current password) (FR-MFA-002)' })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({
+    summary:
+      'Disable 2FA: password always; a fresh code additionally when the session is not 2FA-verified (FR-MFA-002/018). Calling without the required code sends one (400 MFA_CODE_REQUIRED).',
+  })
   @ApiOkResponse({ type: DisableMfaResponseDto })
   @ApiUnauthorizedResponse({ description: 'INVALID_PASSWORD' })
-  @ApiBadRequestResponse({ description: 'MFA_NOT_ENABLED' })
+  @ApiBadRequestResponse({
+    description: 'MFA_NOT_ENABLED | MFA_CODE_REQUIRED (code sent) | INVALID_CODE | CODE_EXPIRED',
+  })
+  @ApiTooManyRequestsResponse({ description: 'MFA_COOLDOWN | MFA_HOURLY_CAP (FR-MFA-008)' })
   async disableMfa(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: DisableMfaDto,
@@ -119,6 +135,9 @@ export class MeMfaController {
     const result = await this.disable.execute({
       customerId: customer.customerId,
       currentPassword: dto.current_password,
+      code: dto.code,
+      sessionMfaVerified: customer.mfaVerified === true,
+      currentSessionId: customer.sessionId,
     });
     return { enabled: result.enabled };
   }

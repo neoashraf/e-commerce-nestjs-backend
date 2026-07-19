@@ -14,6 +14,10 @@ export class MfaSettingsOrmEntity {
   @Column({ name: 'enforcement_mode', type: 'varchar', length: 20, default: 'optional' })
   enforcementMode: string;
 
+  /** First-attempt channel when both are eligible and no preference is saved (FR-MFA-036). */
+  @Column({ name: 'default_channel', type: 'varchar', length: 10, default: 'email' })
+  defaultChannel: string;
+
   @Column({ name: 'otp_ttl_seconds', type: 'int', default: 300 })
   otpTtlSeconds: number;
 

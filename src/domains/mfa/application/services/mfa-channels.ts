@@ -20,6 +20,21 @@ export function eligibleChannels(settings: MfaSettings, c: CustomerContacts): Mf
   return out;
 }
 
+/**
+ * Resolve which channel a challenge goes to (FR-MFA-012/036): the customer's saved
+ * preference (if still eligible) → the policy `default_channel` (if eligible) → the
+ * single/first eligible channel. Callers guarantee `eligible` is non-empty.
+ */
+export function resolveChallengeChannel(
+  settings: MfaSettings,
+  preferred: MfaChannel | null,
+  eligible: MfaChannel[],
+): MfaChannel {
+  if (preferred && eligible.includes(preferred)) return preferred;
+  if (eligible.includes(settings.defaultChannel)) return settings.defaultChannel;
+  return eligible[0];
+}
+
 /** The raw destination (email or E.164 phone) a code on `channel` is sent to. */
 export function destinationFor(channel: MfaChannel, c: CustomerContacts): string | null {
   if (channel === MfaChannel.EMAIL) return c.email;
