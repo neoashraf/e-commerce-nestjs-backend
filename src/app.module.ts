@@ -29,7 +29,12 @@ import { MediaModule } from './shared/media/media.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     MediaModule,
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 100 }],
+      // e2e seam: rate limits are unit-tested at the use-case layer; the HTTP throttler
+      // would otherwise 429 fast supertest suites (same IP for every request).
+      skipIf: () => process.env.NODE_ENV === 'test',
+    }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

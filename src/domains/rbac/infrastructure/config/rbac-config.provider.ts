@@ -31,6 +31,8 @@ export const rbacConfigProvider: Provider = {
     loginLockMinutes: Number(config.get<string>('ADMIN_LOGIN_LOCK_MINUTES') ?? 15),
     twofaOtpTtlSeconds: parseDurationToSeconds(config.get<string>('ADMIN_2FA_OTP_TTL'), 300),
     twofaAttemptCap: Number(config.get<string>('ADMIN_2FA_ATTEMPT_CAP') ?? 5),
+    twofaResendCooldownSeconds: Number(config.get<string>('ADMIN_2FA_RESEND_COOLDOWN') ?? 60),
+    twofaHourlyCap: Number(config.get<string>('ADMIN_2FA_HOURLY_CAP') ?? 5),
     resetTokenTtlSeconds: parseDurationToSeconds(config.get<string>('ADMIN_RESET_TOKEN_TTL'), 3_600),
     adminPanelUrl: config.get<string>('ADMIN_PANEL_URL') ?? 'http://localhost:3000',
   }),

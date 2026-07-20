@@ -33,7 +33,6 @@ import { IssueEmailVerificationUseCase } from '../../application/use-cases/issue
 import { GetMeUseCase } from '../../application/use-cases/get-me.use-case';
 import { RequestPasswordResetUseCase } from '../../application/use-cases/request-password-reset.use-case';
 import { ResetPasswordUseCase } from '../../application/use-cases/reset-password.use-case';
-import { ClaimAccountUseCase } from '../../application/use-cases/claim-account.use-case';
 import { RequestOtpDto } from '../dto/request-otp.dto';
 import { VerifyOtpDto } from '../dto/verify-otp.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
@@ -45,14 +44,12 @@ import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { MessageResponseDto } from '../dto/message-response.dto';
-import { ClaimAccountDto } from '../dto/claim.dto';
 import { JwtCustomerGuard } from '../guards/jwt-customer.guard';
 import {
   AuthenticatedCustomer,
   CurrentCustomer,
 } from '../../../../shared/decorators/current-customer.decorator';
 import {
-  ClaimResponseDto,
   LoginResponseDto,
   OtpRequestResponseDto,
   RefreshResponseDto,
@@ -77,7 +74,6 @@ export class AuthController {
     private readonly getMeUseCase: GetMeUseCase,
     private readonly requestPasswordResetUseCase: RequestPasswordResetUseCase,
     private readonly resetPasswordUseCase: ResetPasswordUseCase,
-    private readonly claimAccountUseCase: ClaimAccountUseCase,
   ) {}
 
   @Post('otp/request')
@@ -188,7 +184,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Log in with email + password' })
+  @ApiOperation({ summary: 'Log in with email + password (may require a second factor)' })
   @ApiOkResponse({ type: LoginResponseDto })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   async login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
@@ -196,6 +192,21 @@ export class AuthController {
       email: dto.email,
       password: dto.password,
     });
+    if (result.mfaRequired) {
+      // 2FA required — tokens withheld until the second factor is verified (FR-MFA-010).
+      return {
+        mfa_required: true,
+        pre_auth_token: result.preAuthToken,
+        challenge: {
+          id: result.challenge.id,
+          channel: result.challenge.channel,
+          sent_to: result.challenge.sentTo,
+          expires_in: result.challenge.expiresIn,
+          resend_after: result.challenge.resendAfter,
+        },
+        available_channels: result.availableChannels,
+      };
+    }
     return {
       customer: { id: result.customer.id },
       tokens: {
@@ -274,33 +285,6 @@ export class AuthController {
       newPassword: dto.new_password,
     });
     return { message: 'Password updated. All sessions have been signed out.' };
-  }
-
-  @Post('account/claim')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Claim/activate a lightweight account via OTP (optionally set a password)' })
-  @ApiOkResponse({ type: ClaimResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid/expired OTP or weak password' })
-  @ApiConflictResponse({ description: 'Phone already belongs to a full account' })
-  async claimAccount(@Body() dto: ClaimAccountDto): Promise<ClaimResponseDto> {
-    const result = await this.claimAccountUseCase.execute({
-      challengeId: dto.challenge_id,
-      code: dto.code,
-      password: dto.password,
-    });
-    return {
-      customer: {
-        id: result.customer.id,
-        is_lightweight: result.customer.isLightweight,
-        phone_verified: result.customer.phoneVerified,
-      },
-      tokens: {
-        access_token: result.tokens.accessToken,
-        refresh_token: result.tokens.refreshToken,
-        expires_in: result.tokens.expiresIn,
-      },
-    };
   }
 
   @Post('token/refresh')

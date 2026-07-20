@@ -2,8 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import {
+  DispatchEmailChangeCodeCommand,
+  DispatchEmailChangedNoticeCommand,
   DispatchEmailVerificationCommand,
+  DispatchMfaCodeCommand,
+  DispatchMfaStateChangeCommand,
   DispatchOtpCommand,
+  DispatchPasswordChangedCommand,
   DispatchPasswordResetCommand,
   INotificationDispatcher,
 } from '../../application/ports/notification-dispatcher.port';
@@ -122,6 +127,188 @@ export class NotificationDispatcherService implements INotificationDispatcher {
 
     if (!res.ok) {
       throw new Error(`NOTIF password-reset dispatch failed with status ${res.status}`);
+    }
+  }
+
+  async dispatchMfaCode(command: DispatchMfaCodeCommand): Promise<void> {
+    const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
+    const recipient =
+      command.channel === 'sms' ? { phone: command.phone } : { email: command.email };
+    const target = command.channel === 'sms' ? command.phone : command.email;
+
+    if (!baseUrl) {
+      // DEV stub — NOTIF not deployed yet; log the code so the 2FA flow is testable locally.
+      this.logger.warn(`[DEV MFA CODE] otp.login_2fa (${command.channel}) → ${target} code=${command.code}`);
+      return;
+    }
+
+    const token = this.config.get<string>('NOTIF_SERVICE_TOKEN');
+    const res = await fetch(`${baseUrl}/api/v1/internal/notifications/dispatch`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        event_type: 'otp.login_2fa',
+        locale: 'bn',
+        recipient,
+        channels: [command.channel],
+        variables: { code: command.code, otp: command.code },
+        idempotency_key: `otp.login_2fa:${target}:${Date.now()}`,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`NOTIF MFA-code dispatch failed with status ${res.status}`);
+    }
+  }
+
+  async dispatchMfaStateChange(command: DispatchMfaStateChangeCommand): Promise<void> {
+    const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
+    const recipient =
+      command.channel === 'sms' ? { phone: command.phone } : { email: command.email };
+    const target = command.channel === 'sms' ? command.phone : command.email;
+    const state = command.enabled ? 'enabled' : 'disabled';
+
+    if (!baseUrl) {
+      // DEV stub — NOTIF not deployed yet. Best-effort, non-fatal.
+      this.logger.warn(`[DEV MFA STATE] auth.mfa_changed (${command.channel}) → ${target} ${state}`);
+      return;
+    }
+
+    const token = this.config.get<string>('NOTIF_SERVICE_TOKEN');
+    try {
+      await fetch(`${baseUrl}/api/v1/internal/notifications/dispatch`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          event_type: 'auth.mfa_changed',
+          locale: 'bn',
+          recipient,
+          channels: [command.channel],
+          variables: { state },
+          idempotency_key: `auth.mfa_changed:${target}:${state}:${Date.now()}`,
+        }),
+      });
+    } catch (err) {
+      // A confirmation notice is best-effort; never fail the enable/disable action over it.
+      this.logger.error(`MFA state-change notification failed: ${(err as Error).message}`);
+    }
+  }
+
+  async dispatchPasswordChanged(command: DispatchPasswordChangedCommand): Promise<void> {
+    const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
+    // Prefer email; fall back to SMS if the account has no verified email.
+    const channel: 'email' | 'sms' = command.email ? 'email' : 'sms';
+    const recipient = channel === 'email' ? { email: command.email } : { phone: command.phone };
+    const target = channel === 'email' ? command.email : command.phone;
+
+    if (!target) {
+      // Nothing verified to notify — silently skip (best-effort per FR-AUTH-038).
+      return;
+    }
+
+    if (!baseUrl) {
+      this.logger.warn(
+        `[DEV PASSWORD CHANGED] auth.password_changed (${channel}) → ${target} event=${command.event}`,
+      );
+      return;
+    }
+
+    const token = this.config.get<string>('NOTIF_SERVICE_TOKEN');
+    try {
+      await fetch(`${baseUrl}/api/v1/internal/notifications/dispatch`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          event_type: 'auth.password_changed',
+          locale: 'bn',
+          recipient,
+          channels: [channel],
+          variables: { name: command.fullName, event: command.event },
+          idempotency_key: `auth.password_changed:${target}:${command.event}:${Date.now()}`,
+        }),
+      });
+    } catch (err) {
+      // Non-fatal: the credential change already succeeded; the notice is a courtesy.
+      this.logger.error(`password-changed notification failed: ${(err as Error).message}`);
+    }
+  }
+
+  async dispatchEmailChangeCode(command: DispatchEmailChangeCodeCommand): Promise<void> {
+    const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
+
+    if (!baseUrl) {
+      // DEV stub — NOTIF not deployed yet; log the code so the flow is testable locally.
+      this.logger.warn(`[DEV EMAIL CHANGE] ${command.email} code=${command.code}`);
+      return;
+    }
+
+    const token = this.config.get<string>('NOTIF_SERVICE_TOKEN');
+    const res = await fetch(`${baseUrl}/api/v1/internal/notifications/dispatch`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        event_type: 'auth.email_change_verify',
+        locale: 'bn',
+        recipient: { email: command.email },
+        channels: ['email'],
+        variables: {
+          name: command.fullName,
+          code: command.code,
+          otp: command.code,
+          ttl_minutes: command.ttlMinutes,
+        },
+        idempotency_key: `auth.email_change_verify:${command.email}:${Date.now()}`,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`NOTIF email-change dispatch failed with status ${res.status}`);
+    }
+  }
+
+  async dispatchEmailChangedNotice(command: DispatchEmailChangedNoticeCommand): Promise<void> {
+    const baseUrl = this.config.get<string>('NOTIF_DISPATCH_URL');
+
+    if (!baseUrl) {
+      // DEV stub — NOTIF not deployed yet. Best-effort, non-fatal.
+      this.logger.warn(
+        `[DEV EMAIL CHANGED] notice → ${command.email} new=${command.newEmailMasked}`,
+      );
+      return;
+    }
+
+    const token = this.config.get<string>('NOTIF_SERVICE_TOKEN');
+    try {
+      await fetch(`${baseUrl}/api/v1/internal/notifications/dispatch`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          event_type: 'auth.email_changed',
+          locale: 'bn',
+          recipient: { email: command.email },
+          channels: ['email'],
+          variables: { name: command.fullName, new_email: command.newEmailMasked },
+          idempotency_key: `auth.email_changed:${command.email}:${Date.now()}`,
+        }),
+      });
+    } catch (err) {
+      // The change already succeeded; the courtesy notice must not fail it (FR-AUTH-046).
+      this.logger.error(`email-changed notice failed: ${(err as Error).message}`);
     }
   }
 

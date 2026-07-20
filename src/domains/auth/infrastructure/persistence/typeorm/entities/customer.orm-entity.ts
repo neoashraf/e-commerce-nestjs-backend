@@ -27,9 +27,6 @@ export class CustomerOrmEntity {
   @Column({ name: 'password_hash', type: 'varchar', nullable: true })
   passwordHash: string | null;
 
-  @Column({ name: 'is_lightweight', default: false })
-  isLightweight: boolean;
-
   @Column({ name: 'phone_verified', default: false })
   phoneVerified: boolean;
 

@@ -9,7 +9,6 @@ export class Customer {
     public phone: string,
     public email: string | null,
     public passwordHash: string | null,
-    public isLightweight: boolean,
     public phoneVerified: boolean,
     public emailVerified: boolean,
     public gender: Gender | null,
@@ -25,7 +24,7 @@ export class Customer {
     public deletedAt: Date | null,
   ) {}
 
-  /** Factory for a phone-OTP registration (FR-AUTH-001, 006): phone verified, not lightweight. */
+  /** Factory for a phone-OTP registration (FR-AUTH-001, 006): phone verified. */
   static registerWithPhone(id: string, fullName: string, phone: string, now: Date): Customer {
     return new Customer(
       id,
@@ -33,7 +32,6 @@ export class Customer {
       phone,
       null,
       null,
-      false,
       true,
       false,
       null,
@@ -52,8 +50,8 @@ export class Customer {
 
   /**
    * Factory for an email + password registration (FR-AUTH-002, 006): email present but
-   * unverified, phone empty until added, not lightweight. Phone is stored empty for a
-   * pure-email account (the address book / phone-change flows can populate it later).
+   * unverified, phone empty until added. Phone is stored empty for a pure-email account
+   * (the address book / phone-change flows can populate it later).
    */
   static registerWithEmail(
     id: string,
@@ -71,48 +69,9 @@ export class Customer {
       passwordHash,
       false,
       false,
-      false,
       null,
       null,
       false,
-      promoEmailOptIn,
-      CustomerStatus.ACTIVE,
-      null,
-      0,
-      null,
-      now,
-      now,
-      null,
-    );
-  }
-
-  /**
-   * Factory for a guest-checkout lightweight account (FR-AUTH-070): keyed by phone,
-   * no password, `is_lightweight = true`, `phone_verified = false`. Promotional opt-ins
-   * default opted-out unless the caller passes consent (FR-AUTH-062). Claimable later
-   * via OTP (FR-AUTH-071).
-   */
-  static createLightweight(
-    id: string,
-    fullName: string,
-    phone: string,
-    email: string | null,
-    promoSmsOptIn: boolean,
-    promoEmailOptIn: boolean,
-    now: Date,
-  ): Customer {
-    return new Customer(
-      id,
-      fullName,
-      phone,
-      email,
-      null,
-      true,
-      false,
-      false,
-      null,
-      null,
-      promoSmsOptIn,
       promoEmailOptIn,
       CustomerStatus.ACTIVE,
       null,
@@ -126,7 +85,7 @@ export class Customer {
 
   /**
    * Factory for a Google sign-in account (FR-AUTH-002 family): keyed by the Google-verified email,
-   * so `email_verified = true`, no password, not lightweight, phone empty until the user adds one.
+   * so `email_verified = true`, no password, phone empty until the user adds one.
    * Promotional opt-ins default opted-out (FR-AUTH-062).
    */
   static registerWithGoogle(id: string, fullName: string, email: string, now: Date): Customer {
@@ -136,7 +95,6 @@ export class Customer {
       '',
       email,
       null,
-      false,
       false,
       true,
       null,
@@ -197,14 +155,6 @@ export class Customer {
     this.updatedAt = now;
   }
 
-  /** Activate a lightweight guest account (FR-AUTH-071): unlock full login, verify phone. */
-  activate(now: Date): void {
-    this.isLightweight = false;
-    this.phoneVerified = true;
-    this.lastLoginAt = now;
-    this.updatedAt = now;
-  }
-
   /** Update editable profile fields (FR-AUTH-040). Only provided fields change. */
   updateProfile(
     fields: { fullName?: string; gender?: Gender | null; dateOfBirth?: Date | null },
@@ -216,10 +166,13 @@ export class Customer {
     this.updatedAt = now;
   }
 
-  /** Begin an email change (FR-AUTH-041): store the new address but require re-verification. */
-  changeEmailPending(email: string, now: Date): void {
+  /**
+   * Attach an email that has just been verified via the change-confirm flow
+   * (FR-AUTH-041/044): lands on the account already `email_verified = true`.
+   */
+  attachVerifiedEmail(email: string, now: Date): void {
     this.email = email;
-    this.emailVerified = false;
+    this.emailVerified = true;
     this.updatedAt = now;
   }
 

@@ -21,6 +21,10 @@ const config: AuthConfig = {
   emailVerifyTtlSeconds: 86_400,
   emailVerifyResendCooldownSeconds: 60,
   passwordResetTtlSeconds: 1_800,
+  passwordSetFreshnessSeconds: 600,
+  passwordSetTokenTtlSeconds: 600,
+  emailChangeTtlSeconds: 900,
+  emailChangeResendCooldownSeconds: 60,
   otpDevReturn: false,
 };
 
@@ -69,6 +73,7 @@ describe('Auth — LoginWithEmailUseCase', () => {
 
     const result = await useCase.execute({ email: 'sabbir@example.com', password: 'footy2026' });
 
+    if (result.mfaRequired) throw new Error('expected a non-MFA login');
     expect(result.tokens.accessToken).toBe('acc');
     expect(sessions.save).toHaveBeenCalledTimes(1);
     expect(customer.failedLoginAttempts).toBe(0);

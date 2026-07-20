@@ -77,6 +77,8 @@ export class ProductsController {
       family: query.family,
       category: query.category,
       q: query.q,
+      sort: query.sort,
+      order: query.order,
     });
   }
 

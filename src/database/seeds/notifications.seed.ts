@@ -9,6 +9,12 @@ import { AppDataSource } from '../data-source';
 const OTP_BODY_EN = 'Your SportShop verification code is {{code}}. It expires in {{ttl_minutes}} minutes.';
 const OTP_BODY_BN = 'আপনার SportShop ভেরিফিকেশন কোড {{code}}। এটি {{ttl_minutes}} মিনিটে মেয়াদ শেষ হবে।';
 
+// MFA (module 17) — customer login second factor + enable/disable confirmation.
+const MFA_LOGIN_SMS_EN = 'Your SportShop login code is {{code}}. Enter it to finish signing in.';
+const MFA_LOGIN_SMS_BN = 'আপনার SportShop লগইন কোড {{code}}। সাইন ইন সম্পূর্ণ করতে এটি লিখুন।';
+const MFA_CHANGED_SMS_EN = 'Two-factor authentication was {{state}} on your SportShop account.';
+const MFA_CHANGED_SMS_BN = 'আপনার SportShop অ্যাকাউন্টে two-factor authentication {{state}} হয়েছে।';
+
 /**
  * Branded, email-safe HTML shell for transactional emails. `{{placeholders}}` inside `inner`
  * are left intact for the dispatch renderer to substitute. Inline styles only (email clients
@@ -33,6 +39,15 @@ function emailButton(url: string, label: string): string {
   ].join('\n');
 }
 
+/** A big, centred one-time-code block for email OTPs (with a short intro line). */
+function emailCode(intro: string, note: string): string {
+  return [
+    `  <p>${intro}</p>`,
+    '  <p style="text-align:center;font-size:32px;font-weight:700;letter-spacing:6px;color:#111827;margin:24px 0">{{code}}</p>',
+    `  <p style="font-size:13px;color:#6b7280">${note}</p>`,
+  ].join('\n');
+}
+
 interface TemplateSeed {
   event: string;
   channel: 'sms' | 'email';
@@ -48,6 +63,98 @@ const TEMPLATES: TemplateSeed[] = [
   { event: 'otp.login', channel: 'sms', locale: 'bn', subject: null, body: OTP_BODY_BN },
   { event: 'otp.phone_change', channel: 'sms', locale: 'en', subject: null, body: OTP_BODY_EN },
   { event: 'otp.password_reset', channel: 'sms', locale: 'en', subject: null, body: OTP_BODY_EN },
+  { event: 'otp.password_set', channel: 'sms', locale: 'en', subject: null, body: OTP_BODY_EN },
+  { event: 'otp.password_set', channel: 'sms', locale: 'bn', subject: null, body: OTP_BODY_BN },
+
+  // Verify-before-attach email change (FR-AUTH-041/046) — code to the NEW address + notice to the OLD.
+  {
+    event: 'auth.email_change_verify',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Confirm your new email address',
+    body: emailHtml(
+      'Confirm your new email',
+      emailCode('Your email change code is:', "This code expires in {{ttl_minutes}} minutes. If you didn't request this change, you can ignore this email."),
+    ),
+  },
+  {
+    event: 'auth.email_change_verify',
+    channel: 'email',
+    locale: 'bn',
+    subject: 'আপনার নতুন ইমেইল ঠিকানা নিশ্চিত করুন',
+    body: emailHtml(
+      'নতুন ইমেইল নিশ্চিত করুন',
+      emailCode('আপনার ইমেইল পরিবর্তনের কোড:', 'কোডটির মেয়াদ {{ttl_minutes}} মিনিট। আপনি এই পরিবর্তনের অনুরোধ না করলে এই ইমেইল উপেক্ষা করুন।'),
+    ),
+  },
+  {
+    event: 'auth.email_changed',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Your account email was changed',
+    body: emailHtml(
+      'Account email changed',
+      '  <p>Hi {{name}}, the email on your account was just changed to {{new_email}}. Other devices have been signed out.</p>\n  <p style="font-size:13px;color:#6b7280">If this was not you, please contact support immediately.</p>',
+    ),
+  },
+  {
+    event: 'auth.email_changed',
+    channel: 'email',
+    locale: 'bn',
+    subject: 'আপনার অ্যাকাউন্টের ইমেইল পরিবর্তিত হয়েছে',
+    body: emailHtml(
+      'অ্যাকাউন্টের ইমেইল পরিবর্তিত',
+      '  <p>প্রিয় {{name}}, আপনার অ্যাকাউন্টের ইমেইল {{new_email}}-এ পরিবর্তন করা হয়েছে। অন্যান্য ডিভাইস সাইন আউট করা হয়েছে।</p>\n  <p style="font-size:13px;color:#6b7280">এটি আপনি না করে থাকলে দ্রুত সাপোর্টে যোগাযোগ করুন।</p>',
+    ),
+  },
+
+  // MFA (module 17) — customer login second factor (email + SMS, en + bn).
+  {
+    event: 'otp.login_2fa',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Your login code',
+    body: emailHtml(
+      'Your login code',
+      emailCode('Your login verification code is:', "This code expires shortly. If you didn't try to sign in, you can ignore this email."),
+    ),
+  },
+  {
+    event: 'otp.login_2fa',
+    channel: 'email',
+    locale: 'bn',
+    subject: 'আপনার লগইন কোড',
+    body: emailHtml(
+      'আপনার লগইন কোড',
+      emailCode('আপনার লগইন ভেরিফিকেশন কোড:', 'কোডটি অল্প সময়ে মেয়াদ শেষ হবে। আপনি সাইন ইন না করলে এই ইমেইল উপেক্ষা করুন।'),
+    ),
+  },
+  { event: 'otp.login_2fa', channel: 'sms', locale: 'en', subject: null, body: MFA_LOGIN_SMS_EN },
+  { event: 'otp.login_2fa', channel: 'sms', locale: 'bn', subject: null, body: MFA_LOGIN_SMS_BN },
+
+  // MFA — enable/disable confirmation notice.
+  {
+    event: 'auth.mfa_changed',
+    channel: 'email',
+    locale: 'en',
+    subject: 'Two-factor authentication update',
+    body: emailHtml(
+      'Two-factor authentication update',
+      '  <p>Two-factor authentication was <strong>{{state}}</strong> on your SportShop account.</p>\n  <p style="font-size:13px;color:#6b7280">If this wasn\'t you, please contact support.</p>',
+    ),
+  },
+  {
+    event: 'auth.mfa_changed',
+    channel: 'email',
+    locale: 'bn',
+    subject: 'টু-ফ্যাক্টর আপডেট',
+    body: emailHtml(
+      'টু-ফ্যাক্টর আপডেট',
+      '  <p>আপনার SportShop অ্যাকাউন্টে two-factor authentication <strong>{{state}}</strong> হয়েছে।</p>',
+    ),
+  },
+  { event: 'auth.mfa_changed', channel: 'sms', locale: 'en', subject: null, body: MFA_CHANGED_SMS_EN },
+  { event: 'auth.mfa_changed', channel: 'sms', locale: 'bn', subject: null, body: MFA_CHANGED_SMS_BN },
   {
     event: 'auth.email_verify',
     channel: 'email',

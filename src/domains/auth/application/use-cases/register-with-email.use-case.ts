@@ -83,10 +83,11 @@ export class RegisterWithEmailUseCase {
       fullName: customer.fullName,
     });
 
-    const access = await this.tokens.signAccessToken(customer.id);
+    const sessionId = randomUUID();
+    const access = await this.tokens.signAccessToken(customer.id, sessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
-      Session.issue(randomUUID(), customer.id, refresh.hash, refresh.expiresAt, now),
+      Session.issue(sessionId, customer.id, refresh.hash, refresh.expiresAt, now),
     );
 
     return {

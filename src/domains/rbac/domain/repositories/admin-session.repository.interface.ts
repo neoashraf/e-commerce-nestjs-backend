@@ -5,6 +5,15 @@ export interface IAdminSessionRepository {
   save(session: AdminSession): Promise<AdminSession>;
   /** Revoke every active session for an admin (logout-all / suspend / reset — BR-RBAC-10). */
   revokeAllForAdmin(adminUserId: string, now: Date): Promise<void>;
+  /**
+   * Revoke every active session for an admin EXCEPT `exceptSessionId` (2FA enable/disable —
+   * FR-RBAC-009; the acting session survives). Null degrades to `revokeAllForAdmin`.
+   */
+  revokeAllForAdminExcept(
+    adminUserId: string,
+    exceptSessionId: string | null,
+    now: Date,
+  ): Promise<void>;
 }
 
 export const ADMIN_SESSION_REPOSITORY = Symbol('IAdminSessionRepository');

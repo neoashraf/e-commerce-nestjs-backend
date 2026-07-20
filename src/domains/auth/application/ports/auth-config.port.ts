@@ -17,6 +17,17 @@ export interface AuthConfig {
   /** Password-reset link lifetime in seconds (FR-AUTH-033, default 30 min). */
   passwordResetTtlSeconds: number;
   /**
+   * First-password-set OTP waiver window in seconds (FR-AUTH-037, default 10 min): the
+   * fresh OTP is skipped when the session itself was OTP-verified this recently.
+   */
+  passwordSetFreshnessSeconds: number;
+  /** Lifetime of the single-use `set_token` issued inside the freshness window (default 10 min). */
+  passwordSetTokenTtlSeconds: number;
+  /** Pending email-change lifetime in seconds (FR-AUTH-044, default 15 min). */
+  emailChangeTtlSeconds: number;
+  /** Cooldown between email-change requests, in seconds (contract 01: 429). */
+  emailChangeResendCooldownSeconds: number;
+  /**
    * DEV-ONLY: echo the generated OTP back in the request-OTP response so a tester can read it on
    * screen while there's no live SMS gateway. Hard-gated OFF in production regardless of env
    * (see auth-config.provider) — returning the code in prod would bypass phone verification entirely.

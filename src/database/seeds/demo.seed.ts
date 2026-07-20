@@ -614,9 +614,9 @@ async function ensureCustomers(ds: DataSource): Promise<Map<string, string>> {
     if (rows.length === 0) {
       rows = await ds.query(
         `INSERT INTO "customers"
-           ("id","full_name","phone","email","password_hash","is_lightweight",
+           ("id","full_name","phone","email","password_hash",
             "phone_verified","email_verified","status","promo_sms_opt_in","promo_email_opt_in")
-         VALUES (gen_random_uuid(),$1,$2,$3,$4,false,true,true,'active',true,true)
+         VALUES (gen_random_uuid(),$1,$2,$3,$4,true,true,'active',true,true)
          RETURNING "id"`,
         [c.fullName, c.phone, c.email, passwordHash],
       );
