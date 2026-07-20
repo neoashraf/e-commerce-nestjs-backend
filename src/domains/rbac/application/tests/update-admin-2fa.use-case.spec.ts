@@ -1,4 +1,4 @@
-import { ForbiddenException, HttpException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { AdminUser } from '../../domain/entities/admin-user.entity';
@@ -71,16 +71,15 @@ describe('RBAC — UpdateAdmin2faUseCase', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it('blocks a Super Admin from disabling 2FA with 403 (FR-RBAC-008)', async () => {
+  it('lets a Super Admin disable their own 2FA — opt-in for every admin (FR-RBAC-008)', async () => {
     const admin = adminWith('+8801712345678');
     admin.twofaEnabled = true;
     admins.findById.mockResolvedValue(admin);
     roles.findById.mockResolvedValue(new Role('role1', SUPER_ADMIN_ROLE_NAME, null, true, new Date(), new Date(), null));
 
-    await expect(
-      useCase.execute({ adminId: 'ad1', enabled: false, currentPassword: 'p' }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(admin.twofaEnabled).toBe(true);
+    const result = await useCase.execute({ adminId: 'ad1', enabled: false, currentPassword: 'p' });
+    expect(result.twofaEnabled).toBe(false);
+    expect(admin.twofaEnabled).toBe(false);
   });
 
   it('lets a non-super admin disable 2FA', async () => {
