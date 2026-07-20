@@ -6,6 +6,11 @@
 #              127.0.0.1 only — never exposed to the LAN/WAN)
 #   migrate    runs TypeORM migrations once, then exits (uses the `build`
 #              stage so the TypeScript data-source + ts-node are available)
+#   seed       runs seed scripts on demand (same `build` stage as migrate).
+#              Not started by `docker compose up` — profile-gated, run with:
+#                docker compose run --rm seed npm run seed:all
+#              or any other script from package.json's "scripts" (seed:rbac,
+#              seed:demo, seed:catalog-attributes, etc.)
 #   api        the NestJS backend (production image), starts after migrations
 #
 # Usage:
@@ -47,6 +52,25 @@ services:
       # Override the .env host so the app reaches the postgres service.
       DB_HOST: postgres
     command: npm run migration:run
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  seed:
+    build:
+      context: .
+      target: build
+    image: sports-ecommerce-backend:build
+    env_file: .env
+    environment:
+      DB_HOST: postgres
+    # Default command if you run `docker compose run --rm seed` with no args.
+    # Override with any script from package.json, e.g.:
+    #   docker compose run --rm seed npm run seed:demo
+    command: npm run seed:all
+    profiles:
+      - seed
     depends_on:
       postgres:
         condition: service_healthy
