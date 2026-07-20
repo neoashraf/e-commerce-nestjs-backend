@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
-# CI/CD — Build, test, and deploy backend
-# main -> Production Server
-# dev  -> Dev Server
+# CI/CD — Build, test, and deploy backend (self-hosted)
+# dev  -> Home Server
+# main -> Hostinger VPS
 # ---------------------------------------------------------------------------
 
 name: CI/CD
@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - dev
+  workflow_dispatch: {}
 
 concurrency:
   group: cicd-${{ github.workflow }}-${{ github.ref }}
@@ -132,174 +133,125 @@ jobs:
           docker run --rm ecommerce-nestjs-backend:ci node -e "console.log(require.resolve('handlebars'))"
 
   # =========================================================================
-  # STAGE 2: CONTINUOUS DEPLOYMENT
+  # STAGE 2: CONTINUOUS DEPLOYMENT (self-hosted runners)
   # =========================================================================
 
-  deploy:
-    name: Deploy Backend
-    runs-on: ubuntu-latest
+  deploy-home:
+    name: Deploy to Home Server
+    if: github.ref == 'refs/heads/dev'
     needs: [build-and-test, e2e, docker-build]
-    if: success()
+    runs-on: [self-hosted, sports-ecommerce-home]
 
     steps:
-      - name: Resolve deployment vars
-        id: cfg
+      - name: Checkout latest code
+        uses: actions/checkout@v4
+
+      - name: Load server env file
+        shell: bash
         run: |
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "VPS_HOST=${{ secrets.VPS_HOST }}"   >> "$GITHUB_OUTPUT"
-            echo "VPS_USER=${{ secrets.VPS_USER }}"   >> "$GITHUB_OUTPUT"
-            echo "BRANCH=main"                         >> "$GITHUB_OUTPUT"
-            echo "ENVIRONMENT=production"              >> "$GITHUB_OUTPUT"
-            echo "USE_NETWORK=false"                   >> "$GITHUB_OUTPUT"
-            {
-              echo "VPS_SSH_KEY<<__SSHEOF__"
-              printf '%s' "${{ secrets.VPS_SSH_KEY }}"
-              echo ""
-              echo "__SSHEOF__"
-            } >> "$GITHUB_OUTPUT"
+          SERVER_ENV="/root/sports-ecommerce/e-commerce-nestjs-backend/.env"
+
+          if [ -f "$SERVER_ENV" ]; then
+            cp "$SERVER_ENV" .env
+            echo "Loaded server env file from $SERVER_ENV"
           else
-            echo "VPS_HOST=${{ secrets.DEV_VPS_HOST }}"   >> "$GITHUB_OUTPUT"
-            echo "VPS_USER=${{ secrets.DEV_VPS_USER }}"   >> "$GITHUB_OUTPUT"
-            echo "BRANCH=dev"                              >> "$GITHUB_OUTPUT"
-            echo "ENVIRONMENT=development"                 >> "$GITHUB_OUTPUT"
-            echo "USE_NETWORK=true"                        >> "$GITHUB_OUTPUT"
-            {
-              echo "VPS_SSH_KEY<<__SSHEOF__"
-              printf '%s' "${{ secrets.DEV_VPS_SSH_KEY }}"
-              echo ""
-              echo "__SSHEOF__"
-            } >> "$GITHUB_OUTPUT"
+            echo "Server env file not found at $SERVER_ENV"
+            exit 1
           fi
 
-      - name: Validate secrets
+      - name: Build and restart containers
+        shell: bash
+        working-directory: ${{ github.workspace }}
         run: |
-          FAILED=0
-          [ -z "${{ steps.cfg.outputs.VPS_HOST }}" ]    && echo "❌ VPS_HOST missing"    && FAILED=1
-          [ -z "${{ steps.cfg.outputs.VPS_USER }}" ]    && echo "❌ VPS_USER missing"    && FAILED=1
-          [ -z "${{ steps.cfg.outputs.VPS_SSH_KEY }}" ] && echo "❌ VPS_SSH_KEY missing" && FAILED=1
-          [ $FAILED -eq 1 ] && exit 1
-          echo "✅ All secrets present — deploying to ${{ steps.cfg.outputs.ENVIRONMENT }}"
+          docker compose up -d --build --remove-orphans
 
-      - name: Deploy backend
-        env:
-          VPS_HOST:    ${{ steps.cfg.outputs.VPS_HOST }}
-          VPS_USER:    ${{ steps.cfg.outputs.VPS_USER }}
-          VPS_SSH_KEY: ${{ steps.cfg.outputs.VPS_SSH_KEY }}
-          BRANCH:      ${{ steps.cfg.outputs.BRANCH }}
-          ENVIRONMENT: ${{ steps.cfg.outputs.ENVIRONMENT }}
-          USE_NETWORK: ${{ steps.cfg.outputs.USE_NETWORK }}
+      - name: Wait for health check
+        shell: bash
+        working-directory: ${{ github.workspace }}
         run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-
-          echo "🚀 Deploying branch '$BRANCH' to $ENVIRONMENT ($VPS_USER@$VPS_HOST)"
-
-          ssh -i ~/.ssh/id_rsa \
-              -o StrictHostKeyChecking=yes \
-              -o BatchMode=yes \
-              "$VPS_USER@$VPS_HOST" \
-              BRANCH="$BRANCH" \
-              ENVIRONMENT="$ENVIRONMENT" \
-              USE_NETWORK="$USE_NETWORK" \
-              bash -s << 'ENDSSH'
-            set -e
-
-            APP_DIR="/root/E-commerce/e-commerce-nestjs-backend"
-            CONTAINER_NAME="ecommerce-nestjs-backend"
-            IMAGE_NAME="ecommerce-nestjs-backend:latest"
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "  Environment : $ENVIRONMENT"
-            echo "  Branch      : $BRANCH"
-            echo "  Directory   : $APP_DIR"
-            echo "  Use Network : $USE_NETWORK"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-            cd "$APP_DIR"
-
-            # ── Pull latest code ──────────────────────────────
-            echo "📥 Pulling latest code from $BRANCH..."
-            git fetch origin "$BRANCH"
-            git reset --hard "origin/$BRANCH"
-            echo "📌 Current commit: $(git log -1 --oneline)"
-
-            # ── Build fresh image ─────────────────────────────
-            echo "🔨 Building Docker image..."
-            docker build --no-cache --pull -t "$IMAGE_NAME" .
-
-            # ── Stop & remove old container ───────────────────
-            echo "🛑 Stopping old container..."
-            docker stop "$CONTAINER_NAME" || true
-            docker rm -f "$CONTAINER_NAME" || true
-
-            # ── Run migrations ────────────────────────────────
-            echo "🗄️  Running database migrations..."
-            
-            if [ "$USE_NETWORK" = "true" ]; then
-              # Development server - uses network
-              docker run --rm \
-                --network postgress-network \
-                --env-file .env \
-                "$IMAGE_NAME" \
-                npx typeorm migration:run -d dist/database/data-source.js
-            else
-              # Production server - uses host.docker.internal
-              docker run --rm \
-                --add-host=host.docker.internal:host-gateway \
-                --env-file .env \
-                "$IMAGE_NAME" \
-                npx typeorm migration:run -d dist/database/data-source.js
+          for attempt in $(seq 1 20); do
+            if curl -sf http://localhost:6001/api/v1/health >/dev/null; then
+              echo "Application is healthy"
+              exit 0
             fi
 
-            echo "✅ Migrations completed"
+            echo "Waiting for app... attempt ${attempt}/20"
+            sleep 3
+          done
 
-            # ── Start application ─────────────────────────────
-            echo "🚀 Starting application container..."
-            
-            if [ "$USE_NETWORK" = "true" ]; then
-              # Development server - uses network
-              docker run -d \
-                --name "$CONTAINER_NAME" \
-                --network postgress-network \
-                -p 6001:8000 \
-                --env-file .env \
-                --restart unless-stopped \
-                "$IMAGE_NAME"
-            else
-              # Production server - uses host.docker.internal
-              docker run -d \
-                --name "$CONTAINER_NAME" \
-                --add-host=host.docker.internal:host-gateway \
-                -p 6001:8000 \
-                --env-file .env \
-                --restart unless-stopped \
-                "$IMAGE_NAME"
+          echo "Health check failed"
+
+          docker compose ps || true
+          docker compose logs --tail=100 api || true
+          docker compose logs --tail=100 migrate || true
+
+          exit 1
+
+      - name: Show running containers
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: docker compose ps
+
+      - name: Prune old images
+        shell: bash
+        run: docker image prune -f
+
+  deploy-hostinger:
+    name: Deploy to Hostinger VPS
+    if: github.ref == 'refs/heads/main'
+    needs: [build-and-test, e2e, docker-build]
+    runs-on: [self-hosted, sports-ecommerce-hostinger]
+
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v4
+
+      - name: Load server env file
+        shell: bash
+        run: |
+          SERVER_ENV="/root/sports-ecommerce/e-commerce-nestjs-backend/.env"
+
+          if [ -f "$SERVER_ENV" ]; then
+            cp "$SERVER_ENV" .env
+            echo "Loaded server env file from $SERVER_ENV"
+          else
+            echo "Server env file not found at $SERVER_ENV"
+            exit 1
+          fi
+
+      - name: Build and restart containers
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          docker compose up -d --build --remove-orphans
+
+      - name: Wait for health check
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          for attempt in $(seq 1 20); do
+            if curl -sf http://localhost:6001/api/v1/health >/dev/null; then
+              echo "Application is healthy"
+              exit 0
             fi
 
-            # ── Health check ──────────────────────────────────
-            echo "⏳ Waiting for startup..."
-            sleep 15
+            echo "Waiting for app... attempt ${attempt}/20"
+            sleep 3
+          done
 
-            echo "🏥 Running health check..."
-            if curl -fsS http://localhost:6001/api/v1/health > /dev/null 2>&1; then
-              echo "✅ Health check passed: /api/v1/health"
-            elif curl -fsS http://localhost:6001/api/health > /dev/null 2>&1; then
-              echo "✅ Health check passed: /api/health"
-            else
-              echo "❌ Health check failed — dumping logs"
-              docker logs --tail=150 "$CONTAINER_NAME"
-              exit 1
-            fi
+          echo "Health check failed"
 
-            # ── Tail logs ─────────────────────────────────────
-            echo "📋 Recent logs:"
-            docker logs --tail=100 "$CONTAINER_NAME"
+          docker compose ps || true
+          docker compose logs --tail=100 api || true
+          docker compose logs --tail=100 migrate || true
 
-            # ── Cleanup ───────────────────────────────────────
-            echo "🧹 Cleaning old images..."
-            docker image prune -f
+          exit 1
 
-            echo ""
-            echo "✅ Deployment to $ENVIRONMENT completed successfully"
+      - name: Show running containers
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: docker compose ps
+
+      - name: Prune old images
+        shell: bash
+        run: docker image prune -f
