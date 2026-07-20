@@ -1,22 +1,24 @@
 # ---------------------------------------------------------------------------
-# CI/CD — Build, test, and deploy backend
-# Runs on push to main branch
-# Stages:
-#   1. CI: Build, unit tests, e2e tests, docker sanity check
-#   2. CD: Deploy to VPS only if CI passes
+# CI/CD — Build, test, and deploy backend (self-hosted)
+# dev  -> Home Server
+# main -> Hostinger VPS
 # ---------------------------------------------------------------------------
 
 name: CI/CD
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - dev
+  workflow_dispatch: {}
 
 concurrency:
   group: cicd-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+
   # =========================================================================
   # STAGE 1: CONTINUOUS INTEGRATION
   # =========================================================================
@@ -41,9 +43,15 @@ jobs:
       - name: Verify handlebars production dependency
         run: |
           echo "Checking package.json..."
-
-          node -e "const p=require('./package.json'); const prod=p.dependencies?.handlebars; const dev=p.devDependencies?.handlebars; console.log('dependencies.handlebars:', prod); console.log('devDependencies.handlebars:', dev); if(!prod){console.error('ERROR: handlebars is missing from dependencies.'); process.exit(1);} if(dev){console.error('ERROR: handlebars must not be in devDependencies because Docker production build uses npm ci --omit=dev.'); process.exit(1);}"
-
+          node -e "
+            const p=require('./package.json');
+            const prod=p.dependencies?.handlebars;
+            const dev=p.devDependencies?.handlebars;
+            console.log('dependencies.handlebars:', prod);
+            console.log('devDependencies.handlebars:', dev);
+            if(!prod){ console.error('ERROR: handlebars is missing from dependencies.'); process.exit(1); }
+            if(dev){ console.error('ERROR: handlebars must not be in devDependencies.'); process.exit(1); }
+          "
           echo "Checking package-lock.json..."
           grep -n '"handlebars"' package-lock.json | head -20 || true
 
@@ -82,8 +90,6 @@ jobs:
       JWT_ACCESS_SECRET: test-access-secret
       JWT_REFRESH_SECRET: test-refresh-secret
       INTERNAL_SERVICE_TOKEN: test-internal-token
-      # FIX 1: Removed duplicate NOTIF_UNSUBSCRIBE_SECRET key (previously
-      # "test-internal-token" was silently overwritten by "test-unsubscribe-secret")
       NOTIF_UNSUBSCRIBE_SECRET: test-unsubscribe-secret
 
     steps:
@@ -98,9 +104,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Run migrations
-        run: npm run migration:run
 
       - name: E2E tests
         run: npm run test:e2e
@@ -124,64 +127,107 @@ jobs:
           push: false
           load: true
           tags: ecommerce-nestjs-backend:ci
-          # FIX 2: Removed no-cache: true — the CI check only needs to validate
-          # the image builds successfully; skipping cache here just wastes time.
-          # The VPS deploy step already does a full --no-cache build on its own.
 
       - name: Verify handlebars inside Docker image
         run: |
           docker run --rm ecommerce-nestjs-backend:ci node -e "console.log(require.resolve('handlebars'))"
 
   # =========================================================================
-  # STAGE 2: CONTINUOUS DEPLOYMENT
+  # STAGE 2: CONTINUOUS DEPLOYMENT (self-hosted runners)
   # =========================================================================
 
-  deploy:
-    name: Deploy Backend to VPS
-    runs-on: ubuntu-latest
+  deploy-home:
+    name: Deploy to Home Server
+    if: github.ref == 'refs/heads/dev'
     needs: [build-and-test, e2e, docker-build]
-    if: success()
+    runs-on: [self-hosted, sports-ecommerce-home]
 
     steps:
-      - name: Validate VPS secrets
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      - name: Checkout latest code
+        uses: actions/checkout@v4
+
+      - name: Load server env file
+        shell: bash
         run: |
-          if [ -z "$VPS_HOST" ]; then
-            echo "ERROR: VPS_HOST secret is missing"
+          SERVER_ENV="/root/sports-ecommerce/e-commerce-nestjs-backend/.env"
+
+          if [ -f "$SERVER_ENV" ]; then
+            cp "$SERVER_ENV" .env
+            echo "Loaded server env file from $SERVER_ENV"
+          else
+            echo "Server env file not found at $SERVER_ENV"
             exit 1
           fi
 
-          if [ -z "$VPS_USER" ]; then
-            echo "ERROR: VPS_USER secret is missing"
-            exit 1
-          fi
-
-          if [ -z "$VPS_SSH_KEY" ]; then
-            echo "ERROR: VPS_SSH_KEY secret is missing"
-            exit 1
-          fi
-
-          echo "VPS secrets are set"
-
-      - name: Setup SSH
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      - name: Build and restart containers
+        shell: bash
+        working-directory: ${{ github.workspace }}
         run: |
-          mkdir -p ~/.ssh
+          docker compose up -d --build --remove-orphans
 
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+      - name: Wait for health check
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          for attempt in $(seq 1 20); do
+            if curl -sf http://localhost:6001/api/v1/health >/dev/null; then
+              echo "Application is healthy"
+              exit 0
+            fi
 
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+            echo "Waiting for app... attempt ${attempt}/20"
+            sleep 3
+          done
 
-      - name: Deploy backend on VPS
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
+          echo "Health check failed"
+
+          docker compose ps || true
+          docker compose logs --tail=100 api || true
+          docker compose logs --tail=100 migrate || true
+
+          exit 1
+
+      - name: Show running containers
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: docker compose ps
+
+      - name: Prune old images
+        shell: bash
+        run: docker image prune -f
+
+  deploy-hostinger:
+    name: Deploy to Hostinger VPS
+    if: github.ref == 'refs/heads/main'
+    needs: [build-and-test, e2e, docker-build]
+    runs-on: [self-hosted, sports-ecommerce-hostinger]
+
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v4
+
+      - name: Load server env file
+        shell: bash
+        run: |
+          SERVER_ENV="/root/sports-ecommerce/e-commerce-nestjs-backend/.env"
+
+          if [ -f "$SERVER_ENV" ]; then
+            cp "$SERVER_ENV" .env
+            echo "Loaded server env file from $SERVER_ENV"
+          else
+            echo "Server env file not found at $SERVER_ENV"
+            exit 1
+          fi
+
+      - name: Build and restart containers
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          docker compose up -d --build --remove-orphans
+
+      - name: Wait for health check
+        shell: bash
+        working-directory: ${{ github.workspace }}
         run: |
           echo "Connecting to $VPS_USER@$VPS_HOST"
 

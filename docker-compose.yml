@@ -2,17 +2,18 @@
 # Sports E-Commerce — backend stack (production-like)
 #
 # Services:
-#   postgres   PostgreSQL 16 database (persisted in a named volume)
-#   migrate    runs TypeORM migrations once, then exits (uses the `build` stage
-#              so the TypeScript data-source + ts-node are available)
+#   postgres   PostgreSQL 16 database (persisted in a named volume, bound to
+#              127.0.0.1 only — never exposed to the LAN/WAN)
+#   migrate    runs TypeORM migrations once, then exits (uses the `build`
+#              stage so the TypeScript data-source + ts-node are available)
 #   api        the NestJS backend (production image), starts after migrations
 #
 # Usage:
 #   cp .env.example .env      # then fill in secrets
 #   docker compose up --build
 #
-# API:     http://localhost:8000/api/v1
-# Swagger: http://localhost:8000/api/v1/docs
+# API:     http://localhost:6001/api/v1
+# Swagger: http://localhost:6001/api/v1/docs
 # ---------------------------------------------------------------------------
 
 name: sports-ecommerce-backend
@@ -20,13 +21,14 @@ name: sports-ecommerce-backend
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: sports-ecommerce-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-e-commerce}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -55,13 +57,17 @@ services:
       context: .
       target: production
     image: sports-ecommerce-backend:latest
+    container_name: sports-ecommerce-backend
     restart: unless-stopped
     env_file: .env
     environment:
       NODE_ENV: production
       DB_HOST: postgres
     ports:
-      - "${PORT:-8000}:8000"
+      # Host port is fixed at 6001 across both servers — do not source this
+      # from .env (the app itself listens on 8000 internally; PORT in .env
+      # only matters if the app reads it, and we keep it at 8000 to match).
+      - "6001:8000"
     depends_on:
       postgres:
         condition: service_healthy
