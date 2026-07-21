@@ -187,6 +187,12 @@ jobs:
 
           exit 1
 
+      - name: Seed demo data
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          docker compose run -T --rm --build seed npm run seed:all
+
       - name: Show running containers
         shell: bash
         working-directory: ${{ github.workspace }}
@@ -246,6 +252,12 @@ jobs:
           docker compose logs --tail=100 migrate || true
 
           exit 1
+
+      - name: Seed demo data
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          docker compose run -T --rm --build seed npm run seed:all
 
       - name: Show running containers
         shell: bash
