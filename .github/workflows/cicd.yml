@@ -235,35 +235,76 @@ jobs:
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
-          for attempt in $(seq 1 20); do
-            if curl -sf http://localhost:6001/api/v1/health >/dev/null; then
-              echo "Application is healthy"
-              exit 0
+          echo "Connecting to $VPS_USER@$VPS_HOST"
+
+          ssh -T -i ~/.ssh/id_rsa "$VPS_USER@$VPS_HOST" << 'EOF'
+            set -e
+
+            APP_DIR="$HOME/E-commerce/e-commerce-nestjs-backend"
+            CONTAINER_NAME="ecommerce-nestjs-backend"
+            IMAGE_NAME="ecommerce-nestjs-backend:latest"
+
+            echo "Going to project directory..."
+            cd "$APP_DIR"
+
+            echo "Pulling latest code from main..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "Current commit on VPS:"
+            git log -1 --oneline
+
+            echo "Git status after reset:"
+            git status --short
+
+            echo "Checking handlebars in package.json on VPS..."
+            node -e "const p=require('./package.json'); const prod=p.dependencies?.handlebars; const dev=p.devDependencies?.handlebars; console.log('dependencies.handlebars:', prod); console.log('devDependencies.handlebars:', dev); if(!prod){console.error('ERROR: handlebars is missing from dependencies after git reset. This means GitHub main branch does not contain handlebars in package.json.'); process.exit(1);} if(dev){console.error('ERROR: handlebars is in devDependencies. Docker production build uses npm ci --omit=dev, so it will not install devDependencies.'); process.exit(1);}"
+
+            echo "Checking handlebars in package-lock.json on VPS..."
+            grep -n '"handlebars"' package-lock.json | head -20 || true
+
+            echo "Building Docker image without cache..."
+            docker build --no-cache --pull -t "$IMAGE_NAME" .
+
+            echo "Checking handlebars inside Docker image..."
+            docker run --rm "$IMAGE_NAME" node -e "console.log(require.resolve('handlebars'))"
+
+            echo "Stopping old container..."
+            docker rm -f "$CONTAINER_NAME" || true
+
+            echo "Starting new container..."
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              -p 6001:8000 \
+              --add-host=host.docker.internal:host-gateway \
+              --env-file .env \
+              --restart unless-stopped \
+              "$IMAGE_NAME"
+
+            echo "Checking running container..."
+            docker ps --filter "name=$CONTAINER_NAME"
+
+            echo "Waiting for app to start..."
+            sleep 10
+
+            echo "Health check..."
+
+            if curl -fsS http://localhost:6001/api/v1/health; then
+              echo "Health check passed: /api/v1/health"
+            elif curl -fsS http://localhost:6001/api/health; then
+              echo "Health check passed: /api/health"
+            else
+              echo "Health check failed"
+              echo "Container logs:"
+              docker logs --tail=150 "$CONTAINER_NAME"
+              exit 1
             fi
 
-            echo "Waiting for app... attempt ${attempt}/20"
-            sleep 3
-          done
+            echo "Recent logs..."
+            docker logs --tail=100 "$CONTAINER_NAME"
 
-          echo "Health check failed"
+            echo "Cleaning unused Docker images..."
+            docker image prune -f
 
-          docker compose ps || true
-          docker compose logs --tail=100 api || true
-          docker compose logs --tail=100 migrate || true
-
-          exit 1
-
-      - name: Seed demo data
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: |
-          docker compose run -T --rm --build seed npm run seed:all
-
-      - name: Show running containers
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: docker compose ps
-
-      - name: Prune old images
-        shell: bash
-        run: docker image prune -f
+            echo "Backend deployment completed successfully"
+          EOF

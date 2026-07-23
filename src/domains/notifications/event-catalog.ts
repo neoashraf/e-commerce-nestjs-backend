@@ -32,14 +32,18 @@ export const EVENT_CATALOG: Record<string, EventDefinition> = {
   'otp.login': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
   'otp.phone_change': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
   'otp.password_reset': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
+  'otp.password_set': { category: TX, channels: [SMS], requiredPlaceholders: ['code', 'ttl_minutes'] },
   'auth.email_verify': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'verify_url'] },
+  // Verify-before-attach email change (FR-AUTH-041/046): code to the NEW address + notice to the OLD.
+  'auth.email_change_verify': { category: TX, channels: [EMAIL], requiredPlaceholders: ['code'], optionalPlaceholders: ['name', 'ttl_minutes', 'otp'] },
+  'auth.email_changed': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name'], optionalPlaceholders: ['new_email'] },
   'auth.password_reset': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'reset_url'], optionalPlaceholders: ['expires_minutes'] },
   'admin.invite': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'invite_url'], optionalPlaceholders: ['role'] },
   'admin.password_reset': { category: TX, channels: [EMAIL], requiredPlaceholders: ['name', 'reset_url'] },
   'admin.2fa': { category: TX, channels: [EMAIL, SMS], requiredPlaceholders: ['code'], optionalPlaceholders: ['ttl_minutes'] },
   // MFA (module 17) — customer login second factor over email/SMS (FR-MFA-012/021).
   'otp.login_2fa': { category: TX, channels: [EMAIL, SMS], requiredPlaceholders: ['code'], optionalPlaceholders: ['ttl_minutes', 'otp'] },
-  'auth.mfa_changed': { category: TX, channels: [EMAIL, SMS], requiredPlaceholders: ['state'] },
+  'auth.mfa_changed': { category: TX, channels: [EMAIL, SMS], requiredPlaceholders: ['state'], optionalPlaceholders: ['name'] },
 
   // ORD / PAY — order lifecycle
   'order.placed': { category: TX, channels: [SMS, EMAIL], requiredPlaceholders: ['name', 'order_no'], optionalPlaceholders: ['total', 'payment_method'] },

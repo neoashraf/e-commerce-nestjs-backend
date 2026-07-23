@@ -6,6 +6,7 @@ import { RBAC_CONFIG, RbacConfig } from '../../application/ports/rbac-config.por
 import {
   IAdminTokenService,
   MintedAdminRefreshToken,
+  SignAdminAccessTokenOptions,
   SignedAdminAccessToken,
 } from '../../application/ports/admin-token-service.port';
 
@@ -17,9 +18,20 @@ export class AdminJwtTokenService implements IAdminTokenService {
     @Inject(RBAC_CONFIG) private readonly config: RbacConfig,
   ) {}
 
-  async signAccessToken(adminId: string, roleId: string): Promise<SignedAdminAccessToken> {
+  async signAccessToken(
+    adminId: string,
+    roleId: string,
+    options?: SignAdminAccessTokenOptions,
+  ): Promise<SignedAdminAccessToken> {
     const token = await this.jwt.signAsync(
-      { sub: adminId, aud: 'admin', role_id: roleId },
+      {
+        sub: adminId,
+        aud: 'admin',
+        role_id: roleId,
+        ...(options?.sessionId ? { sid: options.sessionId } : {}),
+        // FR-RBAC-009: mark 2FA-verified sessions so disable gating is decidable.
+        ...(options?.mfaVerified ? { mfa: true } : {}),
+      },
       { expiresIn: this.config.accessTtlSeconds },
     );
     return { token, expiresIn: this.config.accessTtlSeconds };

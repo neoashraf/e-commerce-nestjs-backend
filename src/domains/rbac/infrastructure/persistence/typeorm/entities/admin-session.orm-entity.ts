@@ -21,6 +21,10 @@ export class AdminSessionOrmEntity {
   @Column({ name: 'revoked_at', type: 'timestamptz', nullable: true })
   revokedAt: Date | null;
 
+  /** True when the login passed the 2FA step (mirrors FR-MFA-018). */
+  @Column({ name: 'mfa_verified', default: false })
+  mfaVerified: boolean;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

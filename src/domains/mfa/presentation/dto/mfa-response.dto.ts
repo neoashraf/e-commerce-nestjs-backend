@@ -31,6 +31,12 @@ export class MfaVerifyResponseDto {
 export class MfaPolicyView {
   @ApiProperty({ example: 'optional', enum: ['optional', 'mandatory'] }) enforcement_mode: string;
   @ApiProperty({ type: [String], example: ['email'] }) available_channels: string[];
+  @ApiProperty({
+    enum: ['email', 'sms'],
+    example: 'email',
+    description: 'First-attempt channel when both are eligible and no preference is saved (FR-MFA-036)',
+  })
+  default_channel: string;
 }
 
 export class MyMfaResponseDto {
@@ -69,6 +75,7 @@ export class MfaPolicyResponseDto {
   @ApiProperty({ example: false }) sms_enabled: boolean;
   @ApiProperty({ example: true }) email_enabled: boolean;
   @ApiProperty({ example: 'optional', enum: ['optional', 'mandatory'] }) enforcement_mode: string;
+  @ApiProperty({ enum: ['email', 'sms'], example: 'email' }) default_channel: string;
   @ApiProperty({ example: 300 }) otp_ttl_seconds: number;
   @ApiProperty({ example: 60 }) resend_cooldown_seconds: number;
   @ApiProperty({ example: 5 }) max_attempts: number;

@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { requireEnv } from '../../shared/config/require-env';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 // domain repository tokens
@@ -24,6 +25,7 @@ import { ADMIN_NOTIFICATION_DISPATCHER } from './application/ports/admin-notific
 import { PermissionService } from './application/services/permission.service';
 import { AuditService } from './application/services/audit.service';
 import { SessionIssuerService } from './application/services/session-issuer.service';
+import { TwofaChallengeIssuerService } from './application/services/twofa-challenge-issuer.service';
 import { AdminLoginUseCase } from './application/use-cases/admin-login.use-case';
 import { Verify2faUseCase } from './application/use-cases/verify-2fa.use-case';
 import { RefreshAdminTokenUseCase } from './application/use-cases/refresh-admin-token.use-case';
@@ -34,6 +36,7 @@ import { GetAdminMeUseCase } from './application/use-cases/get-admin-me.use-case
 import { UpdateAdminProfileUseCase } from './application/use-cases/update-admin-profile.use-case';
 import { ChangeAdminPasswordUseCase } from './application/use-cases/change-admin-password.use-case';
 import { UpdateAdmin2faUseCase } from './application/use-cases/update-admin-2fa.use-case';
+import { ConfirmAdmin2faUseCase } from './application/use-cases/confirm-admin-2fa.use-case';
 import { AdminUserPolicyService } from './application/services/admin-user-policy.service';
 import { ListAdminUsersUseCase } from './application/use-cases/list-admin-users.use-case';
 import { InviteAdminUserUseCase } from './application/use-cases/invite-admin-user.use-case';
@@ -102,7 +105,7 @@ import { AdminTokenVerifierService } from './application/services/admin-token-ve
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-access-secret',
+        secret: requireEnv(config, 'JWT_ACCESS_SECRET'),
       }),
     }),
   ],
@@ -129,6 +132,7 @@ import { AdminTokenVerifierService } from './application/services/admin-token-ve
     PermissionService,
     AuditService,
     SessionIssuerService,
+    TwofaChallengeIssuerService,
     AdminLoginUseCase,
     Verify2faUseCase,
     RefreshAdminTokenUseCase,
@@ -139,6 +143,7 @@ import { AdminTokenVerifierService } from './application/services/admin-token-ve
     UpdateAdminProfileUseCase,
     ChangeAdminPasswordUseCase,
     UpdateAdmin2faUseCase,
+    ConfirmAdmin2faUseCase,
     AdminUserPolicyService,
     ListAdminUsersUseCase,
     InviteAdminUserUseCase,

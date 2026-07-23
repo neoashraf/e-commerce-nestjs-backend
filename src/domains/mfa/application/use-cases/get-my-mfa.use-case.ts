@@ -19,7 +19,12 @@ import { eligibleChannels } from '../services/mfa-channels';
 export interface MyMfaStatus {
   enabled: boolean;
   preferredChannel: MfaChannel | null;
-  policy: { enforcementMode: MfaEnforcement; availableChannels: MfaChannel[] };
+  policy: {
+    enforcementMode: MfaEnforcement;
+    availableChannels: MfaChannel[];
+    /** First-attempt channel for both-eligible, no-preference customers (FR-MFA-036). */
+    defaultChannel: MfaChannel;
+  };
   eligibleChannels: MfaChannel[];
 }
 
@@ -51,6 +56,7 @@ export class GetMyMfaUseCase {
       policy: {
         enforcementMode: settings.enforcementMode,
         availableChannels: settings.availableChannels(),
+        defaultChannel: settings.defaultChannel,
       },
       eligibleChannels: eligibleChannels(settings, contacts),
     };

@@ -3,11 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
+import { requireEnv } from '../../../../shared/config/require-env';
 import { AuthenticatedCustomer } from '../../../../shared/decorators/current-customer.decorator';
 
 interface JwtPayload {
   sub: string;
   aud?: string;
+  sid?: string;
+  /** True when the session was created through a completed second factor (FR-MFA-018). */
+  mfa?: boolean;
 }
 
 @Injectable()
@@ -16,7 +20,7 @@ export class JwtCustomerStrategy extends PassportStrategy(Strategy, 'jwt-custome
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-access-secret',
+      secretOrKey: requireEnv(config, 'JWT_ACCESS_SECRET'),
     });
   }
 
@@ -25,6 +29,6 @@ export class JwtCustomerStrategy extends PassportStrategy(Strategy, 'jwt-custome
     if (payload.aud !== 'customer') {
       throw new UnauthorizedException({ code: 'INVALID_TOKEN', message: 'Invalid token.' });
     }
-    return { customerId: payload.sub };
+    return { customerId: payload.sub, sessionId: payload.sid, mfaVerified: payload.mfa === true };
   }
 }

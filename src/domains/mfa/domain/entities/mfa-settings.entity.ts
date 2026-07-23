@@ -17,6 +17,11 @@ export class MfaSettings {
     public updatedBy: string | null,
     public readonly createdAt: Date,
     public updatedAt: Date,
+    /**
+     * First-attempt delivery channel for customers with BOTH channels eligible and no
+     * saved preference (FR-MFA-036, default email). Must reference an enabled channel.
+     */
+    public defaultChannel: MfaChannel = MfaChannel.EMAIL,
   ) {}
 
   /** Channels the platform currently offers, in preference order (email first). */
@@ -44,6 +49,7 @@ export class MfaSettings {
       smsEnabled?: boolean;
       emailEnabled?: boolean;
       enforcementMode?: MfaEnforcement;
+      defaultChannel?: MfaChannel;
       otpTtlSeconds?: number;
       resendCooldownSeconds?: number;
       maxAttempts?: number;
@@ -54,14 +60,21 @@ export class MfaSettings {
     const smsEnabled = patch.smsEnabled ?? this.smsEnabled;
     const emailEnabled = patch.emailEnabled ?? this.emailEnabled;
     const enforcementMode = patch.enforcementMode ?? this.enforcementMode;
+    const defaultChannel = patch.defaultChannel ?? this.defaultChannel;
 
     if (enforcementMode === MfaEnforcement.MANDATORY && !smsEnabled && !emailEnabled) {
       throw new Error('MFA_NO_CHANNEL');
+    }
+    // FR-MFA-036: the default channel must reference a channel enabled in the same policy.
+    const defaultEnabled = defaultChannel === MfaChannel.SMS ? smsEnabled : emailEnabled;
+    if (!defaultEnabled) {
+      throw new Error('MFA_DEFAULT_CHANNEL_DISABLED');
     }
 
     this.smsEnabled = smsEnabled;
     this.emailEnabled = emailEnabled;
     this.enforcementMode = enforcementMode;
+    this.defaultChannel = defaultChannel;
     if (patch.otpTtlSeconds !== undefined) this.otpTtlSeconds = patch.otpTtlSeconds;
     if (patch.resendCooldownSeconds !== undefined)
       this.resendCooldownSeconds = patch.resendCooldownSeconds;

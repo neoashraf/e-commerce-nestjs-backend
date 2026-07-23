@@ -7,6 +7,10 @@ export interface RbacConfig {
   loginLockMinutes: number;
   twofaOtpTtlSeconds: number;
   twofaAttemptCap: number;
+  /** Cooldown between 2FA code sends, in seconds (FR-RBAC-008 throttling). */
+  twofaResendCooldownSeconds: number;
+  /** Max 2FA codes per admin per hour (FR-RBAC-008 throttling). */
+  twofaHourlyCap: number;
   resetTokenTtlSeconds: number;
   /** Base URL of the admin panel (for building reset links). */
   adminPanelUrl: string;

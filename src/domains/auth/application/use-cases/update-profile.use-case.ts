@@ -6,35 +6,32 @@ import {
   CUSTOMER_REPOSITORY,
   ICustomerRepository,
 } from '../../domain/repositories/customer.repository.interface';
-import { IssueEmailVerificationUseCase } from './issue-email-verification.use-case';
 
 export interface UpdateProfileCommand {
   customerId: string;
   fullName?: string;
   gender?: Gender;
   dateOfBirth?: string; // ISO date (YYYY-MM-DD)
-  email?: string;
   promoSmsOptIn?: boolean;
   promoEmailOptIn?: boolean;
 }
 
 export interface UpdateProfileResult {
   customer: Customer;
-  emailChanged: boolean;
 }
 
 const MIN_AGE_YEARS = 13;
 
 /**
- * Self-service profile update (FR-AUTH-040/041/060): name/gender/DOB + promo prefs; an
- * email change resets `email_verified` and re-sends verification; a DOB under 13 → 400;
- * an email already used by another active account → 409.
+ * Self-service profile update (FR-AUTH-040/060): name/gender/DOB + promo prefs; a DOB
+ * under 13 → 400. `email` is NO LONGER accepted here (changed 2026-07-19): email
+ * add/change goes through the verify-before-attach pair (FR-AUTH-041) so an unverified
+ * address is never attached.
  */
 @Injectable()
 export class UpdateProfileUseCase {
   constructor(
     @Inject(CUSTOMER_REPOSITORY) private readonly customers: ICustomerRepository,
-    private readonly issueEmailVerification: IssueEmailVerificationUseCase,
   ) {}
 
   async execute(command: UpdateProfileCommand): Promise<UpdateProfileResult> {
@@ -65,19 +62,6 @@ export class UpdateProfileUseCase {
       dateOfBirth = dob;
     }
 
-    let emailChanged = false;
-    if (command.email !== undefined && command.email.toLowerCase() !== (customer.email ?? '').toLowerCase()) {
-      const existing = await this.customers.findActiveByEmail(command.email);
-      if (existing && existing.id !== customer.id) {
-        throw new HttpException(
-          { code: 'EMAIL_IN_USE', message: 'That email is already in use by another account.' },
-          HttpStatus.CONFLICT,
-        );
-      }
-      customer.changeEmailPending(command.email, now);
-      emailChanged = true;
-    }
-
     customer.updateProfile(
       { fullName: command.fullName, gender: command.gender, dateOfBirth },
       now,
@@ -90,16 +74,7 @@ export class UpdateProfileUseCase {
     }
 
     const saved = await this.customers.save(customer);
-
-    if (emailChanged && saved.email) {
-      await this.issueEmailVerification.execute({
-        customerId: saved.id,
-        email: saved.email,
-        fullName: saved.fullName,
-      });
-    }
-
-    return { customer: saved, emailChanged };
+    return { customer: saved };
   }
 
   private ageInYears(dob: Date, now: Date): number {

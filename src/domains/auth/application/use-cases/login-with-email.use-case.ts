@@ -68,9 +68,8 @@ export class LoginWithEmailUseCase {
     const email = command.email.trim().toLowerCase();
     const customer = await this.customers.findActiveByEmail(email);
 
-    // Unknown email / no password (phone-only) / un-activated lightweight account → invalid
-    // creds, no enumeration. Lightweight accounts cannot password-login until claimed (FR-AUTH-073).
-    if (!customer || !customer.passwordHash || customer.isLightweight) {
+    // Unknown email / no password (phone-only account) → invalid creds, no enumeration.
+    if (!customer || !customer.passwordHash) {
       throw this.invalidCredentials();
     }
 
@@ -105,11 +104,12 @@ export class LoginWithEmailUseCase {
       }
     }
 
-    const access = await this.tokens.signAccessToken(customer.id);
+    const sessionId = randomUUID();
+    const access = await this.tokens.signAccessToken(customer.id, sessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
       Session.issue(
-        randomUUID(),
+        sessionId,
         customer.id,
         refresh.hash,
         refresh.expiresAt,

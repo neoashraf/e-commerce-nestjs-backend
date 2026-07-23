@@ -87,16 +87,23 @@ export class VerifySecondFactorUseCase {
     preAuth.consume(now);
     await this.preAuth.save(preAuth);
 
-    const access = await this.tokens.signAccessToken(preAuth.customerId);
+    const sessionId = randomUUID();
+    // FR-MFA-018: this session was created through a completed second factor — stamp the
+    // `mfa` token claim and the Session.mfa_verified flag.
+    const access = await this.tokens.signAccessToken(preAuth.customerId, sessionId, {
+      mfaVerified: true,
+    });
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
       Session.issue(
-        randomUUID(),
+        sessionId,
         preAuth.customerId,
         refresh.hash,
         refresh.expiresAt,
         now,
         command.deviceLabel ?? null,
+        null,
+        true,
       ),
     );
 

@@ -77,14 +77,3 @@ export class LoginResponseDto {
 export class VerifyEmailResponseDto {
   @ApiProperty({ example: true }) email_verified: boolean;
 }
-
-export class ClaimedCustomerDto {
-  @ApiProperty() id: string;
-  @ApiProperty({ example: false }) is_lightweight: boolean;
-  @ApiProperty({ example: true }) phone_verified: boolean;
-}
-
-export class ClaimResponseDto {
-  @ApiProperty({ type: ClaimedCustomerDto }) customer: ClaimedCustomerDto;
-  @ApiProperty({ type: AuthTokensDto }) tokens: AuthTokensDto;
-}

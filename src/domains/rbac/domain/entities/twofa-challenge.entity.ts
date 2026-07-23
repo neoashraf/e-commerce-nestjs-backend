@@ -1,10 +1,11 @@
 import { TwofaChannel } from '../enums/twofa-channel.enum';
+import { TwofaPurpose } from '../enums/twofa-purpose.enum';
 
 /**
- * Transient pending 2FA challenge issued after a valid password, completed via
- * `POST /admin/auth/2fa/verify` (FR-RBAC-002). Support state for the documented
- * login flow (not a business aggregate). `rememberDevice` is captured at login so
- * the verify step issues the correct 90d/30d refresh TTL.
+ * Transient pending 2FA challenge (FR-RBAC-002/008/009): the login second step, the
+ * enable-confirm code, or the disable proof-of-control code — bound by `purpose` so a
+ * code issued for one flow can never complete another. `rememberDevice` is captured at
+ * login so the verify step issues the correct 90d/30d refresh TTL.
  */
 export class TwofaChallenge {
   constructor(
@@ -17,6 +18,7 @@ export class TwofaChallenge {
     public expiresAt: Date,
     public consumedAt: Date | null,
     public readonly createdAt: Date,
+    public readonly purpose: TwofaPurpose = TwofaPurpose.LOGIN,
   ) {}
 
   isConsumed(): boolean {

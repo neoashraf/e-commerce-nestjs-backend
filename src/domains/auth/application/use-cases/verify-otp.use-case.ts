@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 
 import { Customer } from '../../domain/entities/customer.entity';
+import { OtpPurpose } from '../../domain/enums/otp-purpose.enum';
 import { Session } from '../../domain/entities/session.entity';
 import {
   CUSTOMER_REPOSITORY,
@@ -61,6 +62,15 @@ export class VerifyOtpUseCase {
       throw new BadRequestException({
         code: 'OTP_CONSUMED',
         message: 'This code has already been used.',
+      });
+    }
+    // OTP purpose binding (BR-AUTH-3, contract §OTP): the login-verify endpoint accepts only
+    // challenges issued for LOGIN or REGISTER. A `password_reset` / `phone_change` /
+    // `password_set` code presented here → INVALID_OTP (never usable to log in).
+    if (challenge.purpose !== OtpPurpose.LOGIN && challenge.purpose !== OtpPurpose.REGISTER) {
+      throw new BadRequestException({
+        code: 'INVALID_OTP',
+        message: 'Invalid or expired code.',
       });
     }
     if (challenge.attemptsExhausted(this.config.otpAttemptCap)) {
@@ -119,10 +129,12 @@ export class VerifyOtpUseCase {
     // Phone ownership is proven by the OTP just consumed; degrades gracefully (never blocks login).
     await this.guestOrderClaim.claimByPhone(challenge.phone, customer.id);
 
-    const access = await this.tokens.signAccessToken(customer.id);
+    const sessionId = randomUUID();
+    const access = await this.tokens.signAccessToken(customer.id, sessionId);
     const refresh = this.tokens.mintRefreshToken(now);
     await this.sessions.save(
-      Session.issue(randomUUID(), customer.id, refresh.hash, refresh.expiresAt, now),
+      // otpVerifiedAt = now: this session was established by a phone OTP (FR-AUTH-037).
+      Session.issue(sessionId, customer.id, refresh.hash, refresh.expiresAt, now, null, now),
     );
 
     return {

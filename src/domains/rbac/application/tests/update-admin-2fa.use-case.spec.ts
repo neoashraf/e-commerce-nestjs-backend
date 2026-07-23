@@ -2,38 +2,72 @@ import { HttpException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { AdminUser } from '../../domain/entities/admin-user.entity';
-import { Role } from '../../domain/entities/role.entity';
+import { TwofaChallenge } from '../../domain/entities/twofa-challenge.entity';
 import { AdminUserStatus } from '../../domain/enums/admin-user-status.enum';
 import { TwofaChannel } from '../../domain/enums/twofa-channel.enum';
-import { SUPER_ADMIN_ROLE_NAME } from '../../domain/permission-catalog';
+import { TwofaPurpose } from '../../domain/enums/twofa-purpose.enum';
 import { ADMIN_USER_REPOSITORY } from '../../domain/repositories/admin-user.repository.interface';
-import { ROLE_REPOSITORY } from '../../domain/repositories/role.repository.interface';
+import { ADMIN_SESSION_REPOSITORY } from '../../domain/repositories/admin-session.repository.interface';
+import { TWOFA_CHALLENGE_REPOSITORY } from '../../domain/repositories/twofa-challenge.repository.interface';
+import { ADMIN_NOTIFICATION_DISPATCHER } from '../ports/admin-notification.port';
+import { ADMIN_OTP_SERVICE } from '../ports/admin-otp.port';
 import { PASSWORD_HASHER } from '../ports/password-hasher.port';
+import { RBAC_CONFIG } from '../ports/rbac-config.port';
 import { AuditService } from '../services/audit.service';
+import { TwofaChallengeIssuerService } from '../services/twofa-challenge-issuer.service';
 import { UpdateAdmin2faUseCase } from '../use-cases/update-admin-2fa.use-case';
 
-describe('RBAC — UpdateAdmin2faUseCase', () => {
+describe('RBAC — UpdateAdmin2faUseCase (v0.2 enable→confirm, FR-RBAC-008/009)', () => {
   let useCase: UpdateAdmin2faUseCase;
   let admins: { findById: jest.Mock; save: jest.Mock };
-  let roles: { findById: jest.Mock };
+  let sessions: { revokeAllForAdminExcept: jest.Mock };
+  let challenges: { findLatestByAdminAndPurpose: jest.Mock; save: jest.Mock };
   let hasher: { compare: jest.Mock };
+  let otp: { compare: jest.Mock };
+  let notifier: { dispatchTwofaStateChange: jest.Mock };
+  let issuer: { issue: jest.Mock };
   let audit: { record: jest.Mock };
 
-  const adminWith = (phone: string | null) =>
-    new AdminUser('ad1', 'Ops', 'ops@store.com', phone, 'hash', 'role1', false, null, AdminUserStatus.ACTIVE, 0, null, null, new Date(), new Date(), null);
+  const makeAdmin = (twofaEnabled = false) => {
+    const a = new AdminUser('ad1', 'Ops', 'ops@store.com', null, 'hash', 'role1', false, null, AdminUserStatus.ACTIVE, 0, null, null, new Date(), new Date(), null);
+    if (twofaEnabled) a.enableTwofa(TwofaChannel.EMAIL, new Date());
+    return a;
+  };
+
+  const issuedView = {
+    challengeId: 'ch1',
+    sentTo: 'o**@store.com',
+    expiresIn: 300,
+    resendAfter: 60,
+  };
+
+  const disableChallenge = () =>
+    new TwofaChallenge('ch1', 'ad1', 'code-hash', TwofaChannel.EMAIL, false, 0, new Date(Date.now() + 300_000), null, new Date(), TwofaPurpose.DISABLE);
 
   beforeEach(async () => {
     admins = { findById: jest.fn(), save: jest.fn().mockImplementation((a) => Promise.resolve(a)) };
-    roles = { findById: jest.fn() };
+    sessions = { revokeAllForAdminExcept: jest.fn().mockResolvedValue(undefined) };
+    challenges = {
+      findLatestByAdminAndPurpose: jest.fn().mockResolvedValue(null),
+      save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
+    };
     hasher = { compare: jest.fn().mockResolvedValue(true) };
+    otp = { compare: jest.fn().mockResolvedValue(true) };
+    notifier = { dispatchTwofaStateChange: jest.fn().mockResolvedValue(undefined) };
+    issuer = { issue: jest.fn().mockResolvedValue(issuedView) };
     audit = { record: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UpdateAdmin2faUseCase,
         { provide: ADMIN_USER_REPOSITORY, useValue: admins },
-        { provide: ROLE_REPOSITORY, useValue: roles },
+        { provide: ADMIN_SESSION_REPOSITORY, useValue: sessions },
+        { provide: TWOFA_CHALLENGE_REPOSITORY, useValue: challenges },
         { provide: PASSWORD_HASHER, useValue: hasher },
+        { provide: ADMIN_OTP_SERVICE, useValue: otp },
+        { provide: ADMIN_NOTIFICATION_DISPATCHER, useValue: notifier },
+        { provide: RBAC_CONFIG, useValue: { twofaAttemptCap: 5 } },
+        { provide: TwofaChallengeIssuerService, useValue: issuer },
         { provide: AuditService, useValue: audit },
       ],
     }).compile();
@@ -42,53 +76,96 @@ describe('RBAC — UpdateAdmin2faUseCase', () => {
 
   afterEach(() => jest.clearAllMocks());
 
-  it('enables SMS 2FA when a phone is stored (FR-RBAC-008)', async () => {
-    const admin = adminWith('+8801712345678');
+  it('enable issues a challenge — 2FA NOT active until confirm (AC1, FR-RBAC-008)', async () => {
+    const admin = makeAdmin(false);
     admins.findById.mockResolvedValue(admin);
 
-    const result = await useCase.execute({ adminId: 'ad1', enabled: true, channel: TwofaChannel.SMS, currentPassword: 'p' });
+    const result = await useCase.execute({
+      adminId: 'ad1',
+      enabled: true,
+      currentPassword: 'p',
+      sessionMfaVerified: false,
+    });
 
-    expect(admin.twofaEnabled).toBe(true);
-    expect(result.channel).toBe(TwofaChannel.SMS);
+    expect(result.twofaEnabled).toBe(false);
+    expect(result.verification).toEqual(issuedView);
+    expect(issuer.issue).toHaveBeenCalledWith(admin, TwofaPurpose.ENABLE, expect.any(Date));
+    expect(admin.twofaEnabled).toBe(false);
+    expect(admins.save).not.toHaveBeenCalled();
   });
 
-  it('rejects enabling SMS 2FA without a stored phone (400)', async () => {
-    admins.findById.mockResolvedValue(adminWith(null));
-    let thrown: unknown;
-    try {
-      await useCase.execute({ adminId: 'ad1', enabled: true, channel: TwofaChannel.SMS, currentPassword: 'p' });
-    } catch (e) {
-      thrown = e;
-    }
-    expect((thrown as HttpException).getStatus()).toBe(400);
-  });
-
-  it('rejects a wrong current password with 401', async () => {
-    admins.findById.mockResolvedValue(adminWith('+8801712345678'));
+  it('rejects a wrong current password with 401 (AC1)', async () => {
+    admins.findById.mockResolvedValue(makeAdmin(false));
     hasher.compare.mockResolvedValue(false);
     await expect(
-      useCase.execute({ adminId: 'ad1', enabled: false, currentPassword: 'wrong' }),
+      useCase.execute({ adminId: 'ad1', enabled: true, currentPassword: 'wrong', sessionMfaVerified: false }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(issuer.issue).not.toHaveBeenCalled();
   });
 
-  it('lets a Super Admin disable their own 2FA — opt-in for every admin (FR-RBAC-008)', async () => {
+  it('blocks a Super Admin from disabling 2FA with 403 (FR-RBAC-008)', async () => {
     const admin = adminWith('+8801712345678');
     admin.twofaEnabled = true;
     admins.findById.mockResolvedValue(admin);
     roles.findById.mockResolvedValue(new Role('role1', SUPER_ADMIN_ROLE_NAME, null, true, new Date(), new Date(), null));
 
-    const result = await useCase.execute({ adminId: 'ad1', enabled: false, currentPassword: 'p' });
-    expect(result.twofaEnabled).toBe(false);
-    expect(admin.twofaEnabled).toBe(false);
+    await expect(
+      useCase.execute({ adminId: 'ad1', enabled: false, currentPassword: 'p' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(admin.twofaEnabled).toBe(true);
   });
 
-  it('lets a non-super admin disable 2FA', async () => {
-    const admin = adminWith('+8801712345678');
-    admin.twofaEnabled = true;
+  it('disable with a valid fresh code succeeds from a non-verified session (AC4)', async () => {
+    const admin = makeAdmin(true);
     admins.findById.mockResolvedValue(admin);
-    roles.findById.mockResolvedValue(new Role('role1', 'Order Manager', null, true, new Date(), new Date(), null));
+    challenges.findLatestByAdminAndPurpose.mockResolvedValue(disableChallenge());
 
-    const result = await useCase.execute({ adminId: 'ad1', enabled: false, currentPassword: 'p' });
+    const result = await useCase.execute({
+      adminId: 'ad1',
+      enabled: false,
+      currentPassword: 'p',
+      code: '482913',
+      sessionMfaVerified: false,
+      currentSessionId: 'sess-current',
+    });
+
     expect(result.twofaEnabled).toBe(false);
+    expect(challenges.findLatestByAdminAndPurpose).toHaveBeenCalledWith('ad1', TwofaPurpose.DISABLE);
+    expect(sessions.revokeAllForAdminExcept).toHaveBeenCalled();
+  });
+
+  it('disable with a wrong code → 400 and 2FA stays on', async () => {
+    const admin = makeAdmin(true);
+    admins.findById.mockResolvedValue(admin);
+    const challenge = disableChallenge();
+    challenges.findLatestByAdminAndPurpose.mockResolvedValue(challenge);
+    otp.compare.mockResolvedValue(false);
+
+    let thrown: unknown;
+    try {
+      await useCase.execute({
+        adminId: 'ad1',
+        enabled: false,
+        currentPassword: 'p',
+        code: '000000',
+        sessionMfaVerified: false,
+      });
+    } catch (e) {
+      thrown = e;
+    }
+    expect((thrown as HttpException).getStatus()).toBe(400);
+    expect(challenge.attempts).toBe(1);
+    expect(admin.twofaEnabled).toBe(true);
+  });
+
+  it('disable when 2FA is not enabled → 400 TWOFA_NOT_ENABLED', async () => {
+    admins.findById.mockResolvedValue(makeAdmin(false));
+    let thrown: unknown;
+    try {
+      await useCase.execute({ adminId: 'ad1', enabled: false, currentPassword: 'p', sessionMfaVerified: true });
+    } catch (e) {
+      thrown = e;
+    }
+    expect((thrown as HttpException).getStatus()).toBe(400);
   });
 });

@@ -48,7 +48,7 @@ import { AdminGeoController } from './presentation/controllers/admin-geo.control
  * lines/coupon → reserve stock → create order → initiate payment → clear cart, idempotent per key). The
  * BW5 integration step — every cross-module call goes through a port wired to the **real** impl: INV
  * (ReservationService), ORD (OrderCreationService), PAY (PaymentsService), PROMO (CouponEngineService),
- * AUTH (lightweight account for guests). Also owns DeliveryZoneCharge settings (deferred here by
+ * AUTH (OTP-gated checkout signs guests in). Also owns DeliveryZoneCharge settings (deferred here by
  * cart-delivery-zone-be) with the BD defaults. `CartService` exported for in-process use.
  */
 @Module({

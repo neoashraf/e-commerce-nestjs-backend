@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, UnauthorizedException } from '
 
 import { AdminUserStatus } from '../../domain/enums/admin-user-status.enum';
 import { AuditResult } from '../../domain/enums/audit-result.enum';
+import { TwofaPurpose } from '../../domain/enums/twofa-purpose.enum';
 import {
   ADMIN_USER_REPOSITORY,
   IAdminUserRepository,
@@ -47,6 +48,8 @@ export class Verify2faUseCase {
     const challenge = await this.challenges.findById(command.challengeId);
     if (
       !challenge ||
+      // Purpose binding (FR-RBAC-008/009): an enable/disable code can never complete a login.
+      challenge.purpose !== TwofaPurpose.LOGIN ||
       challenge.isConsumed() ||
       challenge.isExpired(now) ||
       challenge.attemptsExhausted(this.config.twofaAttemptCap)
@@ -82,12 +85,14 @@ export class Verify2faUseCase {
 
     admin.registerSuccessfulLogin(now);
     await this.admins.save(admin);
+    // mfaVerified: this session was created through a completed 2FA step (FR-RBAC-009).
     const tokens = await this.sessionIssuer.issueForLogin(
       admin.id,
       role.id,
       challenge.rememberDevice,
       command.deviceLabel,
       now,
+      true,
     );
     await this.audit.record({
       actorAdminId: admin.id,

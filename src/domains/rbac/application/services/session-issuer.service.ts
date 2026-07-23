@@ -22,16 +22,20 @@ export class SessionIssuerService {
     @Inject(ADMIN_TOKEN_SERVICE) private readonly tokens: IAdminTokenService,
   ) {}
 
-  /** Fresh login session (remember → 90d, else 30d refresh TTL). */
+  /**
+   * Fresh login session (remember → 90d, else 30d refresh TTL). `mfaVerified` marks a
+   * login that passed the 2FA step (FR-RBAC-009, mirrors FR-MFA-018).
+   */
   async issueForLogin(
     adminId: string,
     roleId: string,
     remember: boolean,
     deviceLabel: string | null,
     now: Date,
+    mfaVerified = false,
   ): Promise<IssuedTokens> {
     const refresh = this.tokens.mintRefreshToken(now, remember);
-    return this.persist(adminId, roleId, refresh.raw, refresh.hash, refresh.expiresAt, deviceLabel, now);
+    return this.persist(adminId, roleId, refresh.raw, refresh.hash, refresh.expiresAt, deviceLabel, now, mfaVerified);
   }
 
   /** Rotated session — carries the original session's expiry ceiling (no extend on rotation). */
@@ -41,9 +45,10 @@ export class SessionIssuerService {
     expiresAt: Date,
     deviceLabel: string | null,
     now: Date,
+    mfaVerified = false,
   ): Promise<IssuedTokens> {
     const refresh = this.tokens.mintRefreshToken(now, false);
-    return this.persist(adminId, roleId, refresh.raw, refresh.hash, expiresAt, deviceLabel, now);
+    return this.persist(adminId, roleId, refresh.raw, refresh.hash, expiresAt, deviceLabel, now, mfaVerified);
   }
 
   private async persist(
@@ -54,13 +59,18 @@ export class SessionIssuerService {
     expiresAt: Date,
     deviceLabel: string | null,
     now: Date,
+    mfaVerified: boolean,
   ): Promise<IssuedTokens> {
-    const access = await this.tokens.signAccessToken(adminId, roleId);
+    const sessionId = randomUUID();
+    const access = await this.tokens.signAccessToken(adminId, roleId, {
+      sessionId,
+      mfaVerified,
+    });
     // device_label is a varchar(255) sourced from the User-Agent header; cap it so an
     // unusually long UA can never overflow the column and 500 the login/verify/refresh flow.
     const label = deviceLabel != null ? deviceLabel.slice(0, 255) : null;
     await this.sessions.save(
-      AdminSession.issue(randomUUID(), adminId, refreshHash, expiresAt, now, label),
+      AdminSession.issue(sessionId, adminId, refreshHash, expiresAt, now, label, mfaVerified),
     );
     return { accessToken: access.token, refreshToken: rawRefresh, expiresIn: access.expiresIn };
   }

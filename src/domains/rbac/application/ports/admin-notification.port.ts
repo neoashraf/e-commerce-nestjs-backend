@@ -27,6 +27,13 @@ export interface IAdminNotificationDispatcher {
     fullName: string;
     resetUrl: string;
   }): Promise<void>;
+
+  /** 2FA enabled/disabled confirmation email (FR-RBAC-009) — best-effort. */
+  dispatchTwofaStateChange(input: {
+    email: string;
+    fullName: string;
+    enabled: boolean;
+  }): Promise<void>;
 }
 
 export const ADMIN_NOTIFICATION_DISPATCHER = Symbol('IAdminNotificationDispatcher');
