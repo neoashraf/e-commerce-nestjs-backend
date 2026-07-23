@@ -103,15 +103,43 @@ describe('RBAC — UpdateAdmin2faUseCase (v0.2 enable→confirm, FR-RBAC-008/009
     expect(issuer.issue).not.toHaveBeenCalled();
   });
 
-  it('blocks a Super Admin from disabling 2FA with 403 (FR-RBAC-008)', async () => {
-    const admin = adminWith('+8801712345678');
-    admin.twofaEnabled = true;
+  it('disable from a 2FA-verified session is password-only (AC4/AC6 — incl. Super Admin)', async () => {
+    const admin = makeAdmin(true);
     admins.findById.mockResolvedValue(admin);
-    roles.findById.mockResolvedValue(new Role('role1', SUPER_ADMIN_ROLE_NAME, null, true, new Date(), new Date(), null));
 
-    await expect(
-      useCase.execute({ adminId: 'ad1', enabled: false, currentPassword: 'p' }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    const result = await useCase.execute({
+      adminId: 'ad1',
+      enabled: false,
+      currentPassword: 'p',
+      sessionMfaVerified: true,
+      currentSessionId: 'sess-current',
+    });
+
+    expect(result.twofaEnabled).toBe(false);
+    expect(admin.twofaEnabled).toBe(false);
+    expect(sessions.revokeAllForAdminExcept).toHaveBeenCalledWith('ad1', 'sess-current', expect.any(Date));
+    expect(notifier.dispatchTwofaStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'admin.2fa.disable' }),
+    );
+  });
+
+  it('disable from a non-verified session without code returns a verification challenge (AC4)', async () => {
+    const admin = makeAdmin(true);
+    admins.findById.mockResolvedValue(admin);
+
+    const result = await useCase.execute({
+      adminId: 'ad1',
+      enabled: false,
+      currentPassword: 'p',
+      sessionMfaVerified: false,
+    });
+
+    expect(result.twofaEnabled).toBe(true); // still on
+    expect(result.verification).toEqual(issuedView);
+    expect(issuer.issue).toHaveBeenCalledWith(admin, TwofaPurpose.DISABLE, expect.any(Date));
     expect(admin.twofaEnabled).toBe(true);
   });
 
