@@ -10,6 +10,7 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
+  "globalSetup": "<rootDir>/support/global-setup.ts",
   "maxWorkers": 1,
   "testTimeout": 60000
 }
