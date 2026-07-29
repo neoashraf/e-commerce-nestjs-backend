@@ -58,6 +58,29 @@ describe('Cart — SummaryService', () => {
     expect(s.grand_total).toBe('5000.00');
   });
 
+  it('should waive delivery for a free_shipping coupon even below the threshold (FR-PROMO-013)', () => {
+    // A free_shipping coupon discounts nothing off the subtotal — the waived delivery IS the benefit,
+    // so without this the shopper saw "coupon applied, ৳0 off" and still paid full delivery.
+    const s = service.computeSummary('1000.00', '0.00', zone(), OrderPaymentMethod.BKASH, true);
+    expect(s.discount).toBe('0.00');
+    expect(s.delivery_charge).toBe('0.00');
+    expect(s.grand_total).toBe('1000.00');
+  });
+
+  it('should still charge delivery when no free_shipping coupon is applied', () => {
+    const s = service.computeSummary('1000.00', '0.00', zone(), OrderPaymentMethod.BKASH, false);
+    expect(s.delivery_charge).toBe('70.00');
+    expect(s.grand_total).toBe('1070.00');
+  });
+
+  it('should keep the COD surcharge when a free_shipping coupon waives delivery', () => {
+    const z = zone({ zone: DeliveryZone.OUTSIDE_DHAKA, delivery_charge: '120.00', cod_surcharge_pct: '1.00' });
+    const s = service.computeSummary('5000.00', '0.00', z, OrderPaymentMethod.COD, true);
+    expect(s.delivery_charge).toBe('0.00');
+    expect(s.cod_surcharge).toBe('50.00');
+    expect(s.grand_total).toBe('5050.00');
+  });
+
   it('should compute informational inclusive VAT (15/115) without changing the total', () => {
     const s = service.computeSummary('1150.00', '0.00', zone({ delivery_charge: '0.00' }), OrderPaymentMethod.BKASH);
     // VAT = round(1150 × 15 / 115) = 150; grand total unchanged (VAT-inclusive prices).
