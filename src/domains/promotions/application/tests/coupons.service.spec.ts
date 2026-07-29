@@ -98,4 +98,69 @@ describe('Promotions — CouponsService', () => {
     await service.remove('cp_1');
     expect(coupons.softDelete).toHaveBeenCalledWith({ id: 'cp_1' });
   });
+
+  describe('getDetail — contract shape for the admin editor', () => {
+    const ormRow = {
+      id: 'cp_1',
+      code: 'BOOT10',
+      description: '10% off boots',
+      discountType: DiscountType.PERCENTAGE,
+      value: '10.00',
+      maxDiscountAmount: '500.00',
+      minOrderSubtotal: '2000.00',
+      eligibilityScope: EligibilityScope.ALL,
+      eligibleCategoryIds: ['cat_1'],
+      eligibleProductIds: [],
+      startsAt: new Date('2026-06-05T00:00:00Z'),
+      endsAt: new Date('2026-06-20T23:59:59Z'),
+      totalUsageLimit: 100,
+      perCustomerLimit: 1,
+      firstOrderOnly: true,
+      totalUsed: 2,
+      isActive: true,
+      createdAt: new Date('2026-06-01T00:00:00Z'),
+      updatedAt: new Date('2026-06-01T00:00:00Z'),
+      deletedAt: null,
+    };
+
+    it('should return every editor field in snake_case, not the camelCase ORM entity', async () => {
+      coupons.findOne.mockResolvedValue(ormRow);
+      const detail = await service.getDetail('cp_1', new Date('2026-06-10T00:00:00Z'));
+      expect(detail).toMatchObject({
+        id: 'cp_1',
+        code: 'BOOT10',
+        description: '10% off boots',
+        discount_type: DiscountType.PERCENTAGE,
+        value: '10.00',
+        max_discount_amount: '500.00',
+        min_order_subtotal: '2000.00',
+        eligibility_scope: EligibilityScope.ALL,
+        eligible_category_ids: ['cat_1'],
+        eligible_product_ids: [],
+        total_used: 2,
+        total_usage_limit: 100,
+        per_customer_limit: 1,
+        first_order_only: true,
+        is_active: true,
+      });
+      expect(detail.starts_at).toEqual(ormRow.startsAt);
+      expect(detail.ends_at).toEqual(ormRow.endsAt);
+    });
+
+    it('should derive status and leak no ORM internals', async () => {
+      coupons.findOne.mockResolvedValue(ormRow);
+      const detail = await service.getDetail('cp_1', new Date('2026-06-10T00:00:00Z'));
+      expect(detail.status).toBe('active');
+      expect(Object.keys(detail)).toEqual(
+        expect.not.arrayContaining(['discountType', 'isActive', 'deletedAt', 'createdAt']),
+      );
+    });
+
+    it('should 404 when the coupon does not exist', async () => {
+      coupons.findOne.mockResolvedValue(null);
+      await expect(service.getDetail('missing')).rejects.toMatchObject({
+        response: { code: 'COUPON_NOT_FOUND' },
+      });
+    });
+  });
 });

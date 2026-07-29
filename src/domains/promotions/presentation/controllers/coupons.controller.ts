@@ -29,6 +29,7 @@ import { JwtAdminGuard } from '../../../rbac/presentation/guards/jwt-admin.guard
 import { PermissionsGuard } from '../../../rbac/presentation/guards/permissions.guard';
 import { Requires } from '../../../rbac/presentation/decorators/requires.decorator';
 import {
+  CouponDetailView,
   CouponListRow,
   CouponsService,
   RedemptionsView,
@@ -37,6 +38,7 @@ import { DEFAULT_LIMIT, MAX_LIMIT } from '../../domain/promo-constants';
 import { RedemptionStatus } from '../../domain/promo-enums';
 import {
   CouponCreatedDto,
+  CouponDetailDto,
   CouponListRowDto,
   CreateCouponDto,
   ListCouponsDto,
@@ -72,9 +74,10 @@ export class CouponsController {
   @Get(':id')
   @Requires('promotions.coupon.read')
   @ApiOperation({ summary: 'Get a coupon by id' })
+  @ApiOkResponse({ type: CouponDetailDto })
   @ApiNotFoundResponse({ description: 'COUPON_NOT_FOUND' })
-  getById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.coupons.getById(id);
+  getById(@Param('id', ParseUUIDPipe) id: string): Promise<CouponDetailView> {
+    return this.coupons.getDetail(id);
   }
 
   @Post()
@@ -94,9 +97,14 @@ export class CouponsController {
   @ApiOperation({ summary: 'Update / activate / deactivate a coupon (code immutable once redeemed)' })
   @ApiBadRequestResponse({ description: 'INVALID_WINDOW / INVALID_VALUE / INVALID_SCOPE' })
   @ApiConflictResponse({ description: 'COUPON_CODE_EXISTS / CODE_IMMUTABLE' })
+  @ApiOkResponse({ type: CouponDetailDto })
   @ApiNotFoundResponse({ description: 'COUPON_NOT_FOUND' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCouponDto) {
-    return this.coupons.update(id, dto);
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCouponDto,
+  ): Promise<CouponDetailView> {
+    // Same contract shape as GET — the editor re-reads the coupon from this response.
+    return this.coupons.toDetailView(await this.coupons.update(id, dto));
   }
 
   @Delete(':id')
