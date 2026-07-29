@@ -1,5 +1,5 @@
-import { forwardRef, Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { forwardRef, Logger, Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { RbacModule } from '../rbac/rbac.module';
@@ -30,9 +30,10 @@ import { WebhookVerificationService } from './webhook-verification';
 import { UnsubscribeController } from './unsubscribe.controller';
 import { OPT_IN_READER, StubOptInReader } from './ports/opt-in-reader.port';
 import { EMAIL_PROVIDER } from './providers/email-provider.interface';
-import { SMS_PROVIDER } from './providers/sms-provider.interface';
+import { ISmsProvider, SMS_PROVIDER } from './providers/sms-provider.interface';
 import { SmtpEmailAdapter } from './providers/smtp-email.adapter';
 import { StubSmsAdapter } from './providers/stub-sms.adapter';
+import { TwilioSmsAdapter } from './providers/twilio-sms.adapter';
 
 @Module({
   imports: [
@@ -71,7 +72,21 @@ import { StubSmsAdapter } from './providers/stub-sms.adapter';
     AdminNotificationService,
     AdminNotificationBus,
     { provide: ADMIN_RECIPIENT_RESOLVER, useClass: RbacAdminRecipientResolver },
-    { provide: SMS_PROVIDER, useClass: StubSmsAdapter },
+    // Live Twilio SMS when its credentials are configured; otherwise the dev stub
+    // (logs the SMS instead of sending). Keeps local/CI runnable with no gateway.
+    {
+      provide: SMS_PROVIDER,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): ISmsProvider => {
+        const logger = new Logger('SmsProvider');
+        if (TwilioSmsAdapter.isConfigured(config)) {
+          logger.log('SMS provider: Twilio (live).');
+          return new TwilioSmsAdapter(config);
+        }
+        logger.warn('SMS provider: dev stub — Twilio not configured, SMS will be logged, not sent.');
+        return new StubSmsAdapter();
+      },
+    },
     { provide: EMAIL_PROVIDER, useClass: SmtpEmailAdapter },
     { provide: OPT_IN_READER, useClass: StubOptInReader },
   ],

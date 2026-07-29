@@ -51,6 +51,23 @@ export interface CouponListRow {
   status: CouponStatus;
 }
 
+/**
+ * Coupon detail in contract shape (GET /admin/coupons/{id}, PATCH response) — the list row plus the
+ * editor-only fields. Deliberately mapped rather than returning `CouponOrmEntity`: the ORM entity is
+ * camelCase (`discountType`, `isActive`, …) and carries internals (`deletedAt`, timestamps), so
+ * handing it straight to the client broke every field the admin coupon editor binds.
+ */
+export interface CouponDetailView extends CouponListRow {
+  description: string | null;
+  max_discount_amount: string | null;
+  min_order_subtotal: string | null;
+  eligibility_scope: string;
+  eligible_category_ids: string[];
+  eligible_product_ids: string[];
+  per_customer_limit: number | null;
+  first_order_only: boolean;
+}
+
 export interface RedemptionsView {
   summary: { total_used: number; total_usage_limit: number | null; remaining: number | null };
   redemptions: {
@@ -173,6 +190,35 @@ export class CouponsService {
     const coupon = await this.coupons.findOne({ where: { id } });
     if (!coupon) throw this.notFound(id);
     return coupon;
+  }
+
+  /** Coupon detail in contract shape — what the admin editor loads. */
+  async getDetail(id: string, now: Date = new Date()): Promise<CouponDetailView> {
+    return this.toDetailView(await this.getById(id), now);
+  }
+
+  /** Map an ORM row to the contract detail shape (snake_case + derived status). */
+  toDetailView(coupon: CouponOrmEntity, now: Date = new Date()): CouponDetailView {
+    return {
+      id: coupon.id,
+      code: coupon.code,
+      description: coupon.description,
+      discount_type: coupon.discountType,
+      value: coupon.value,
+      max_discount_amount: coupon.maxDiscountAmount,
+      min_order_subtotal: coupon.minOrderSubtotal,
+      eligibility_scope: coupon.eligibilityScope,
+      eligible_category_ids: coupon.eligibleCategoryIds,
+      eligible_product_ids: coupon.eligibleProductIds,
+      starts_at: coupon.startsAt,
+      ends_at: coupon.endsAt,
+      total_used: coupon.totalUsed,
+      total_usage_limit: coupon.totalUsageLimit,
+      per_customer_limit: coupon.perCustomerLimit,
+      first_order_only: coupon.firstOrderOnly,
+      is_active: coupon.isActive,
+      status: this.statusOf(coupon, now),
+    };
   }
 
   async list(filter: {

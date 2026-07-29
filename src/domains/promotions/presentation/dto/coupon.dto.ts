@@ -118,6 +118,21 @@ export class CouponListRowDto {
   @ApiProperty({ enum: CouponStatus }) status: CouponStatus;
 }
 
+/**
+ * Coupon detail (contract: GET /admin/coupons/{id}, and the PATCH response) — the list row plus the
+ * fields the admin coupon editor binds. Mapped from the ORM entity, never the entity itself.
+ */
+export class CouponDetailDto extends CouponListRowDto {
+  @ApiProperty({ nullable: true }) description: string | null;
+  @ApiProperty({ nullable: true }) max_discount_amount: string | null;
+  @ApiProperty({ nullable: true }) min_order_subtotal: string | null;
+  @ApiProperty({ enum: EligibilityScope }) eligibility_scope: string;
+  @ApiProperty({ type: [String] }) eligible_category_ids: string[];
+  @ApiProperty({ type: [String] }) eligible_product_ids: string[];
+  @ApiProperty({ nullable: true }) per_customer_limit: number | null;
+  @ApiProperty() first_order_only: boolean;
+}
+
 /** Create-coupon response (contract: 201). */
 export class CouponCreatedDto {
   @ApiProperty({ example: 'cp_9' }) id: string;

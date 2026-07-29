@@ -17,8 +17,18 @@ export interface CouponIdentity {
  * prior order (so first-order-only never blocks) and the engine notes the assumption.
  */
 export interface IOrderHistoryReader {
-  /** Whether the identity has at least one prior completed (non-cancelled) order. */
-  hasPriorCompletedOrder(identity: CouponIdentity): Promise<boolean>;
+  /**
+   * Whether the identity has at least one prior completed (non-cancelled) order.
+   *
+   * `excludeOrderId` omits one order from the history — redeem runs AFTER CART has created the
+   * order it is redeeming against (a COD order is born `confirmed`), so without the exclusion the
+   * order being placed would count as its own "prior order" and every first-order-only coupon
+   * would fail at redeem (BR-PROMO-9).
+   */
+  hasPriorCompletedOrder(
+    identity: CouponIdentity,
+    excludeOrderId?: string | null,
+  ): Promise<boolean>;
 }
 
 export const ORDER_HISTORY_READER = Symbol('IOrderHistoryReader');

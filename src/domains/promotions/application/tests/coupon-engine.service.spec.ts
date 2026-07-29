@@ -248,6 +248,33 @@ describe('Promotions — CouponEngineService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('should redeem a first-order-only coupon on a genuine first order (the order being placed is excluded)', async () => {
+    lockedCoupon(buildCoupon({ firstOrderOnly: true }));
+    // The reader answers "no prior order" ONLY when the just-created order is excluded — checkout
+    // creates the order before redeeming and a COD order starts `confirmed`.
+    history.hasPriorCompletedOrder.mockImplementation(
+      async (_identity: unknown, excludeOrderId?: string | null) => excludeOrderId !== 'ord_first',
+    );
+    const result = await service.redeem(
+      { code: 'EID500', order_id: 'ord_first', identity: { customer_id: 'c1' }, discount_amount: '500.00' },
+      NOW,
+    );
+    expect(result.redeemed).toBe(true);
+    expect(history.hasPriorCompletedOrder).toHaveBeenCalledWith({ customer_id: 'c1' }, 'ord_first');
+  });
+
+  it('should reject redeem with first_order_only when the customer has an earlier order', async () => {
+    lockedCoupon(buildCoupon({ firstOrderOnly: true }));
+    history.hasPriorCompletedOrder.mockResolvedValue(true);
+    await expect(
+      service.redeem(
+        { code: 'EID500', order_id: 'ord_5', identity: { customer_id: 'c1' }, discount_amount: '500.00' },
+        NOW,
+      ),
+    ).rejects.toMatchObject({ response: { code: 'COUPON_INVALID', reason: 'first_order_only' } });
+    expect(redemptions.save).not.toHaveBeenCalled();
+  });
+
   it('should reject redeem with COUPON_INVALID when the coupon expired by placement', async () => {
     lockedCoupon(buildCoupon({ endsAt: new Date('2026-06-05T00:00:00Z') }));
     await expect(
