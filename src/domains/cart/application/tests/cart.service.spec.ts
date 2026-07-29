@@ -185,7 +185,11 @@ describe('Cart — CartService', () => {
     expect(coupons.validate).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'EID500', subtotal: '12500.00' }),
     );
-    expect(view.applied_coupon).toEqual({ code: 'EID500', discount: '500.00' });
+    expect(view.applied_coupon).toEqual({
+      code: 'EID500',
+      discount: '500.00',
+      free_shipping: false,
+    });
     expect(view.summary.discount).toBe('500.00');
     expect(view.summary.grand_total).toBe('12000.00');
   });

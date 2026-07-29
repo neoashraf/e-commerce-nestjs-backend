@@ -53,7 +53,12 @@ export interface CartView {
   cart_token: string | null;
   currency: 'BDT';
   items: CartLineView[];
-  applied_coupon: { code: string; discount: string } | null;
+  /**
+   * `free_shipping` is the free_shipping coupon type (FR-PROMO-013): it carries no subtotal
+   * discount, so `discount` stays 0.00 and the benefit lands as a waived delivery charge at the
+   * checkout quote. Without this flag the coupon read as "applied, ৳0 off" and never waived anything.
+   */
+  applied_coupon: { code: string; discount: string; free_shipping: boolean } | null;
   summary: {
     subtotal: string;
     discount: string;
@@ -297,7 +302,13 @@ export class CartService {
   async applyCoupon(
     actor: CartActor,
     code: string,
-  ): Promise<{ applied: true; code: string; discount: string; summary: CartView['summary'] }> {
+  ): Promise<{
+    applied: true;
+    code: string;
+    discount: string;
+    free_shipping: boolean;
+    summary: CartView['summary'];
+  }> {
     const cart = await this.resolveOrCreate(actor);
     const normalized = code.trim().toUpperCase();
 
@@ -323,14 +334,26 @@ export class CartService {
     });
 
     if (!verdict.valid) {
-      throw new UnprocessableEntityException({ code: 'COUPON_INVALID', reason: verdict.reason });
+      // `message` carries the engine's per-reason copy (expired / usage limit / first order only /
+      // …) so the storefront can show why instead of a generic "this code isn't valid".
+      throw new UnprocessableEntityException({
+        code: 'COUPON_INVALID',
+        reason: verdict.reason,
+        message: verdict.message,
+      });
     }
 
     cart.appliedCouponCode = normalized;
     await this.carts.save(cart);
 
     const summary = this.applyDiscountToSummary(view.summary, verdict.discount_amount, normalized);
-    return { applied: true as const, code: normalized, discount: verdict.discount_amount, summary };
+    return {
+      applied: true as const,
+      code: normalized,
+      discount: verdict.discount_amount,
+      free_shipping: verdict.free_shipping,
+      summary,
+    };
   }
 
   async removeCoupon(actor: CartActor): Promise<{ summary: CartView['summary'] }> {
@@ -450,7 +473,11 @@ export class CartService {
       });
       if (verdict.valid) {
         summary = this.applyDiscountToSummary(summary, verdict.discount_amount, cart.appliedCouponCode);
-        appliedCoupon = { code: cart.appliedCouponCode, discount: summary.discount };
+        appliedCoupon = {
+          code: cart.appliedCouponCode,
+          discount: summary.discount,
+          free_shipping: verdict.free_shipping,
+        };
       } else {
         cart.appliedCouponCode = null;
         await this.carts.save(cart);

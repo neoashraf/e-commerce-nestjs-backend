@@ -136,6 +136,8 @@ export class CheckoutService {
       cart.summary.discount,
       charge,
       method,
+      // A free_shipping coupon discounts nothing off the subtotal — it waives delivery here.
+      cart.applied_coupon?.free_shipping ?? false,
     );
 
     const paymentMethods = ['bkash', 'sslcommerz'];
@@ -195,6 +197,7 @@ export class CheckoutService {
 
     // Re-validate the coupon at placement (FR-CART-022/032).
     let discount = '0.00';
+    let freeShipping = false;
     let appliedCoupon: string | null = cart.appliedCouponCode ?? null;
     if (appliedCoupon) {
       const lines: CartLine[] = view.items.map((i) => ({
@@ -210,12 +213,25 @@ export class CheckoutService {
         subtotal: view.summary.subtotal,
       });
       if (!verdict.valid) {
-        throw new ConflictException({ code: 'COUPON_INVALID', reason: verdict.reason });
+        // Carry the engine's per-reason copy so the shopper is told WHY the coupon died between
+        // applying it and placing (e.g. the last use was taken, or the window closed).
+        throw new ConflictException({
+          code: 'COUPON_INVALID',
+          reason: verdict.reason,
+          message: verdict.message,
+        });
       }
       discount = verdict.discount_amount;
+      freeShipping = verdict.free_shipping;
     }
 
-    const summary = this.summary.computeSummary(view.summary.subtotal, discount, charge, method);
+    const summary = this.summary.computeSummary(
+      view.summary.subtotal,
+      discount,
+      charge,
+      method,
+      freeShipping,
+    );
 
     // expected_total guard (FR-CART-032) → 422 on mismatch.
     if (input.expected_total && Number(input.expected_total) !== Number(summary.grand_total)) {

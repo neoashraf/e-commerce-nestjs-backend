@@ -36,6 +36,7 @@ export class SummaryService {
     discount: string,
     zone: ZoneCharge,
     method: OrderPaymentMethod,
+    freeShipping = false,
   ): CheckoutSummary {
     const subtotalPaisa = toPaisa(subtotal);
     let discountPaisa = Math.min(toPaisa(discount), subtotalPaisa); // never exceed subtotal
@@ -43,10 +44,12 @@ export class SummaryService {
 
     const taxablePaisa = subtotalPaisa - discountPaisa;
 
-    // Delivery charge, waived when the free-shipping threshold is met (FR-CART-012).
+    // Delivery charge, waived when the zone's free-shipping threshold is met (FR-CART-012) OR a
+    // free_shipping coupon is applied (FR-PROMO-013) — that coupon type carries no subtotal
+    // discount, so the waiver here is the only benefit the shopper receives from it.
     let deliveryPaisa = toPaisa(zone.delivery_charge);
     const threshold = zone.free_shipping_threshold;
-    if (threshold !== null && taxablePaisa >= toPaisa(threshold)) {
+    if (freeShipping || (threshold !== null && taxablePaisa >= toPaisa(threshold))) {
       deliveryPaisa = 0;
     }
 
