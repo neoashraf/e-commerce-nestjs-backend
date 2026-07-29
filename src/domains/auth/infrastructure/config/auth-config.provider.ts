@@ -1,4 +1,4 @@
-import { Provider } from '@nestjs/common';
+import { Logger, Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { AUTH_CONFIG, AuthConfig } from '../../application/ports/auth-config.port';
@@ -15,6 +15,36 @@ export function parseDurationToSeconds(input: string | undefined, fallback: numb
   const unit = match[2] ?? 's';
   const multiplier = unit === 'd' ? 86400 : unit === 'h' ? 3600 : unit === 'm' ? 60 : 1;
   return value * multiplier;
+}
+
+/**
+ * Resolve the DEV-ONLY OTP echo flag (`dev_otp` in the `POST /auth/otp/request` response).
+ *
+ * Baseline: on only when `OTP_DEV_RETURN=true` **and** `NODE_ENV !== 'production'` — the NODE_ENV
+ * check is a fail-safe so an accidental prod env var can never expose the code (which would let
+ * anyone "verify" any phone → account takeover).
+ *
+ * Escape hatch: the deployed box runs `NODE_ENV=production` but has no live SMS gateway yet, so the
+ * OTP-gated guest checkout is unusable there. `OTP_DEV_RETURN_ALLOW_PROD=true` deliberately lifts
+ * the fail-safe — it takes **two** explicit vars, and boot logs a loud warning. Unset both the
+ * moment the SMS provider goes live.
+ */
+export function resolveOtpDevReturn(config: ConfigService): boolean {
+  const enabled = (config.get<string>('OTP_DEV_RETURN') ?? '').toLowerCase() === 'true';
+  if (!enabled) return false;
+  if (process.env.NODE_ENV !== 'production') return true;
+
+  const allowInProd =
+    (config.get<string>('OTP_DEV_RETURN_ALLOW_PROD') ?? '').toLowerCase() === 'true';
+  if (allowInProd) {
+    new Logger('AuthConfig').warn(
+      'OTP_DEV_RETURN is ON in production (OTP_DEV_RETURN_ALLOW_PROD=true): every OTP request ' +
+        'echoes its plaintext code in the API response, so anyone can verify any phone number and ' +
+        'take over that account. Intended only while there is no SMS gateway — unset both vars as ' +
+        'soon as the provider is live.',
+    );
+  }
+  return allowInProd;
 }
 
 export const authConfigProvider: Provider = {
@@ -46,11 +76,7 @@ export const authConfigProvider: Provider = {
     emailChangeResendCooldownSeconds: Number(
       config.get<string>('EMAIL_CHANGE_RESEND_COOLDOWN') ?? 60,
     ),
-    // DEV-ONLY OTP echo (no SMS gateway yet). Enabled ONLY when OTP_DEV_RETURN=true AND not in
-    // production — the NODE_ENV check is a hard fail-safe so an accidental prod env var can never
-    // expose the code (which would let anyone "verify" any phone → account takeover).
-    otpDevReturn:
-      process.env.NODE_ENV !== 'production' &&
-      (config.get<string>('OTP_DEV_RETURN') ?? '').toLowerCase() === 'true',
+    // DEV-ONLY OTP echo (no SMS gateway yet) — see resolveOtpDevReturn for the flag rules.
+    otpDevReturn: resolveOtpDevReturn(config),
   }),
 };
