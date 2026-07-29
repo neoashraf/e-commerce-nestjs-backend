@@ -231,8 +231,13 @@ export class CouponEngineService {
       if (coupon.perCustomerLimit !== null && perCustomerUsed >= coupon.perCustomerLimit) {
         throw new ConflictException({ code: 'PER_CUSTOMER_LIMIT_REACHED' });
       }
-      // First-order-only re-check.
-      if (coupon.firstOrderOnly && (await this.orderHistory.hasPriorCompletedOrder(cmd.identity))) {
+      // First-order-only re-check — excluding the order this redeem belongs to. CART creates the
+      // order BEFORE calling redeem and a COD order is born `confirmed`, so counting it would make
+      // a genuine first order look like a repeat one (FR-PROMO-024, BR-PROMO-9).
+      if (
+        coupon.firstOrderOnly &&
+        (await this.orderHistory.hasPriorCompletedOrder(cmd.identity, cmd.order_id))
+      ) {
         throw new ConflictException({ code: 'COUPON_INVALID', reason: 'first_order_only' });
       }
       void verdict; // verdict reserved for future cart re-eval; cap/time checks are authoritative here.
