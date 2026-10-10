@@ -210,8 +210,4 @@ src/
 
 See [`CLAUDE.md`](./CLAUDE.md) for the complete process and golden rules.
 
-develop by koushik
-
-```
-
-```
+develop by neoashraf
