@@ -1,10 +1,10 @@
-# Sports E-Commerce — Backend (NestJS)
+# Sports E-Commerce - Backend (NestJS)
 
 NestJS + PostgreSQL + TypeORM backend for the Sports E-Commerce platform, built
 with a 4-layer **DDD** structure (one domain per SRS module). See
 [`CLAUDE.md`](./CLAUDE.md) and the workspace skills for the full conventions.
 
-- **Stack:** NestJS 10 · TypeORM 0.3 · PostgreSQL · JWT + SMS OTP · Swagger
+- **Stack:** NestJS 10, TypeORM 0.3, PostgreSQL, JWT + SMS OTP, Swagger
 - **Base URL:** `http://localhost:8000/api/v1`
 - **Swagger docs:** `http://localhost:8000/api/v1/docs`
 - **Health check:** `http://localhost:8000/api/v1/health`
@@ -19,7 +19,7 @@ with a 4-layer **DDD** structure (one domain per SRS module). See
 | npm        | 10.x       |
 | PostgreSQL | 16 / 17    |
 
-> Prefer containers? Skip straight to [§7 Docker](#7-docker) — it brings up
+> Prefer containers? Skip straight to [section 7 (Docker)](#7-docker) - it brings up
 > PostgreSQL, runs migrations, and starts the API with one command.
 
 ---
@@ -79,12 +79,12 @@ Once running:
 
 ## 4. Database migrations
 
-Schema changes are **always** done through TypeORM migrations — `synchronize` is
+Schema changes are **always** done through TypeORM migrations - `synchronize` is
 never enabled. Migrations live in `src/database/migrations/` and use the
 standalone data source in [`src/database/data-source.ts`](./src/database/data-source.ts).
 
 > **Migration timestamp rule:** every migration filename / class epoch must be a
-> real system-clock timestamp (see the `backend-implementation` skill §9).
+> real system-clock timestamp (see the `backend-implementation` skill, section 9).
 
 ```bash
 # Apply all pending migrations (run this after pulling new code)
@@ -105,7 +105,7 @@ npm run migration:create -- src/database/migrations/<Name>
 ## 5. Seed data
 
 Seeds are idempotent (safe to re-run). Run them **in this order** for a complete
-dataset — later seeds depend on earlier ones.
+dataset - later seeds depend on earlier ones.
 
 ```bash
 # 1. Migrations must be applied first
@@ -113,13 +113,13 @@ npm run migration:run
 
 # 2. Core reference data
 npm run seed:rbac                  # permissions, system roles, bootstrap Super Admin
-npm run seed:catalog-attributes    # catalog attributes + options (sku, color, size, …)
+npm run seed:catalog-attributes    # catalog attributes + options (sku, color, size, ...)
 npm run seed:catalog-families      # attribute families (depends on catalog-attributes)
 npm run seed:geo-area              # geo areas / delivery zones
 npm run seed:notifications         # SMS/email notification templates
-npm run seed:cms-pages             # CMS pages (about, policies, …)
+npm run seed:cms-pages             # CMS pages (about, policies, ...)
 
-# 3. Demo / sample data — customers, products, inventory, orders, payments, refunds
+# 3. Demo / sample data - customers, products, inventory, orders, payments, refunds
 #    (depends on: rbac + catalog-attributes + catalog-families)
 npm run seed:demo
 
@@ -131,21 +131,21 @@ npm run seed:inventory
 
 A realistic dataset so an admin can explore the panel and reports end-to-end:
 
-- **2 customers** with addresses — login password for all: `Customer123!`
-- **4 products** (boots, jersey, turf shoes, football) → **10 variants** + inventory
+- **2 customers** with addresses - login password for all: `Customer123!`
+- **4 products** (boots, jersey, turf shoes, football) -> **10 variants** + inventory
 - **6 orders** covering every payment + lifecycle scenario:
 
   | Order       | Method     | Status          | Payment                | Refund  |
   | ----------- | ---------- | --------------- | ---------------------- | ------- |
-  | SO-DEMO-001 | COD        | delivered       | cod_collected          | —       |
-  | SO-DEMO-002 | bKash      | delivered       | paid (coupon discount) | —       |
+  | SO-DEMO-001 | COD        | delivered       | cod_collected          | -       |
+  | SO-DEMO-002 | bKash      | delivered       | paid (coupon discount) | -       |
   | SO-DEMO-003 | SSLCommerz | refunded        | refunded               | full    |
-  | SO-DEMO-004 | bKash      | pending_payment | unpaid                 | —       |
-  | SO-DEMO-005 | COD        | shipped         | cod_pending            | —       |
+  | SO-DEMO-004 | bKash      | pending_payment | unpaid                 | -       |
+  | SO-DEMO-005 | COD        | shipped         | cod_pending            | -       |
   | SO-DEMO-006 | SSLCommerz | delivered       | partially_refunded     | partial |
 
 The bootstrap **admin** login comes from `seed:rbac` (defaults in `.env`):
-`superadmin@sportshop.com.bd` / `ChangeMe-Admin1` — change before any real use.
+`superadmin@sportshop.com.bd` / `ChangeMe-Admin1` - change before any real use.
 
 ---
 
@@ -177,25 +177,25 @@ For hot-reload development inside containers and the full CI/CD details, see
 
 ```
 src/
-├── main.ts            # bootstrap: global prefix /api/v1, Swagger, validation, filters
-├── app.module.ts      # root module — all domain modules registered here
-├── config/            # configuration
-├── database/
-│   ├── data-source.ts # standalone TypeORM data source (migration CLI)
-│   ├── migrations/    # schema migrations (real-timestamp filenames)
-│   └── seeds/         # idempotent seed scripts (see §5)
-├── shared/            # guards, filters, interceptors, decorators, exceptions
-└── domains/           # one folder per SRS module — DDD 4-layer:
-    └── <module>/
-        ├── domain/          # entities, value objects, repo interfaces (no Nest/TypeORM)
-        ├── application/     # use cases / services
-        ├── infrastructure/  # TypeORM entities, repositories, mappers
-        └── presentation/    # controllers, DTOs
+|-- main.ts            # bootstrap: global prefix /api/v1, Swagger, validation, filters
+|-- app.module.ts      # root module - all domain modules registered here
+|-- config/            # configuration
+|-- database/
+|   |-- data-source.ts # standalone TypeORM data source (migration CLI)
+|   |-- migrations/    # schema migrations (real-timestamp filenames)
+|   `-- seeds/         # idempotent seed scripts (see section 5)
+|-- shared/            # guards, filters, interceptors, decorators, exceptions
+`-- domains/           # one folder per SRS module - DDD 4-layer:
+    `-- <module>/
+        |-- domain/          # entities, value objects, repo interfaces (no Nest/TypeORM)
+        |-- application/     # use cases / services
+        |-- infrastructure/  # TypeORM entities, repositories, mappers
+        `-- presentation/    # controllers, DTOs
 ```
 
-**Domains:** `auth` · `rbac` · `catalog` · `inventory` · `cart` · `search` ·
-`content` · `promotions` · `orders` · `payments` · `wishlist` · `leads` ·
-`reports` · `customers` · `dashboard` · `notifications`.
+**Domains:** `auth`, `rbac`, `catalog`, `inventory`, `cart`, `search`,
+`content`, `promotions`, `orders`, `payments`, `wishlist`, `leads`,
+`reports`, `customers`, `dashboard`, `notifications`.
 
 ---
 
@@ -203,15 +203,11 @@ src/
 
 - **Base path** `/api/v1`. **Response envelope:** `{ data }` / `{ data, meta }` /
   `{ error: { code, message, details } }`.
-- **Money** `Decimal(12,2)`, currency `BDT`. **Phones** E.164 `+880…`. **UUID** PKs.
-- TypeScript strict — no `any`, no `console.log` (use `Logger`), no hardcoded secrets.
+- **Money** `Decimal(12,2)`, currency `BDT`. **Phones** E.164 `+880...`. **UUID** PKs.
+- TypeScript strict - no `any`, no `console.log` (use `Logger`), no hardcoded secrets.
 - DDD layering: domain layer has zero Nest/TypeORM imports; controllers hold no
-  business logic; ORM entities ≠ domain entities (mappers in between).
+  business logic; ORM entities != domain entities (mappers in between).
 
 See [`CLAUDE.md`](./CLAUDE.md) for the complete process and golden rules.
 
-develop by koushik
-
-```
-
-```
+develop by neoashraf
